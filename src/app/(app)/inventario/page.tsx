@@ -70,18 +70,16 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             <Card className="p-4">
               <h2 className="mb-3 text-sm font-semibold">Registrar movimiento</h2>
               <ActionForm action={movementAction} resetOnSuccess submitLabel="Registrar">
-                {(e) => (
                   <>
-                    <Field label="SKU" name="sku" required error={e?.sku} />
+                    <Field label="SKU" name="sku" required />
                     <SelectField label="Almacén" name="warehouseId" options={warehouses.map((w) => ({ value: w.id, label: w.name }))} />
                     <SelectField label="Tipo" name="type" options={[
                       { value: "IN", label: "Entrada" }, { value: "OUT", label: "Salida" }, { value: "ADJUST", label: "Ajuste (+/-)" },
                     ]} />
-                    <Field label="Cantidad" name="quantity" inputMode="decimal" required error={e?.quantity} />
-                    <Field label="Motivo / referencia" name="reason" required error={e?.reason} />
-                    <Field label="Stock mínimo (opcional)" name="minStock" inputMode="decimal" error={e?.minStock} />
+                    <Field label="Cantidad" name="quantity" inputMode="decimal" required />
+                    <Field label="Motivo / referencia" name="reason" required />
+                    <Field label="Stock mínimo (opcional)" name="minStock" inputMode="decimal" />
                   </>
-                )}
               </ActionForm>
             </Card>
             <Card className="p-4">

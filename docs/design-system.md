@@ -33,4 +33,5 @@ Filas de tabla 40–44 px, cabecera 36 px, controles 36 px (40 px en pantallas t
 - Páginas solo componen UI; datos y permisos siguen en `service.ts`/`actions.ts`.
 - Iconos solo `lucide-react`, `strokeWidth` 1.75. Sin gradientes, glassmorphism ni emojis.
 - Animaciones: no animar `width/top/box-shadow`; no usar `transform` en ancestros de elementos `position: fixed`.
+- Un Server Component no puede pasar funciones a `ActionForm` (cliente): los errores por campo llegan a `Field`/`SelectField` por `FormErrorsContext`, sin props `error`.
 - Los `name`/`id` de campos y los textos de etiquetas no se cambian (los usan los e2e).

@@ -43,14 +43,12 @@ export default async function UsersPage() {
         <Card className="p-4">
           <h2 className="mb-3 text-sm font-semibold">Nuevo usuario</h2>
           <ActionForm action={createUserAction} resetOnSuccess submitLabel="Crear usuario">
-            {(e) => (
               <>
-                <Field label="Nombre" name="name" required error={e?.name} />
-                <Field label="Correo" name="email" type="email" required error={e?.email} />
+                <Field label="Nombre" name="name" required />
+                <Field label="Correo" name="email" type="email" required />
                 <SelectField label="Rol" name="roleId" options={roleOpts} />
-                <Field label="Contraseña inicial" name="password" type="password" autoComplete="new-password" required minLength={10} error={e?.password} />
+                <Field label="Contraseña inicial" name="password" type="password" autoComplete="new-password" required minLength={10} />
               </>
-            )}
           </ActionForm>
         </Card>
       </div>

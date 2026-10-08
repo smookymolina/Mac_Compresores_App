@@ -1,12 +1,18 @@
+"use client";
+
+import { useContext } from "react";
 import { cn } from "@/lib/utils";
+import { FormErrorsContext } from "./form-context";
 
 function FieldError({ id, error }: { id: string; error?: string[] }) {
   return error ? <p id={id} className="mt-1 text-xs text-danger">{error[0]}</p> : null;
 }
 
 export function Field({
-  label, name, error, hint, className, ...props
+  label, name, error: errorProp, hint, className, ...props
 }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string; error?: string[]; hint?: string }) {
+  const fromForm = useContext(FormErrorsContext)?.[name];
+  const error = errorProp ?? fromForm;
   const errId = `${name}-error`;
   return (
     <div className={className}>
@@ -19,8 +25,10 @@ export function Field({
 }
 
 export function SelectField({
-  label, name, options, error, className, ...props
+  label, name, options, error: errorProp, className, ...props
 }: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; name: string; options: { value: string; label: string }[]; error?: string[] }) {
+  const fromForm = useContext(FormErrorsContext)?.[name];
+  const error = errorProp ?? fromForm;
   const errId = `${name}-error`;
   return (
     <div className={className}>

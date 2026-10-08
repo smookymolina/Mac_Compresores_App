@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useTransition } from "react";
 import type { ActionResult } from "@/lib/errors";
 import { Button, useToast } from "@/components/ui";
+import { FormErrorsContext } from "@/components/ui/form-context";
 import { cn } from "@/lib/utils";
 
 
@@ -11,7 +12,7 @@ export function ActionForm<T>({
   action, children, submitLabel = "Guardar", resetOnSuccess, className, confirmText, variant,
 }: {
   action: (prev: ActionResult<T> | null, fd: FormData) => Promise<ActionResult<T>>;
-  children?: React.ReactNode | ((fieldErrors?: Record<string, string[]>) => React.ReactNode);
+  children?: React.ReactNode;
   submitLabel?: string;
   resetOnSuccess?: boolean;
   className?: string;
@@ -37,7 +38,7 @@ export function ActionForm<T>({
 
   return (
     <form ref={ref} onSubmit={onSubmit} className={cn("space-y-3", className)}>
-      {typeof children === "function" ? children(fieldErrors) : children}
+      <FormErrorsContext.Provider value={fieldErrors}>{children}</FormErrorsContext.Provider>
       {confirmText && (
         <label className="flex items-start gap-2 text-xs text-ink-soft">
           <input type="checkbox" required className="mt-0.5 size-4 shrink-0" /> {confirmText}

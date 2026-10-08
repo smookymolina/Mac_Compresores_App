@@ -38,3 +38,17 @@ sesión posterior basta habilitarlos desde la tarjeta / el marketplace; no se re
 | `scripts/screenshots.mjs` | Capturas Playwright a 375 / 768 / 1440 px de login, dashboard, listas, formularios y drawer + comprobación de scroll horizontal |
 | Chromium preinstalado (`CHROMIUM_PATH=/opt/pw-browsers/chromium`) | Motor de las capturas |
 | `lucide-react` (ya instalado) | Única familia de iconos, `strokeWidth` 1.75 |
+
+## Segunda pasada (2026-10-08)
+
+El usuario habilitó los 4 plugins en su cuenta, pero en la sesión de trabajo `ListPlugins` siguió vacío y las skills
+no aparecieron en la lista de skills invocables; **no se pudieron invocar**. Se aplicaron manualmente los mismos criterios
+(anti-slop, formularios, estados vacíos, movimiento reducido, WCAG) y se documenta aquí lo hecho:
+
+| Criterio (skill equivalente) | Qué se hizo |
+|---|---|
+| A11y Enforcer / audit-as-a11y-eng | Contraste WCAG calculado para 14 pares de tokens en claro y oscuro: todos ≥ 4.5:1 (mín. 4.64:1). Foco visible global, `aria-sort`, `aria-current`, `aria-describedby` en errores, `<dialog>` modal |
+| VectorLab forms / errors | Corregido fallo de render en formularios: errores por campo vía `FormErrorsContext` (ver `docs/design-system.md`) |
+| VectorLab motion / reduced-motion | Entrada solo con `opacity`; `prefers-reduced-motion` global |
+
+Para re-ejecutarla con las skills reales: habilitar los plugins, abrir una sesión **nueva** y comprobar con `ListPlugins`.

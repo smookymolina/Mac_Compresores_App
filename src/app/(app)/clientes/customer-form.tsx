@@ -11,15 +11,14 @@ export function CustomerForm({
 }) {
   return (
     <ActionForm action={saveCustomerAction.bind(null, customer?.id)}>
-      {(e) => (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field className="sm:col-span-2" label="Razón social" name="legalName" defaultValue={customer?.legalName} required error={e?.legalName} />
-            <Field label="RFC" name="rfc" defaultValue={customer?.rfc ?? ""} error={e?.rfc} />
-            <Field label="Condiciones de pago (días)" name="paymentTermsDays" type="number" min={0} defaultValue={customer?.paymentTermsDays ?? 0} error={e?.paymentTermsDays} />
-            <Field label="Correo" name="email" type="email" defaultValue={customer?.email ?? ""} error={e?.email} />
+            <Field className="sm:col-span-2" label="Razón social" name="legalName" defaultValue={customer?.legalName} required />
+            <Field label="RFC" name="rfc" defaultValue={customer?.rfc ?? ""} />
+            <Field label="Condiciones de pago (días)" name="paymentTermsDays" type="number" min={0} defaultValue={customer?.paymentTermsDays ?? 0} />
+            <Field label="Correo" name="email" type="email" defaultValue={customer?.email ?? ""} />
             <Field label="Teléfono" name="phone" defaultValue={customer?.phone ?? ""} />
-            <Field label="Límite de crédito" name="creditLimit" inputMode="decimal" defaultValue={customer?.creditLimit?.toString() ?? ""} error={e?.creditLimit} />
+            <Field label="Límite de crédito" name="creditLimit" inputMode="decimal" defaultValue={customer?.creditLimit?.toString() ?? ""} />
             {sellers && (
               <SelectField label="Vendedor asignado" name="ownerId" defaultValue={customer?.ownerId ?? ""}
                 options={[{ value: "", label: "Sin asignar" }, ...sellers.map((s) => ({ value: s.id, label: s.name }))]} />
@@ -41,7 +40,6 @@ export function CustomerForm({
             </div>
           )}
         </>
-      )}
     </ActionForm>
   );
 }
