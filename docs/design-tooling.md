@@ -7,6 +7,13 @@ Registro de la fase 0: plugins y skills buscados en el marketplace de la cuenta 
 (docs, pdf, xlsx, pptx, canvas-design, web-artifacts-builder, etc.); ninguna de diseño de interfaces ni a11y.
 **Búsquedas** (5 grupos × plugins y skills): las de skills no devolvieron resultados; todo lo relevante está en plugins.
 
+## Verificación de la fase 0 del segundo pase de rediseño (2026-10-08)
+
+`ListPlugins` → `{"results":[]}` (ningún plugin habilitado). `ListSkills` → solo skills genéricas de
+documentos y navegador; ninguna de `frontend-design`, `VectorLab UI/UX Skills`, `audit-suite` ni `A11y Enforcer`.
+**Resultado: las 4 herramientas requeridas siguen inactivas; el segundo pase se detuvo en la fase 0** a la espera
+de que se habiliten desde el marketplace de la cuenta.
+
 ## Selección (4 de máx. 5)
 
 | Nombre | Origen | Uso previsto en el rediseño | Estado |
