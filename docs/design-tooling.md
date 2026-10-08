@@ -66,3 +66,15 @@ no aparecieron en la lista de skills invocables; **no se pudieron invocar**. Se 
 | VectorLab motion / reduced-motion | Entrada solo con `opacity`; `prefers-reduced-motion` global |
 
 Para re-ejecutarla con las skills reales: habilitar los plugins, abrir una sesión **nueva** y comprobar con `ListPlugins`.
+
+## Fase 0 del tercer pase (2026-10-08, Claude Code local en Windows): **superada**
+
+`ListPlugins`/`ListSkills` no existen en esta sesión; se verificó con la lista de skills invocables y la caché
+`~/.claude/plugins/cache`. Los 4 plugins se instalaron con `/plugin` y están activos.
+
+| Plugin | Versión | Skills/comandos disponibles | Fase |
+|---|---|---|---|
+| `frontend-design` | sin versión (commit `65ba16f3`) | `frontend-design` | 2, 3 |
+| `VectorLab UI/UX Skills` | 1.0.0 | `ux-audit`, `anti-slop`, `viewports`, `colour-palette`, `typography`, `spacing`, `surfaces`, `empty-states`, `errors`, `forms`, `loaders`, `icon-buttons`, `labels`, `page-patterns`, `keyboard`, `verbs`, `defaults`, `motion`, `transitions`, `reduced-motion` | 1–5 |
+| `audit-suite` | 1.1.0 | `audit-as-design-eng`, `audit-as-ux-eng`, `audit-as-frontend-eng`, `audit-as-a11y-eng`, `audit-as-perf-eng`, `web-design-guidelines`, `make-interfaces-feel-better`, `vercel-react-best-practices`, `emil-design-engineering` | 1–6 |
+| `A11y Enforcer` | 1.0.0 | `a11y-check`, `contrast`, `a11y-enforcer` | 5 |
