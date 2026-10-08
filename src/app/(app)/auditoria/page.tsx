@@ -1,9 +1,18 @@
+import { ShieldCheck } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { Card, EmptyState, PageHeader, TableWrap } from "@/components/ui";
+import { Card, DataTable, EmptyState, PageHeader, type DataColumn } from "@/components/ui";
 import { fmtDateTime, sp } from "@/lib/utils";
 
 export const metadata = { title: "Auditoría" };
+
+const COLUMNS: DataColumn[] = [
+  { id: "date", header: "Fecha", sortable: true, cellClass: "whitespace-nowrap" },
+  { id: "user", header: "Usuario", sortable: true },
+  { id: "action", header: "Acción", sortable: true },
+  { id: "entity", header: "Entidad", sortable: true },
+  { id: "data", header: "Detalle" },
+];
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ entity?: string; action?: string }> }) {
   await requirePagePermission("audit.read");
@@ -21,32 +30,27 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <PageHeader title="Auditoría" subtitle="Últimos 200 eventos." />
-      <Card>
-        <form className="flex flex-wrap gap-2 border-b border-line p-3">
-          <input name="entity" defaultValue={p.entity} placeholder="Entidad (Quote, Sale…)" className="input max-w-48" />
-          <input name="action" defaultValue={p.action} placeholder="Acción (quote., sale.…)" className="input max-w-48" />
-          <button className="rounded-md border border-line bg-white px-3 text-sm hover:bg-slate-50">Filtrar</button>
+      <Card className="overflow-hidden">
+        <form className="toolbar">
+          <input name="entity" defaultValue={p.entity} placeholder="Entidad (Quote, Sale…)" aria-label="Entidad" className="input" />
+          <input name="action" defaultValue={p.action} placeholder="Acción (quote., sale.…)" aria-label="Acción" className="input" />
+          <button className="btn btn-secondary">Filtrar</button>
         </form>
-        {rows.length === 0 ? (
-          <EmptyState title="Sin eventos" />
-        ) : (
-          <TableWrap>
-            <table className="table">
-              <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Detalle</th></tr></thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <td className="whitespace-nowrap">{fmtDateTime(r.createdAt)}</td>
-                    <td>{r.user?.name ?? "—"}</td>
-                    <td><code className="text-xs">{r.action}</code></td>
-                    <td className="text-xs">{r.entity} {r.entityId?.slice(0, 8)}</td>
-                    <td className="max-w-md truncate text-xs text-ink-soft">{r.data ? JSON.stringify(r.data) : ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-        )}
+        <DataTable
+          caption="Eventos de auditoría"
+          columns={COLUMNS}
+          empty={<EmptyState icon={ShieldCheck} title="Sin eventos" />}
+          rows={rows.map((r) => ({
+            id: r.id,
+            cells: [
+              fmtDateTime(r.createdAt), r.user?.name ?? "—",
+              <code key="a" className="mono">{r.action}</code>,
+              <span key="e" className="text-xs">{r.entity} <span className="mono text-muted">{r.entityId?.slice(0, 8)}</span></span>,
+              <span key="d" className="block max-w-md truncate text-xs text-ink-soft">{r.data ? JSON.stringify(r.data) : ""}</span>,
+            ],
+            sort: [r.createdAt.getTime(), r.user?.name ?? null, r.action, r.entity, null],
+          }))}
+        />
       </Card>
     </>
   );

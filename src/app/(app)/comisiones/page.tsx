@@ -36,7 +36,7 @@ export default async function CommissionsPage() {
               <tbody>
                 {periods.map((p) => (
                   <tr key={p.id}>
-                    <td><Link className="text-brand hover:underline" href={`/comisiones/${p.id}`}>{p.name}</Link></td>
+                    <td><Link className="font-medium text-accent-fg hover:underline" href={`/comisiones/${p.id}`}>{p.name}</Link></td>
                     <td>{fmtDate(p.startDate)}</td>
                     <td>{fmtDate(p.endDate)}</td>
                     <td>{p.status === "OPEN" ? <Badge tone="blue">Abierto</Badge> : <Badge>Cerrado</Badge>}</td>
@@ -77,8 +77,8 @@ export default async function CommissionsPage() {
                     return (
                       <tr key={l}>
                         <td>{LINE_LABEL[l]}</td>
-                        <td className="num"><span className="rounded bg-green-100 px-2 py-0.5 text-ok">{r ? fmtPct(r.rateMet) : "—"}</span></td>
-                        <td className="num"><span className="rounded bg-red-100 px-2 py-0.5 text-danger">{r ? fmtPct(r.rateNotMet) : "—"}</span></td>
+                        <td className="num"><span className="rounded bg-ok-soft px-2 py-0.5 text-ok">{r ? fmtPct(r.rateMet) : "—"}</span></td>
+                        <td className="num"><span className="rounded bg-danger-soft px-2 py-0.5 text-danger">{r ? fmtPct(r.rateNotMet) : "—"}</span></td>
                       </tr>
                     );
                   })}

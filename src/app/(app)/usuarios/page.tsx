@@ -18,7 +18,7 @@ export default async function UsersPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader title="Usuarios" />
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-line">
             {users.map((u) => (
               <li key={u.id} className="p-4">
                 <details>

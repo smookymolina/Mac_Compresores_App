@@ -28,7 +28,7 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
       />
       <div className="mb-4 flex items-center gap-3 text-sm">
         {s.status === "CONFIRMED" ? <Badge tone="green">Confirmada</Badge> : <Badge tone="red">Cancelada</Badge>}
-        <Link className="text-brand hover:underline" href={`/cotizaciones/${s.quote.id}`}>Cotización C-{s.quote.folio}</Link>
+        <Link className="font-medium text-accent-fg hover:underline" href={`/cotizaciones/${s.quote.id}`}>Cotización C-{s.quote.folio}</Link>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">

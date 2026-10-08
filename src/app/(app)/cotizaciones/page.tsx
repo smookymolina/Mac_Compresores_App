@@ -1,55 +1,60 @@
 import Link from "next/link";
+import { FileText } from "lucide-react";
 import type { QuoteStatus } from "@prisma/client";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { listQuotes } from "@/modules/quotes/service";
 import { QUOTE_STATUS_LABEL } from "@/modules/quotes/status";
-import { Card, EmptyState, LinkButton, PageHeader, TableWrap } from "@/components/ui";
+import { Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn } from "@/components/ui";
 import { QuoteStatusBadge } from "./status-badge";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate, sp } from "@/lib/utils";
 
 export const metadata = { title: "Cotizaciones" };
 
+const COLUMNS: DataColumn[] = [
+  { id: "folio", header: "Folio", sortable: true, cellClass: "whitespace-nowrap" },
+  { id: "customer", header: "Cliente", sortable: true },
+  { id: "seller", header: "Vendedor", sortable: true },
+  { id: "date", header: "Fecha", sortable: true, cellClass: "whitespace-nowrap" },
+  { id: "valid", header: "Vigencia", sortable: true, cellClass: "whitespace-nowrap" },
+  { id: "status", header: "Estado", sortable: true },
+  { id: "total", header: "Total", align: "right", sortable: true },
+];
+
 export default async function QuotesPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string }> }) {
   const user = await requirePagePermission("quotes.read_all", "quotes.read_own");
   const p = await searchParams;
   const status = p.status && p.status in QUOTE_STATUS_LABEL ? (p.status as QuoteStatus) : undefined;
   const rows = await listQuotes(user, { status, search: sp(p.q) });
+  const canWrite = can(user, "quotes.write");
 
   return (
     <>
-      <PageHeader title="Cotizaciones" actions={can(user, "quotes.write") && <LinkButton href="/cotizaciones/nueva">Nueva cotización</LinkButton>} />
-      <Card>
-        <form className="flex flex-wrap gap-2 border-b border-line p-3">
-          <input name="q" defaultValue={p.q} placeholder="Folio o cliente" className="input max-w-xs" />
-          <select name="status" defaultValue={status ?? ""} className="input max-w-48">
+      <PageHeader title="Cotizaciones" actions={canWrite && <LinkButton href="/cotizaciones/nueva">Nueva cotización</LinkButton>} />
+      <Card className="overflow-hidden">
+        <form className="toolbar">
+          <input name="q" defaultValue={p.q} placeholder="Folio o cliente" aria-label="Buscar por folio o cliente" className="input" />
+          <select name="status" defaultValue={status ?? ""} aria-label="Estado" className="input">
             <option value="">Todos los estados</option>
             {Object.entries(QUOTE_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-          <button className="rounded-md border border-line bg-white px-3 text-sm hover:bg-slate-50">Filtrar</button>
+          <button className="btn btn-secondary">Filtrar</button>
         </form>
-        {rows.length === 0 ? (
-          <EmptyState title="Sin cotizaciones" />
-        ) : (
-          <TableWrap>
-            <table className="table">
-              <thead><tr><th>Folio</th><th>Cliente</th><th>Vendedor</th><th>Fecha</th><th>Vigencia</th><th>Estado</th><th className="num">Total</th></tr></thead>
-              <tbody>
-                {rows.map((q) => (
-                  <tr key={q.id}>
-                    <td><Link className="text-brand hover:underline" href={`/cotizaciones/${q.id}`}>C-{q.folio}</Link></td>
-                    <td>{q.customer.legalName}</td>
-                    <td>{q.seller.name}</td>
-                    <td>{fmtDate(q.createdAt)}</td>
-                    <td>{fmtDate(q.validUntil)}</td>
-                    <td><QuoteStatusBadge status={q.status} /></td>
-                    <td className="num">{fmtMoney(q.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-        )}
+        <DataTable
+          caption="Cotizaciones"
+          columns={COLUMNS}
+          empty={<EmptyState icon={FileText} title="Sin cotizaciones" action={canWrite && <LinkButton href="/cotizaciones/nueva" variant="secondary">Nueva cotización</LinkButton>} />}
+          rows={rows.map((q) => ({
+            id: q.id,
+            cells: [
+              <Link key="f" className="font-medium text-accent-fg hover:underline" href={`/cotizaciones/${q.id}`}>C-{q.folio}</Link>,
+              q.customer.legalName, q.seller.name, fmtDate(q.createdAt), fmtDate(q.validUntil),
+              <QuoteStatusBadge key="s" status={q.status} />, fmtMoney(q.total),
+            ],
+            // Valores comparables solo para ordenar en pantalla.
+            sort: [q.folio, q.customer.legalName, q.seller.name, q.createdAt.getTime(), q.validUntil.getTime(), QUOTE_STATUS_LABEL[q.status], q.total.toNumber()],
+          }))}
+        />
       </Card>
     </>
   );

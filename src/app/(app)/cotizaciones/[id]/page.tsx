@@ -8,7 +8,7 @@ import { getQuote } from "@/modules/quotes/service";
 import { QUOTE_STATUS_LABEL, QUOTE_TRANSITIONS } from "@/modules/quotes/status";
 import { changeQuoteStatusAction, convertToSaleAction } from "@/modules/quotes/actions";
 import { ActionForm } from "@/components/action-form";
-import { Card, CardHeader, LinkButton, PageHeader, SelectField, TableWrap } from "@/components/ui";
+import { Card, CardHeader, LinkButton, PageHeader, SelectField, TableWrap, btnClass } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 import { QuoteStatusBadge } from "../status-badge";
@@ -32,13 +32,13 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         subtitle={`${q.customer.legalName} · ${q.seller.name} · vigente hasta ${fmtDate(q.validUntil)}`}
         actions={
           <>
-            <a className="inline-flex items-center rounded-md border border-line bg-white px-3 py-2 text-sm hover:bg-slate-50" href={`/api/cotizaciones/${q.id}/pdf`} target="_blank" rel="noopener">PDF</a>
+            <a className={btnClass("secondary")} href={`/api/cotizaciones/${q.id}/pdf`} target="_blank" rel="noopener">PDF</a>
             {writable && q.status === "DRAFT" && <LinkButton href={`/cotizaciones/${q.id}/editar`}>Editar</LinkButton>}
           </>
         }
       />
       <div className="mb-4 flex items-center gap-2"><QuoteStatusBadge status={q.status} />
-        {q.sale && <Link className="text-sm text-brand hover:underline" href={`/ventas/${q.sale.id}`}>Venta V-{q.sale.folio}</Link>}
+        {q.sale && <Link className="text-sm font-medium text-accent-fg hover:underline" href={`/ventas/${q.sale.id}`}>Venta V-{q.sale.folio}</Link>}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

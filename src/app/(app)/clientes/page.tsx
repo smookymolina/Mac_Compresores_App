@@ -1,50 +1,48 @@
 import Link from "next/link";
+import { Users } from "lucide-react";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { listCustomers } from "@/modules/customers/service";
-import { Card, EmptyState, LinkButton, PageHeader, TableWrap } from "@/components/ui";
+import { Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn } from "@/components/ui";
 import { sp } from "@/lib/utils";
 
 export const metadata = { title: "Clientes" };
+
+const COLUMNS: DataColumn[] = [
+  { id: "name", header: "Razón social", sortable: true },
+  { id: "rfc", header: "RFC", sortable: true, cellClass: "mono" },
+  { id: "owner", header: "Vendedor", sortable: true },
+  { id: "terms", header: "Crédito (días)", align: "right", sortable: true },
+  { id: "quotes", header: "Cotizaciones", align: "right", sortable: true },
+  { id: "sales", header: "Ventas", align: "right", sortable: true },
+];
 
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const user = await requirePagePermission("customers.read");
   const { q } = await searchParams;
   const rows = await listCustomers(user, sp(q));
+  const canWrite = can(user, "customers.write");
 
   return (
     <>
-      <PageHeader
-        title="Clientes"
-        actions={can(user, "customers.write") && <LinkButton href="/clientes/nuevo">Nuevo cliente</LinkButton>}
-      />
-      <Card>
-        <form className="flex gap-2 border-b border-line p-3">
-          <input name="q" defaultValue={q} placeholder="Razón social o RFC" className="input max-w-xs" />
-          <button className="rounded-md border border-line bg-white px-3 text-sm hover:bg-slate-50">Buscar</button>
+      <PageHeader title="Clientes" actions={canWrite && <LinkButton href="/clientes/nuevo">Nuevo cliente</LinkButton>} />
+      <Card className="overflow-hidden">
+        <form className="toolbar">
+          <input name="q" defaultValue={q} placeholder="Razón social o RFC" aria-label="Buscar por razón social o RFC" className="input" />
+          <button className="btn btn-secondary">Buscar</button>
         </form>
-        {rows.length === 0 ? (
-          <EmptyState title="Sin clientes" />
-        ) : (
-          <TableWrap>
-            <table className="table">
-              <thead>
-                <tr><th>Razón social</th><th>RFC</th><th>Vendedor</th><th className="num">Crédito (días)</th><th className="num">Cotizaciones</th><th className="num">Ventas</th></tr>
-              </thead>
-              <tbody>
-                {rows.map((c) => (
-                  <tr key={c.id}>
-                    <td><Link className="text-brand hover:underline" href={`/clientes/${c.id}`}>{c.legalName}</Link></td>
-                    <td>{c.rfc ?? "—"}</td>
-                    <td>{c.owner?.name ?? "Sin asignar"}</td>
-                    <td className="num">{c.paymentTermsDays}</td>
-                    <td className="num">{c._count.quotes}</td>
-                    <td className="num">{c._count.sales}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-        )}
+        <DataTable
+          caption="Clientes"
+          columns={COLUMNS}
+          empty={<EmptyState icon={Users} title="Sin clientes" action={canWrite && <LinkButton href="/clientes/nuevo" variant="secondary">Nuevo cliente</LinkButton>} />}
+          rows={rows.map((c) => ({
+            id: c.id,
+            cells: [
+              <Link key="n" className="font-medium text-accent-fg hover:underline" href={`/clientes/${c.id}`}>{c.legalName}</Link>,
+              c.rfc ?? "—", c.owner?.name ?? "Sin asignar", c.paymentTermsDays, c._count.quotes, c._count.sales,
+            ],
+            sort: [c.legalName, c.rfc, c.owner?.name ?? "", c.paymentTermsDays, c._count.quotes, c._count.sales],
+          }))}
+        />
       </Card>
     </>
   );

@@ -41,7 +41,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         <div className="space-y-4">
           <Card>
             <CardHeader title="Existencias" />
-            <ul className="divide-y divide-slate-100 text-sm">
+            <ul className="divide-y divide-line text-sm">
               {product.balances.length === 0 && <li className="px-4 py-3 text-ink-soft">Sin existencias registradas.</li>}
               {product.balances.map((b) => (
                 <li key={b.warehouseId} className="flex justify-between px-4 py-2">

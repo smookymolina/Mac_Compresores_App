@@ -42,7 +42,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                 <tbody>
                   {c.quotes.map((q) => (
                     <tr key={q.id}>
-                      <td><Link className="text-brand hover:underline" href={`/cotizaciones/${q.id}`}>C-{q.folio}</Link></td>
+                      <td><Link className="font-medium text-accent-fg hover:underline" href={`/cotizaciones/${q.id}`}>C-{q.folio}</Link></td>
                       <td>{fmtDate(q.createdAt)}</td>
                       <td>{QUOTE_STATUS_LABEL[q.status]}</td>
                       <td className="num">{fmtMoney(q.total)}</td>
@@ -60,7 +60,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                 <tbody>
                   {c.sales.map((s) => (
                     <tr key={s.id}>
-                      <td><Link className="text-brand hover:underline" href={`/ventas/${s.id}`}>V-{s.folio}</Link></td>
+                      <td><Link className="font-medium text-accent-fg hover:underline" href={`/ventas/${s.id}`}>V-{s.folio}</Link></td>
                       <td>{fmtDate(s.confirmedAt)}</td>
                       <td>{s.status === "CONFIRMED" ? "Confirmada" : "Cancelada"}</td>
                       <td className="num">{fmtMoney(s.total)}</td>
@@ -74,7 +74,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         <div className="space-y-4">
           <Card>
             <CardHeader title="Contactos" />
-            <ul className="divide-y divide-slate-100 text-sm">
+            <ul className="divide-y divide-line text-sm">
               {c.contacts.map((ct) => (
                 <li key={ct.id} className="px-4 py-2">
                   <p className="font-medium">{ct.name}</p>
@@ -95,7 +95,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           </Card>
           <Card>
             <CardHeader title="Direcciones" />
-            <ul className="divide-y divide-slate-100 text-sm">
+            <ul className="divide-y divide-line text-sm">
               {c.addresses.map((a) => (
                 <li key={a.id} className="px-4 py-2">{[a.street, a.city, a.state, a.zip].filter(Boolean).join(", ")}</li>
               ))}

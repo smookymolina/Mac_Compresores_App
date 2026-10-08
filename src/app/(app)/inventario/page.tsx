@@ -3,10 +3,20 @@ import { db } from "@/lib/db";
 import { listBalances, listMovements } from "@/modules/inventory/service";
 import { createWarehouseAction, movementAction, reverseMovementAction } from "@/modules/inventory/actions";
 import { ActionForm } from "@/components/action-form";
-import { Badge, Card, CardHeader, EmptyState, Field, PageHeader, SelectField, TableWrap } from "@/components/ui";
+import { Boxes } from "lucide-react";
+import { Badge, Card, CardHeader, DataTable, EmptyState, Field, PageHeader, SelectField, TableWrap, type DataColumn } from "@/components/ui";
 import { fmtDateTime, sp } from "@/lib/utils";
 
 export const metadata = { title: "Inventario" };
+
+const BALANCE_COLUMNS: DataColumn[] = [
+  { id: "sku", header: "SKU", sortable: true, cellClass: "mono whitespace-nowrap" },
+  { id: "description", header: "Descripción", sortable: true },
+  { id: "warehouse", header: "Almacén", sortable: true },
+  { id: "qty", header: "Existencia", align: "right", sortable: true },
+  { id: "min", header: "Mínimo", align: "right", sortable: true },
+  { id: "low", header: "Estado", sortable: true },
+];
 
 const TYPE_LABEL = { IN: "Entrada", OUT: "Salida", ADJUST: "Ajuste", SALE_OUT: "Salida por venta", REVERSAL: "Reversa" } as const;
 
@@ -25,41 +35,34 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     <>
       <PageHeader title="Inventario" subtitle="Movimientos inmutables; las correcciones se registran como reversas auditadas." />
       <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
+        <Card className="overflow-hidden xl:col-span-2">
           <CardHeader title="Existencias" />
-          <form className="flex flex-wrap gap-2 border-b border-line p-3">
-            <input name="q" defaultValue={p.q} placeholder="SKU o descripción" className="input max-w-xs" />
-            <select name="wh" defaultValue={p.wh ?? ""} className="input max-w-48">
+          <form className="toolbar">
+            <input name="q" defaultValue={p.q} placeholder="SKU o descripción" aria-label="Buscar por SKU o descripción" className="input" />
+            <select name="wh" aria-label="Almacén" defaultValue={p.wh ?? ""} className="input">
               <option value="">Todos los almacenes</option>
               {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
-            <label className="flex items-center gap-1 text-sm"><input type="checkbox" name="low" value="1" defaultChecked={p.low === "1"} /> Solo bajo mínimo</label>
-            <button className="rounded-md border border-line bg-white px-3 text-sm hover:bg-slate-50">Filtrar</button>
+            <label className="flex items-center gap-2 text-sm text-ink-soft"><input type="checkbox" name="low" value="1" defaultChecked={p.low === "1"} /> Solo bajo mínimo</label>
+            <button className="btn btn-secondary">Filtrar</button>
           </form>
-          {balances.length === 0 ? (
-            <EmptyState title="Sin existencias registradas" />
-          ) : (
-            <TableWrap>
-              <table className="table">
-                <thead><tr><th>SKU</th><th>Descripción</th><th>Almacén</th><th className="num">Existencia</th><th className="num">Mínimo</th><th /></tr></thead>
-                <tbody>
-                  {balances.map((b) => {
-                    const low = b.minStock.gt(0) && b.quantity.lte(b.minStock);
-                    return (
-                      <tr key={`${b.productId}-${b.warehouseId}`}>
-                        <td>{b.product.sku}</td>
-                        <td>{b.product.description}</td>
-                        <td>{b.warehouse.code}</td>
-                        <td className="num">{b.quantity.toString()} {b.product.unit}</td>
-                        <td className="num">{b.minStock.toString()}</td>
-                        <td>{low && <Badge tone="red">Bajo mínimo</Badge>}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </TableWrap>
-          )}
+          <DataTable
+            caption="Existencias"
+            columns={BALANCE_COLUMNS}
+            empty={<EmptyState icon={Boxes} title="Sin existencias registradas" />}
+            rows={balances.map((b) => {
+              const low = b.minStock.gt(0) && b.quantity.lte(b.minStock);
+              return {
+                id: `${b.productId}-${b.warehouseId}`,
+                cells: [
+                  b.product.sku, b.product.description, b.warehouse.code,
+                  `${b.quantity.toString()} ${b.product.unit}`, b.minStock.toString(),
+                  low ? <Badge key="l" tone="red">Bajo mínimo</Badge> : null,
+                ],
+                sort: [b.product.sku, b.product.description, b.warehouse.code, b.quantity.toNumber(), b.minStock.toNumber(), low ? 1 : 0],
+              };
+            })}
+          />
         </Card>
 
         {writable && (
@@ -92,7 +95,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         )}
       </div>
 
-      <Card className="mt-4">
+      <Card className="mt-4 overflow-hidden">
         <CardHeader title="Últimos movimientos (trazabilidad)" />
         <TableWrap>
           <table className="table">
@@ -101,7 +104,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               {movements.map((m) => (
                 <tr key={m.id}>
                   <td className="whitespace-nowrap">{fmtDateTime(m.createdAt)}</td>
-                  <td>{m.product.sku}</td>
+                  <td className="mono">{m.product.sku}</td>
                   <td>{m.warehouse.code}</td>
                   <td>{TYPE_LABEL[m.type]}</td>
                   <td className="num">{m.quantity.toString()}</td>

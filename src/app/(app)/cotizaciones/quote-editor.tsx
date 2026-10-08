@@ -95,7 +95,7 @@ export function QuoteEditor({
         <label className="label" htmlFor="search">Agregar producto o servicio</label>
         <input id="search" className="input" value={term} onChange={(e) => search(e.target.value)} placeholder="Busca por SKU, descripción o no. de parte (mín. 2 caracteres)" autoComplete="off" />
         {(found.length > 0 || searching) && (
-          <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-line bg-white shadow-lg">
+          <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-line bg-panel shadow-lg">
             {searching && <li className="px-3 py-2 text-sm text-ink-soft">Buscando…</li>}
             {found.map((p) => (
               <li key={p.id}>
