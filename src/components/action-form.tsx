@@ -1,0 +1,55 @@
+"use client";
+
+import { useActionState, useEffect, useRef, useTransition } from "react";
+import type { ActionResult } from "@/lib/errors";
+import { Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
+
+
+/** Formulario ligado a una server action; muestra errores y resetea en éxito si se pide. */
+export function ActionForm<T>({
+  action, children, submitLabel = "Guardar", resetOnSuccess, className, confirmText, variant,
+}: {
+  action: (prev: ActionResult<T> | null, fd: FormData) => Promise<ActionResult<T>>;
+  children?: React.ReactNode | ((fieldErrors?: Record<string, string[]>) => React.ReactNode);
+  submitLabel?: string;
+  resetOnSuccess?: boolean;
+  className?: string;
+  confirmText?: string;
+  variant?: "primary" | "secondary" | "danger";
+}) {
+  const [state, formAction, pending] = useActionState<ActionResult<T> | null, FormData>(action, null);
+  const [, startTransition] = useTransition();
+  const ref = useRef<HTMLFormElement>(null);
+  // Envío manual: evita el reseteo automático de React 19 que borraría lo capturado si hay error.
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    startTransition(() => formAction(fd));
+  };
+  useEffect(() => {
+    if (state?.ok && resetOnSuccess) ref.current?.reset();
+  }, [state, resetOnSuccess]);
+  const fieldErrors = state && !state.ok ? state.fieldErrors : undefined;
+
+  return (
+    <form ref={ref} onSubmit={onSubmit} className={cn("space-y-3", className)}>
+      {typeof children === "function" ? children(fieldErrors) : children}
+      {confirmText && (
+        <label className="flex items-start gap-2 text-xs text-ink-soft">
+          <input type="checkbox" required className="mt-0.5 size-4 shrink-0" /> {confirmText}
+        </label>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={pending} variant={variant}>
+          {pending ? "Procesando…" : submitLabel}
+        </Button>
+        {state && (
+          <p role="status" className={cn("text-sm", state.ok ? "text-ok" : "text-danger")}>
+            {state.ok ? (state.message ?? "Guardado.") : state.error}
+          </p>
+        )}
+      </div>
+    </form>
+  );
+}

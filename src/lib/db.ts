@@ -1,0 +1,9 @@
+import { PrismaClient } from "@prisma/client";
+
+const g = globalThis as unknown as { prisma?: PrismaClient };
+
+export const db = g.prisma ?? new PrismaClient({ log: ["error"] });
+
+if (process.env.NODE_ENV !== "production") g.prisma = db;
+
+export type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];

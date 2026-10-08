@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* Identidad tomada de maccompresores.com.mx: azul #046bd2 / #045cb4, pizarra #1e293b, fondo #F0F5FA, Roboto. */
+@theme inline {
+  --color-brand: #046bd2;
+  --color-brand-dark: #045cb4;
+  --color-ink: #1e293b;
+  --color-ink-soft: #334155;
+  --color-surface: #f0f5fa;
+  --color-line: #d1d5db;
+  --color-ok: #15803d;
+  --color-warn: #b45309;
+  --color-danger: #b91c1c;
+  --font-sans: var(--font-roboto), system-ui, sans-serif;
+}
+
+body {
+  @apply bg-surface text-ink antialiased;
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:bg-slate-100;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium text-ink-soft;
+  }
+  .table {
+    @apply w-full text-sm;
+  }
+  .table th {
+    @apply border-b border-line bg-slate-50 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-soft;
+  }
+  .table td {
+    @apply border-b border-slate-100 px-3 py-2 align-top;
+  }
+  .table tr:hover td {
+    @apply bg-slate-50/60;
+  }
+  .num {
+    @apply text-right tabular-nums;
+  }
+}

@@ -1,0 +1,45 @@
+# Uso: docker compose up -d --build   → http://localhost:3080
+# Requiere .env con SEED_ADMIN_PASSWORD (y opcionalmente POSTGRES_PASSWORD).
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mac}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mac_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-mac_compresores}
+    ports:
+      - "5433:5432" # acceso desde el host para desarrollo/pruebas
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mac} -d ${POSTGRES_DB:-mac_compresores}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: { context: ., target: migrator }
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mac}:${POSTGRES_PASSWORD:-mac_dev_only}@db:5432/${POSTGRES_DB:-mac_compresores}?schema=public
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Define SEED_ADMIN_PASSWORD en .env}
+      SEED_DEMO: ${SEED_DEMO:-1}
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  app:
+    build: { context: ., target: runner }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mac}:${POSTGRES_PASSWORD:-mac_dev_only}@db:5432/${POSTGRES_DB:-mac_compresores}?schema=public
+      # HTTP en red local (pruebas desde móvil). Con HTTPS/proxy en producción: true.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports:
+      - "${APP_PORT:-3080}:3000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+volumes:
+  pgdata:
