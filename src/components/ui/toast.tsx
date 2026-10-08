@@ -38,7 +38,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <div key={t.id} className="page-enter pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-lg border border-line bg-panel p-3 text-sm text-ink shadow-[var(--elev-pop)]">
               <Icon size={18} strokeWidth={1.75} aria-hidden className={cn("mt-px shrink-0", t.tone === "success" ? "text-ok" : "text-danger")} />
               <p className="min-w-0 flex-1">{t.message}</p>
-              <button type="button" aria-label="Cerrar aviso" onClick={() => dismiss(t.id)} className="btn btn-ghost btn-sm -my-1 -mr-1 !min-h-7 !px-1.5">
+              <button type="button" aria-label="Cerrar aviso" onClick={() => dismiss(t.id)} className="btn btn-ghost icon-btn btn-sm -my-1.5 -mr-1.5 !w-8">
                 <X size={14} strokeWidth={1.75} aria-hidden />
               </button>
             </div>

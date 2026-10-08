@@ -5,7 +5,7 @@ export { Card, CardHeader, PageHeader, Stat } from "./card";
 export { Badge } from "./badge";
 export type { Tone } from "./badge";
 export { Field, SelectField } from "./fields";
-export { EmptyState, ErrorState, Skeleton, TableSkeleton, TableWrap } from "./data";
+export { EmptyState, ErrorState, FilteredEmpty, SearchInput, Skeleton, TableSkeleton, TableWrap } from "./data";
 export { DataTable } from "./data-table";
 export type { DataColumn, DataRow } from "./data-table";
 export { Dialog } from "./dialog";

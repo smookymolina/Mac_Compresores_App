@@ -45,7 +45,7 @@ export function ActionForm<T>({
         </label>
       )}
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={pending} variant={variant}>
+        <Button type="submit" disabled={pending} aria-busy={pending || undefined} variant={variant}>
           {pending ? "Procesando…" : submitLabel}
         </Button>
         {state && !state.ok && <p role="status" className="text-sm text-danger">{state.error}</p>}

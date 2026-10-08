@@ -1,4 +1,5 @@
-import { AlertTriangle, Inbox } from "lucide-react";
+import { AlertTriangle, Inbox, Search, SearchX } from "lucide-react";
+import { LinkButton } from "./button";
 import { cn } from "@/lib/utils";
 
 /** Contenedor con scroll controlado: cabecera fija en escritorio y columna fija en móvil (ver .table). */
@@ -21,6 +22,25 @@ export function EmptyState({
       {children && <div className="mt-1 max-w-sm text-sm text-ink-soft">{children}</div>}
       {action && <div className="mt-4">{action}</div>}
     </div>
+  );
+}
+
+/** Vacío por filtros: explica y ofrece volver a la lista completa. */
+export function FilteredEmpty({ clearHref }: { clearHref: string }) {
+  return (
+    <EmptyState icon={SearchX} title="Ningún resultado con estos filtros" action={<LinkButton href={clearHref} variant="secondary">Limpiar filtros</LinkButton>}>
+      Prueba con otros términos o quita los filtros.
+    </EmptyState>
+  );
+}
+
+/** Campo de búsqueda de barra de filtros: lupa funcional + nombre accesible. */
+export function SearchInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <span className="search">
+      <Search size={16} strokeWidth={1.75} aria-hidden />
+      <input type="search" {...props} className="input" />
+    </span>
   );
 }
 

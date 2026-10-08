@@ -1,7 +1,7 @@
 import { ShieldCheck } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { Card, DataTable, EmptyState, PageHeader, type DataColumn } from "@/components/ui";
+import { Card, DataTable, EmptyState, FilteredEmpty, PageHeader, type DataColumn } from "@/components/ui";
 import { fmtDateTime, sp } from "@/lib/utils";
 
 export const metadata = { title: "Auditoría" };
@@ -39,7 +39,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
         <DataTable
           caption="Eventos de auditoría"
           columns={COLUMNS}
-          empty={<EmptyState icon={ShieldCheck} title="Sin eventos" />}
+          empty={p.entity || p.action ? <FilteredEmpty clearHref="/auditoria" /> : <EmptyState icon={ShieldCheck} title="Sin eventos">Cada operación crítica queda registrada aquí.</EmptyState>}
           rows={rows.map((r) => ({
             id: r.id,
             cells: [

@@ -8,7 +8,14 @@ import { addAddressAction, addContactAction } from "@/modules/customers/actions"
 import { listSellers } from "@/modules/users/service";
 import { QUOTE_STATUS_LABEL } from "@/modules/quotes/status";
 import { ActionForm } from "@/components/action-form";
-import { Card, CardHeader, Field, LinkButton, PageHeader, TableWrap } from "@/components/ui";
+import { Card, CardHeader, DataTable, EmptyState, Field, LinkButton, PageHeader, type DataColumn } from "@/components/ui";
+
+const HIST_COLS: DataColumn[] = [
+  { id: "folio", header: "Folio", sortable: true },
+  { id: "fecha", header: "Fecha", sortable: true, cellClass: "whitespace-nowrap" },
+  { id: "estado", header: "Estado", sortable: true },
+  { id: "total", header: "Total", align: "right", sortable: true },
+];
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 import { CustomerForm } from "../customer-form";
@@ -34,41 +41,41 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           {writable && <Card className="p-4"><CustomerForm customer={c} sellers={sellers} /></Card>}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader title="Historial de cotizaciones" />
-            <TableWrap>
-              <table className="table">
-                <thead><tr><th>Folio</th><th>Fecha</th><th>Estado</th><th className="num">Total</th></tr></thead>
-                <tbody>
-                  {c.quotes.map((q) => (
-                    <tr key={q.id}>
-                      <td><Link className="font-medium text-accent-fg hover:underline" href={`/cotizaciones/${q.id}`}>C-{q.folio}</Link></td>
-                      <td>{fmtDate(q.createdAt)}</td>
-                      <td>{QUOTE_STATUS_LABEL[q.status]}</td>
-                      <td className="num">{fmtMoney(q.total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableWrap>
+            <DataTable
+              caption="Historial de cotizaciones"
+              columns={HIST_COLS}
+              rows={c.quotes.map((q) => ({
+                id: q.id,
+                cells: [
+                  <Link key="f" className="font-medium text-accent-fg hover:underline" href={`/cotizaciones/${q.id}`}>C-{q.folio}</Link>,
+                  fmtDate(q.createdAt),
+                  QUOTE_STATUS_LABEL[q.status],
+                  fmtMoney(q.total),
+                ],
+                sort: [q.folio, q.createdAt.getTime(), QUOTE_STATUS_LABEL[q.status], q.total.toNumber()],
+              }))}
+              empty={<EmptyState title="Sin cotizaciones">Las cotizaciones de este cliente aparecerán aquí.</EmptyState>}
+            />
           </Card>
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader title="Historial de ventas" />
-            <TableWrap>
-              <table className="table">
-                <thead><tr><th>Folio</th><th>Fecha</th><th>Estado</th><th className="num">Total</th></tr></thead>
-                <tbody>
-                  {c.sales.map((s) => (
-                    <tr key={s.id}>
-                      <td><Link className="font-medium text-accent-fg hover:underline" href={`/ventas/${s.id}`}>V-{s.folio}</Link></td>
-                      <td>{fmtDate(s.confirmedAt)}</td>
-                      <td>{s.status === "CONFIRMED" ? "Confirmada" : "Cancelada"}</td>
-                      <td className="num">{fmtMoney(s.total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableWrap>
+            <DataTable
+              caption="Historial de ventas"
+              columns={HIST_COLS}
+              rows={c.sales.map((s) => ({
+                id: s.id,
+                cells: [
+                  <Link key="f" className="font-medium text-accent-fg hover:underline" href={`/ventas/${s.id}`}>V-{s.folio}</Link>,
+                  fmtDate(s.confirmedAt),
+                  s.status === "CONFIRMED" ? "Confirmada" : "Cancelada",
+                  fmtMoney(s.total),
+                ],
+                sort: [s.folio, s.confirmedAt.getTime(), s.status, s.total.toNumber()],
+              }))}
+              empty={<EmptyState title="Sin ventas">Las ventas confirmadas de este cliente aparecerán aquí.</EmptyState>}
+            />
           </Card>
         </div>
         <div className="space-y-4">

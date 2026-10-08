@@ -28,7 +28,7 @@ const collator = new Intl.Collator("es", { numeric: true, sensitivity: "base" })
  * de carga / error / vacío. No cambia consultas ni paginación: solo reordena lo recibido.
  */
 export function DataTable({
-  columns, rows, empty, error, loading, caption,
+  columns, rows, empty, error, loading, caption, foot,
 }: {
   columns: DataColumn[];
   rows: DataRow[];
@@ -36,6 +36,8 @@ export function DataTable({
   error?: string;
   loading?: boolean;
   caption?: string;
+  /** Fila de totales (no se ordena); una celda por columna. */
+  foot?: React.ReactNode[];
 }) {
   const [sort, setSort] = useState<{ col: number; dir: "asc" | "desc" } | null>(null);
 
@@ -94,6 +96,15 @@ export function DataTable({
             </tr>
           ))}
         </tbody>
+        {foot && (
+          <tfoot>
+            <tr>
+              {foot.map((cell, i) => (
+                <td key={columns[i].id} className={cn(columns[i].align === "right" && "num")}>{cell}</td>
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
     </TableWrap>
   );

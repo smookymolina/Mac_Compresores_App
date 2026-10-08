@@ -24,7 +24,7 @@ function ThemeToggle() {
     try { localStorage.setItem("theme", next); } catch { /* almacenamiento bloqueado: el tema vale solo para esta carga */ }
   };
   return (
-    <button type="button" aria-label="Cambiar tema claro/oscuro" onClick={toggle} className="btn btn-ghost !px-2">
+    <button type="button" aria-label="Cambiar tema claro/oscuro" data-tip="Cambiar tema" onClick={toggle} className="btn btn-ghost icon-btn">
       <span className="on-light"><Moon size={18} strokeWidth={1.75} aria-hidden /></span>
       <span className="on-dark"><Sun size={18} strokeWidth={1.75} aria-hidden /></span>
     </button>
@@ -124,7 +124,7 @@ export function AppShell({
 
       <div className={cn(collapsed ? "md:pl-16" : "md:pl-16 xl:pl-60")}>
         <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-panel px-4 md:px-6">
-          <button type="button" aria-label="Abrir menú" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)} className="btn btn-ghost -ml-2 !px-2 md:hidden">
+          <button type="button" aria-label="Abrir menú" data-tip="Abrir menú" data-tip-start="" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)} className="btn btn-ghost icon-btn -ml-2 md:hidden">
             <Menu size={20} strokeWidth={1.75} aria-hidden />
           </button>
           <div className="min-w-0 flex-1"><Breadcrumb /></div>

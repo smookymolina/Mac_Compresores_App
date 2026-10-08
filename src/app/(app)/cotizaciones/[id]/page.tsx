@@ -8,7 +8,7 @@ import { getQuote } from "@/modules/quotes/service";
 import { QUOTE_STATUS_LABEL, QUOTE_TRANSITIONS } from "@/modules/quotes/status";
 import { changeQuoteStatusAction, convertToSaleAction } from "@/modules/quotes/actions";
 import { ActionForm } from "@/components/action-form";
-import { Card, CardHeader, LinkButton, PageHeader, SelectField, TableWrap, btnClass } from "@/components/ui";
+import { Card, CardHeader, LinkButton, DataTable, PageHeader, SelectField, btnClass } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 import { QuoteStatusBadge } from "../status-badge";
@@ -42,26 +42,32 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="overflow-hidden lg:col-span-2">
           <CardHeader title="Partidas (precios congelados)" />
-          <TableWrap>
-            <table className="table">
-              <thead><tr><th>#</th><th>Concepto</th><th className="num">Cant.</th><th className="num">P. unit.</th><th className="num">Desc.</th><th className="num">IVA</th><th className="num">Importe</th></tr></thead>
-              <tbody>
-                {q.items.map((i) => (
-                  <tr key={i.id}>
-                    <td>{i.position}</td>
-                    <td><b>{i.sku}</b><div className="text-xs text-ink-soft">{i.description}</div></td>
-                    <td className="num">{i.quantity.toString()} {i.unit}</td>
-                    <td className="num">{fmtMoney(i.unitPrice)}</td>
-                    <td className="num">{i.discountPct.isZero() ? "—" : fmtPct(i.discountPct)}</td>
-                    <td className="num">{fmtPct(i.taxRate)}</td>
-                    <td className="num">{fmtMoney(i.subtotal.sub(i.discount))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
+          <DataTable
+            caption="Partidas de la cotización"
+            columns={[
+              { id: "pos", header: "#", align: "right" },
+              { id: "concepto", header: "Concepto" },
+              { id: "cant", header: "Cant.", align: "right", cellClass: "whitespace-nowrap" },
+              { id: "pu", header: "P. unit.", align: "right" },
+              { id: "desc", header: "Desc.", align: "right" },
+              { id: "iva", header: "IVA", align: "right" },
+              { id: "imp", header: "Importe", align: "right" },
+            ]}
+            rows={q.items.map((i) => ({
+              id: i.id,
+              cells: [
+                i.position,
+                <div key="c"><b>{i.sku}</b><div className="text-xs text-ink-soft">{i.description}</div></div>,
+                `${i.quantity.toString()} ${i.unit}`,
+                fmtMoney(i.unitPrice),
+                i.discountPct.isZero() ? "—" : fmtPct(i.discountPct),
+                fmtPct(i.taxRate),
+                fmtMoney(i.subtotal.sub(i.discount)),
+              ],
+            }))}
+          />
           <dl className="ml-auto grid w-64 grid-cols-2 gap-1 p-4 text-sm">
             <dt className="text-ink-soft">Subtotal</dt><dd className="num">{fmtMoney(q.subtotal)}</dd>
             <dt className="text-ink-soft">Descuento</dt><dd className="num">-{fmtMoney(q.discountTotal)}</dd>

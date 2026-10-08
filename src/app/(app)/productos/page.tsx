@@ -4,7 +4,7 @@ import type { ProductLine, ProductStatus } from "@prisma/client";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { listProducts } from "@/modules/products/service";
 import { LINE_LABEL, LINES } from "@/modules/products/lines";
-import { Badge, Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn } from "@/components/ui";
+import { Badge, Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { sp } from "@/lib/utils";
 
@@ -47,7 +47,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: SP 
       />
       <Card className="overflow-hidden">
         <form className="toolbar">
-          <input name="q" defaultValue={p.q} placeholder="SKU, descripción, no. de parte…" aria-label="Buscar producto" className="input" />
+          <SearchInput name="q" defaultValue={p.q} placeholder="SKU, descripción, no. de parte…" aria-label="Buscar producto" />
           <select name="line" aria-label="Línea" defaultValue={line ?? ""} className="input">
             <option value="">Todas las líneas</option>
             {LINES.map((l) => <option key={l} value={l}>{LINE_LABEL[l]}</option>)}
@@ -62,7 +62,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: SP 
         <DataTable
           caption="Productos"
           columns={columns}
-          empty={<EmptyState icon={Package} title="Sin productos">Ajusta los filtros o importa la lista de precios.</EmptyState>}
+          empty={p.q || p.line || p.status ? <FilteredEmpty clearHref="/productos" /> : <EmptyState icon={Package} title="Sin productos">Da de alta un producto o importa la lista de precios.</EmptyState>}
           rows={items.map((r) => ({
             id: r.id,
             cells: [

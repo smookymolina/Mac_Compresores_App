@@ -4,7 +4,7 @@ import type { QuoteStatus } from "@prisma/client";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { listQuotes } from "@/modules/quotes/service";
 import { QUOTE_STATUS_LABEL } from "@/modules/quotes/status";
-import { Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn } from "@/components/ui";
+import { Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
 import { QuoteStatusBadge } from "./status-badge";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate, sp } from "@/lib/utils";
@@ -33,7 +33,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       <PageHeader title="Cotizaciones" actions={canWrite && <LinkButton href="/cotizaciones/nueva">Nueva cotización</LinkButton>} />
       <Card className="overflow-hidden">
         <form className="toolbar">
-          <input name="q" defaultValue={p.q} placeholder="Folio o cliente" aria-label="Buscar por folio o cliente" className="input" />
+          <SearchInput name="q" defaultValue={p.q} placeholder="Folio o cliente" aria-label="Buscar por folio o cliente" />
           <select name="status" defaultValue={status ?? ""} aria-label="Estado" className="input">
             <option value="">Todos los estados</option>
             {Object.entries(QUOTE_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -43,7 +43,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         <DataTable
           caption="Cotizaciones"
           columns={COLUMNS}
-          empty={<EmptyState icon={FileText} title="Sin cotizaciones" action={canWrite && <LinkButton href="/cotizaciones/nueva" variant="secondary">Nueva cotización</LinkButton>} />}
+          empty={p.q || status ? <FilteredEmpty clearHref="/cotizaciones" /> : <EmptyState icon={FileText} title="Sin cotizaciones" action={canWrite && <LinkButton href="/cotizaciones/nueva" variant="secondary">Nueva cotización</LinkButton>}>Crea una cotización con precios del catálogo y conviértela en venta.</EmptyState>}
           rows={rows.map((q) => ({
             id: q.id,
             cells: [

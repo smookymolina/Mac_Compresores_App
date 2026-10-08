@@ -3,7 +3,7 @@ import { AlertTriangle, Banknote, FileText, Receipt } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { getDashboard } from "@/modules/dashboard/service";
 import { QUOTE_STATUS_LABEL } from "@/modules/quotes/status";
-import { Card, CardHeader, EmptyState, PageHeader, Stat, TableWrap } from "@/components/ui";
+import { Card, CardHeader, EmptyState, DataTable, PageHeader, Stat } from "@/components/ui";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 
@@ -31,22 +31,26 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <Card className="overflow-hidden">
             <CardHeader title="Últimas ventas" />
             {d.recentSales.length === 0 ? (
-              <EmptyState title="Sin ventas registradas" />
+              <EmptyState title="Sin ventas registradas">Las ventas confirmadas del mes aparecerán aquí.</EmptyState>
             ) : (
-              <TableWrap>
-                <table className="table">
-                  <tbody>
-                    {d.recentSales.map((s) => (
-                      <tr key={s.id}>
-                        <td><Link className="font-medium text-accent-fg hover:underline" href={`/ventas/${s.id}`}>V-{s.folio}</Link></td>
-                        <td>{s.customer.legalName}</td>
-                        <td className="whitespace-nowrap text-ink-soft">{fmtDate(s.confirmedAt)}</td>
-                        <td className="num">{fmtMoney(s.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableWrap>
+              <DataTable
+                caption="Últimas ventas"
+                columns={[
+                  { id: "folio", header: "Folio" },
+                  { id: "cliente", header: "Cliente" },
+                  { id: "fecha", header: "Fecha", cellClass: "whitespace-nowrap text-ink-soft" },
+                  { id: "total", header: "Total", align: "right" },
+                ]}
+                rows={d.recentSales.map((s) => ({
+                  id: s.id,
+                  cells: [
+                    <Link key="f" className="font-medium text-accent-fg hover:underline" href={`/ventas/${s.id}`}>V-{s.folio}</Link>,
+                    s.customer.legalName,
+                    fmtDate(s.confirmedAt),
+                    fmtMoney(s.total),
+                  ],
+                }))}
+              />
             )}
           </Card>
         ) : null}

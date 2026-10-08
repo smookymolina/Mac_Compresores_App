@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Users } from "lucide-react";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { listCustomers } from "@/modules/customers/service";
-import { Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn } from "@/components/ui";
+import { Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
 import { sp } from "@/lib/utils";
 
 export const metadata = { title: "Clientes" };
@@ -27,13 +27,13 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
       <PageHeader title="Clientes" actions={canWrite && <LinkButton href="/clientes/nuevo">Nuevo cliente</LinkButton>} />
       <Card className="overflow-hidden">
         <form className="toolbar">
-          <input name="q" defaultValue={q} placeholder="Razón social o RFC" aria-label="Buscar por razón social o RFC" className="input" />
+          <SearchInput name="q" defaultValue={q} placeholder="Razón social o RFC" aria-label="Buscar por razón social o RFC" />
           <button className="btn btn-secondary">Buscar</button>
         </form>
         <DataTable
           caption="Clientes"
           columns={COLUMNS}
-          empty={<EmptyState icon={Users} title="Sin clientes" action={canWrite && <LinkButton href="/clientes/nuevo" variant="secondary">Nuevo cliente</LinkButton>} />}
+          empty={q ? <FilteredEmpty clearHref="/clientes" /> : <EmptyState icon={Users} title="Sin clientes" action={canWrite && <LinkButton href="/clientes/nuevo" variant="secondary">Nuevo cliente</LinkButton>}>Registra un cliente para cotizarle y venderle.</EmptyState>}
           rows={rows.map((c) => ({
             id: c.id,
             cells: [

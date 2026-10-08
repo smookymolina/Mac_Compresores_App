@@ -4,7 +4,7 @@ import { listBalances, listMovements } from "@/modules/inventory/service";
 import { createWarehouseAction, movementAction, reverseMovementAction } from "@/modules/inventory/actions";
 import { ActionForm } from "@/components/action-form";
 import { Boxes } from "lucide-react";
-import { Badge, Card, CardHeader, DataTable, EmptyState, Field, PageHeader, SelectField, TableWrap, type DataColumn } from "@/components/ui";
+import { Badge, Card, CardHeader, DataTable, EmptyState, Field, PageHeader, SelectField, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
 import { fmtDateTime, sp } from "@/lib/utils";
 
 export const metadata = { title: "Inventario" };
@@ -38,7 +38,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         <Card className="overflow-hidden xl:col-span-2">
           <CardHeader title="Existencias" />
           <form className="toolbar">
-            <input name="q" defaultValue={p.q} placeholder="SKU o descripción" aria-label="Buscar por SKU o descripción" className="input" />
+            <SearchInput name="q" defaultValue={p.q} placeholder="SKU o descripción" aria-label="Buscar por SKU o descripción" />
             <select name="wh" aria-label="Almacén" defaultValue={p.wh ?? ""} className="input">
               <option value="">Todos los almacenes</option>
               {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -49,7 +49,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
           <DataTable
             caption="Existencias"
             columns={BALANCE_COLUMNS}
-            empty={<EmptyState icon={Boxes} title="Sin existencias registradas" />}
+            empty={p.q || p.wh || p.low ? <FilteredEmpty clearHref="/inventario" /> : <EmptyState icon={Boxes} title="Sin existencias registradas">Registra una entrada para empezar a llevar existencias.</EmptyState>}
             rows={balances.map((b) => {
               const low = b.minStock.gt(0) && b.quantity.lte(b.minStock);
               return {
@@ -95,33 +95,40 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
       <Card className="mt-4 overflow-hidden">
         <CardHeader title="Últimos movimientos (trazabilidad)" />
-        <TableWrap>
-          <table className="table">
-            <thead><tr><th>Fecha</th><th>SKU</th><th>Almacén</th><th>Tipo</th><th className="num">Cantidad</th><th>Motivo</th><th>Usuario</th>{writable && <th />}</tr></thead>
-            <tbody>
-              {movements.map((m) => (
-                <tr key={m.id}>
-                  <td className="whitespace-nowrap">{fmtDateTime(m.createdAt)}</td>
-                  <td className="mono">{m.product.sku}</td>
-                  <td>{m.warehouse.code}</td>
-                  <td>{TYPE_LABEL[m.type]}</td>
-                  <td className="num">{m.quantity.toString()}</td>
-                  <td>{m.reason}</td>
-                  <td>{m.user.name}</td>
-                  {writable && (
-                    <td>
-                      {["IN", "OUT", "ADJUST"].includes(m.type) && !reversed.has(m.id) && (
-                        <ActionForm action={reverseMovementAction.bind(null, m.id)} submitLabel="Revertir" variant="secondary" className="space-y-0">
-                          <input type="hidden" name="reason" value="Corrección de captura" />
-                        </ActionForm>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableWrap>
+        <DataTable
+          caption="Últimos movimientos de inventario"
+          columns={[
+            { id: "fecha", header: "Fecha", sortable: true, cellClass: "whitespace-nowrap" },
+            { id: "sku", header: "SKU", sortable: true, cellClass: "mono" },
+            { id: "alm", header: "Almacén", sortable: true },
+            { id: "tipo", header: "Tipo", sortable: true },
+            { id: "cant", header: "Cantidad", align: "right", sortable: true },
+            { id: "motivo", header: "Motivo" },
+            { id: "usuario", header: "Usuario", sortable: true },
+            ...(writable ? [{ id: "acc", header: "Acción" }] : []),
+          ]}
+          rows={movements.map((m) => ({
+            id: m.id,
+            cells: [
+              fmtDateTime(m.createdAt),
+              m.product.sku,
+              m.warehouse.code,
+              TYPE_LABEL[m.type],
+              m.quantity.toString(),
+              m.reason,
+              m.user.name,
+              ...(writable
+                ? [["IN", "OUT", "ADJUST"].includes(m.type) && !reversed.has(m.id) ? (
+                    <ActionForm key="rev" action={reverseMovementAction.bind(null, m.id)} submitLabel="Revertir" variant="secondary" className="space-y-0">
+                      <input type="hidden" name="reason" value="Corrección de captura" />
+                    </ActionForm>
+                  ) : null]
+                : []),
+            ],
+            sort: [m.createdAt.getTime(), m.product.sku, m.warehouse.code, TYPE_LABEL[m.type], m.quantity.toNumber(), m.reason, m.user.name],
+          }))}
+          empty={<EmptyState title="Sin movimientos">Las entradas, salidas y ajustes de inventario aparecerán aquí.</EmptyState>}
+        />
       </Card>
     </>
   );

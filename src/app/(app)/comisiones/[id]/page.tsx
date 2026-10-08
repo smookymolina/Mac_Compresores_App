@@ -9,7 +9,7 @@ import {
 import { listSellers } from "@/modules/users/service";
 import { LINE_LABEL } from "@/modules/products/lines";
 import { ActionForm } from "@/components/action-form";
-import { Badge, Card, CardHeader, EmptyState, Field, PageHeader, SelectField, TableWrap } from "@/components/ui";
+import { Badge, Card, CardHeader, EmptyState, DataTable, Field, PageHeader, SelectField } from "@/components/ui";
 import { dec, fmtMoney, fmtPct } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 
@@ -36,16 +36,14 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
 
       {manage && (
         <div className="mb-4 grid gap-4 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
+          <Card className="overflow-hidden lg:col-span-2">
             <CardHeader title="Metas por vendedor" />
-            <TableWrap>
-              <table className="table">
-                <thead><tr><th>Vendedor</th><th className="num">Meta</th></tr></thead>
-                <tbody>
-                  {period.targets.map((t) => <tr key={t.id}><td>{t.seller.name}</td><td className="num">{fmtMoney(t.amount)}</td></tr>)}
-                </tbody>
-              </table>
-            </TableWrap>
+            <DataTable
+              caption="Metas por vendedor"
+              columns={[{ id: "vend", header: "Vendedor", sortable: true }, { id: "meta", header: "Meta", align: "right", sortable: true }]}
+              rows={period.targets.map((t) => ({ id: t.id, cells: [t.seller.name, fmtMoney(t.amount)], sort: [t.seller.name, t.amount.toNumber()] }))}
+              empty={<EmptyState title="Sin metas">Define la meta de cada vendedor con el formulario de abajo.</EmptyState>}
+            />
             <div className="border-t border-line p-4">
               <ActionForm action={setTargetAction.bind(null, period.id)} submitLabel="Guardar meta" variant="secondary">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -65,7 +63,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
       )}
 
       {bySeller.size === 0 ? (
-        <Card><EmptyState title="Sin comisiones calculadas" /></Card>
+        <Card><EmptyState title="Sin comisiones calculadas">Calcula el periodo para ver las comisiones por vendedor.</EmptyState></Card>
       ) : (
         <div className="space-y-4">
           {[...bySeller.entries()].map(([sellerId, rows]) => {
@@ -73,7 +71,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
             const total = rows.reduce((a, r) => a.add(r.amount), dec(0));
             const states = new Set(rows.map((r) => r.status));
             return (
-              <Card key={sellerId}>
+              <Card key={sellerId} className="overflow-hidden">
                 <CardHeader
                   title={first.seller.name}
                   actions={
@@ -84,23 +82,27 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
                     </span>
                   }
                 />
-                <TableWrap>
-                  <table className="table">
-                    <thead><tr><th>Línea</th><th className="num">Base</th><th className="num">Tasa</th><th className="num">Comisión</th><th>Estado</th></tr></thead>
-                    <tbody>
-                      {rows.map((r) => (
-                        <tr key={r.id}>
-                          <td>{LINE_LABEL[r.line]}</td>
-                          <td className="num">{fmtMoney(r.baseAmount)}</td>
-                          <td className="num"><span className={r.metTarget ? "text-ok" : "text-danger"}>{fmtPct(r.rate)}</span></td>
-                          <td className="num">{fmtMoney(r.amount)}</td>
-                          <td><Badge tone={STATUS[r.status][1]}>{STATUS[r.status][0]}</Badge></td>
-                        </tr>
-                      ))}
-                      <tr><td className="font-semibold">Total</td><td /><td /><td className="num font-semibold">{fmtMoney(total)}</td><td /></tr>
-                    </tbody>
-                  </table>
-                </TableWrap>
+                <DataTable
+                  caption={`Comisiones de ${first.seller.name}`}
+                  columns={[
+                    { id: "linea", header: "Línea" },
+                    { id: "base", header: "Base", align: "right" },
+                    { id: "tasa", header: "Tasa", align: "right" },
+                    { id: "com", header: "Comisión", align: "right" },
+                    { id: "estado", header: "Estado" },
+                  ]}
+                  rows={rows.map((r) => ({
+                    id: r.id,
+                    cells: [
+                      LINE_LABEL[r.line],
+                      fmtMoney(r.baseAmount),
+                      <span key="t" className={r.metTarget ? "text-ok" : "text-danger"}>{fmtPct(r.rate)}</span>,
+                      fmtMoney(r.amount),
+                      <Badge key="e" tone={STATUS[r.status][1]}>{STATUS[r.status][0]}</Badge>,
+                    ],
+                  }))}
+                  foot={["Total", null, null, fmtMoney(total), null]}
+                />
                 {approve && (states.has("CALCULATED") || states.has("APPROVED")) && (
                   <div className="flex gap-2 border-t border-line p-3">
                     {states.has("CALCULATED") && <ActionForm action={approveSellerAction.bind(null, period.id, sellerId)} submitLabel="Aprobar" />}

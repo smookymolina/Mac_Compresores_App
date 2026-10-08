@@ -4,7 +4,7 @@ import { listPeriods, listRuleSets } from "@/modules/commissions/service";
 import { activateRuleSetAction, createPeriodAction, createRuleSetAction } from "@/modules/commissions/actions";
 import { LINE_LABEL, LINES } from "@/modules/products/lines";
 import { ActionForm } from "@/components/action-form";
-import { Badge, Card, CardHeader, EmptyState, Field, PageHeader, SelectField, TableWrap } from "@/components/ui";
+import { Badge, Card, CardHeader, EmptyState, DataTable, Field, PageHeader, SelectField } from "@/components/ui";
 import { fmtPct } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 
@@ -25,26 +25,30 @@ export default async function CommissionsPage() {
     <>
       <PageHeader title="Comisiones" subtitle="Tasa verde si el vendedor alcanza su meta del periodo; tasa roja si no la alcanza." />
 
-      <Card className="mb-4">
+      <Card className="mb-4 overflow-hidden">
         <CardHeader title="Periodos" />
         {periods.length === 0 ? (
-          <EmptyState title="Sin periodos" />
+          <EmptyState title="Sin periodos">Crea un periodo para fijar metas y calcular comisiones.</EmptyState>
         ) : (
-          <TableWrap>
-            <table className="table">
-              <thead><tr><th>Periodo</th><th>Inicio</th><th>Fin</th><th>Estado</th></tr></thead>
-              <tbody>
-                {periods.map((p) => (
-                  <tr key={p.id}>
-                    <td><Link className="font-medium text-accent-fg hover:underline" href={`/comisiones/${p.id}`}>{p.name}</Link></td>
-                    <td>{fmtDate(p.startDate)}</td>
-                    <td>{fmtDate(p.endDate)}</td>
-                    <td>{p.status === "OPEN" ? <Badge tone="blue">Abierto</Badge> : <Badge>Cerrado</Badge>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
+          <DataTable
+            caption="Periodos de comisión"
+            columns={[
+              { id: "nombre", header: "Periodo", sortable: true },
+              { id: "ini", header: "Inicio", sortable: true, cellClass: "whitespace-nowrap" },
+              { id: "fin", header: "Fin", sortable: true, cellClass: "whitespace-nowrap" },
+              { id: "estado", header: "Estado", sortable: true },
+            ]}
+            rows={periods.map((p) => ({
+              id: p.id,
+              cells: [
+                <Link key="n" className="font-medium text-accent-fg hover:underline" href={`/comisiones/${p.id}`}>{p.name}</Link>,
+                fmtDate(p.startDate),
+                fmtDate(p.endDate),
+                p.status === "OPEN" ? <Badge key="s" tone="blue">Abierto</Badge> : <Badge key="s">Cerrado</Badge>,
+              ],
+              sort: [p.name, p.startDate.getTime(), p.endDate.getTime(), p.status],
+            }))}
+          />
         )}
         {manage && (
           <div className="border-t border-line p-4">
@@ -62,29 +66,31 @@ export default async function CommissionsPage() {
       <h2 className="mb-2 text-sm font-semibold">Reglas versionadas</h2>
       <div className="grid gap-4 lg:grid-cols-2">
         {ruleSets.map((rs) => (
-          <Card key={rs.id}>
+          <Card key={rs.id} className="overflow-hidden">
             <CardHeader
               title={`${rs.name} · v${rs.version}`}
               actions={<Badge tone={RS_TONE[rs.status]}>{RS_LABEL[rs.status]}</Badge>}
             />
             <p className="px-4 pt-3 text-xs text-ink-soft">Base: {BASIS[rs.basis]}{rs.notes && ` · ${rs.notes}`}</p>
-            <TableWrap>
-              <table className="table">
-                <thead><tr><th>Línea</th><th className="num">Meta cumplida</th><th className="num">Meta no cumplida</th></tr></thead>
-                <tbody>
-                  {LINES.map((l) => {
-                    const r = rs.rates.find((x) => x.line === l);
-                    return (
-                      <tr key={l}>
-                        <td>{LINE_LABEL[l]}</td>
-                        <td className="num"><span className="rounded bg-ok-soft px-2 py-0.5 text-ok">{r ? fmtPct(r.rateMet) : "—"}</span></td>
-                        <td className="num"><span className="rounded bg-danger-soft px-2 py-0.5 text-danger">{r ? fmtPct(r.rateNotMet) : "—"}</span></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </TableWrap>
+            <DataTable
+              caption={`Tasas de ${rs.name} v${rs.version}`}
+              columns={[
+                { id: "linea", header: "Línea" },
+                { id: "met", header: "Meta cumplida", align: "right" },
+                { id: "notmet", header: "Meta no cumplida", align: "right" },
+              ]}
+              rows={LINES.map((l) => {
+                const r = rs.rates.find((x) => x.line === l);
+                return {
+                  id: l,
+                  cells: [
+                    LINE_LABEL[l],
+                    <span key="m" className="text-ok">{r ? fmtPct(r.rateMet) : "—"}</span>,
+                    <span key="n" className="text-danger">{r ? fmtPct(r.rateNotMet) : "—"}</span>,
+                  ],
+                };
+              })}
+            />
             {approve && rs.status === "DRAFT" && rs.basis !== "COLLECTED" && (
               <div className="border-t border-line p-4">
                 <ActionForm

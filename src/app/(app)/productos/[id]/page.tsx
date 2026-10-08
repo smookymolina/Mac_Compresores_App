@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { uuid } from "@/lib/validation";
-import { Card, CardHeader, PageHeader, TableWrap } from "@/components/ui";
+import { Card, CardHeader, DataTable, EmptyState, PageHeader } from "@/components/ui";
 import { fmtMoney } from "@/lib/money";
 import { fmtDateTime } from "@/lib/utils";
 import { LINE_LABEL } from "@/modules/products/lines";
@@ -52,18 +52,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </ul>
           </Card>
           {editable && (
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader title="Historial de precios" />
-              <TableWrap>
-                <table className="table">
-                  <thead><tr><th>Fecha</th><th className="num">Costo</th><th className="num">Precio</th></tr></thead>
-                  <tbody>
-                    {product.priceHistory.map((h) => (
-                      <tr key={h.id}><td>{fmtDateTime(h.createdAt)}</td><td className="num">{fmtMoney(h.cost)}</td><td className="num">{fmtMoney(h.price)}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableWrap>
+              <DataTable
+                caption="Historial de precios"
+                columns={[
+                  { id: "fecha", header: "Fecha", cellClass: "whitespace-nowrap" },
+                  { id: "costo", header: "Costo", align: "right" },
+                  { id: "precio", header: "Precio", align: "right" },
+                ]}
+                rows={product.priceHistory.map((h) => ({ id: h.id, cells: [fmtDateTime(h.createdAt), fmtMoney(h.cost), fmtMoney(h.price)] }))}
+                empty={<EmptyState title="Sin cambios de precio">Cada cambio de costo o precio queda registrado aquí.</EmptyState>}
+              />
             </Card>
           )}
         </div>
