@@ -63,6 +63,7 @@ async function main() {
 
 async function demo(roles: Record<RoleCode, string>, hash: string) {
   const users: [string, string, RoleCode][] = [
+    ["admin@demo.local", "[DEMO] Administrador", "ADMIN"],
     ["ventas1@demo.local", "[DEMO] Vendedor Uno", "VENTAS"],
     ["ventas2@demo.local", "[DEMO] Vendedor Dos", "VENTAS"],
     ["almacen@demo.local", "[DEMO] Almacenista", "ALMACEN"],

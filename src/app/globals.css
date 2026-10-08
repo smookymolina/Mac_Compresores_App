@@ -292,6 +292,50 @@ a, button, select, summary, label { touch-action: manipulation; }
   .login-rise > :nth-child(n + 4) { animation-delay: 180ms; }
   .login-form .input { transition: border-color var(--dur-fast); }
 
+  /* Panel del formulario: retícula de plano que se desplaza muy lento, desvanecida hacia el centro. */
+  .login-pane { position: relative; overflow: hidden; isolation: isolate; }
+  .login-pane::before {
+    content: ""; position: absolute; inset: -48px; z-index: -1; pointer-events: none;
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--accent) 9%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--accent) 9%, transparent) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, transparent 30%, #000 85%);
+    animation: grid-drift 24s linear infinite;
+  }
+  .login-card {
+    position: relative; overflow: hidden; padding: 2rem; border: 1px solid var(--border);
+    border-radius: var(--r-lg); background: var(--panel); box-shadow: 0 8px 28px rgb(15 23 42 / 0.07);
+  }
+  .login-card::before {
+    content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--accent);
+    transform-origin: left; animation: draw-x 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms backwards;
+  }
+  .login-card div:has(> .input:focus-visible) > .label,
+  .login-card div:has(> div > .input:focus-visible) > .label { color: var(--accent-fg); }
+  .login-card .label { transition: color var(--dur-fast); }
+  .login-link { color: var(--text-2); }
+  .login-link:hover { color: var(--accent-fg); }
+  .login-link svg { transition: transform var(--dur-fast) var(--ease); }
+  .login-link:hover svg { transform: translate(2px, -2px); }
+
+  /* Mostrar/ocultar contraseña: icono que cruza con fundido y giro leve. */
+  .reveal-btn {
+    position: absolute; right: 0.25rem; top: 50%; translate: 0 -50%; display: grid; place-items: center;
+    width: 2.25rem; height: 2.25rem; border-radius: var(--r); color: var(--muted);
+  }
+  .reveal-btn:hover { color: var(--text); background: var(--panel-2); }
+  .reveal-icon { grid-area: 1 / 1; transition: opacity var(--dur-fast), transform var(--dur) var(--ease); }
+  .reveal-icon[data-on="false"] { opacity: 0; transform: rotate(-30deg) scale(0.8); }
+  .field-hint { animation: fade var(--dur) var(--ease); }
+
+  /* Olvidé mi contraseña: desplegable sin JS; el contenido entra con fundido. */
+  .login-forgot { font-size: 0.875rem; }
+  .login-forgot summary { width: fit-content; margin-left: auto; cursor: pointer; list-style: none; color: var(--accent-fg); font-weight: 500; }
+  .login-forgot summary::-webkit-details-marker { display: none; }
+  .login-forgot summary:hover { text-decoration: underline; }
+  .login-forgot p { display: flex; gap: 0.5rem; margin-top: 0.5rem; padding: 0.625rem 0.75rem; border-radius: var(--r); background: var(--accent-soft); color: var(--text-2); animation: enter var(--dur) var(--ease); }
+
   /* Marcas que la aguja alcanza: se encienden a su paso (retraso ≈ avance de la aguja). */
   .gauge-tick-lit { animation: fade 200ms var(--ease) backwards, tick-lit 260ms var(--ease) both; animation-delay: calc(150ms + var(--i) * 15ms), calc(380ms + var(--i) * 42ms); }
   .gauge-tick-lit.gauge-tick-major { stroke: #ffffff; }
@@ -331,6 +375,8 @@ a, button, select, summary, label { touch-action: manipulation; }
 @keyframes pulse { 50% { opacity: 0.55; } }
 /* Excepción documentada: el barrido del manómetro (1.1 s) es la única animación larga y ocurre una vez. */
 @keyframes needle { from { transform: rotate(-135deg); } }
+@keyframes grid-drift { to { transform: translate(48px, 48px); } }
+@keyframes draw-x { from { transform: scaleX(0); } }
 @keyframes needle-idle { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
 @keyframes tick-lit { from { opacity: 0.35; } to { opacity: 1; } }
 @keyframes flow { 0% { opacity: 0; transform: translateX(-100%); } 15% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(240%); } }
@@ -349,5 +395,5 @@ a, button, select, summary, label { touch-action: manipulation; }
   .btn:active, [data-tip]::after { transform: none; }
   .skeleton { animation: none; }
   .flow-line, .login-form .btn[aria-busy="true"]::after { display: none; }
-  .gauge-needle-idle { animation: none; }
+  .gauge-needle-idle, .login-pane::before { animation: none; }
 }

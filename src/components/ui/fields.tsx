@@ -1,6 +1,7 @@
 "use client";
 
 import { useContext, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { FormErrorsContext } from "./form-context";
 
 /** Error del servidor para `name`; se oculta en cuanto el usuario corrige el campo (vuelve con el siguiente envío). */
@@ -29,6 +30,40 @@ export function Field({
         {...props} onInput={(e) => { clear(); props.onInput?.(e); }}
       />
       {hint && !error && <p className="mt-1 text-xs text-muted">{hint}</p>}
+      <FieldError id={errId} error={error} />
+    </div>
+  );
+}
+
+/** Contraseña con botón para mostrar u ocultar lo escrito (no cambia `name`/`id`). */
+export function PasswordField({
+  label, name, error: errorProp, className, ...props
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> & { label: string; name: string; error?: string[] }) {
+  const [error, clear] = useFieldError(name, errorProp);
+  const [visible, setVisible] = useState(false);
+  const [caps, setCaps] = useState(false);
+  const errId = `${name}-error`;
+  return (
+    <div className={className}>
+      <label htmlFor={name} className="label">{label}</label>
+      <div className="relative">
+        <input
+          id={name} name={name} type={visible ? "text" : "password"} className="input pr-11"
+          aria-invalid={!!error} aria-describedby={error ? errId : undefined}
+          {...props} onInput={(e) => { clear(); props.onInput?.(e); }}
+          onKeyUp={(e) => setCaps(e.getModifierState("CapsLock"))} onBlur={() => setCaps(false)}
+        />
+        {/* Nombre accesible sin la palabra de la etiqueta: getByLabel(label) sigue apuntando solo al campo. */}
+        <button
+          type="button" aria-label={visible ? "Ocultar lo escrito" : "Mostrar lo escrito"} aria-pressed={visible} aria-controls={name}
+          data-tip={visible ? "Ocultar" : "Mostrar"} onClick={() => setVisible((v) => !v)}
+          className="reveal-btn"
+        >
+          <Eye size={16} strokeWidth={1.75} aria-hidden className="reveal-icon" data-on={!visible} />
+          <EyeOff size={16} strokeWidth={1.75} aria-hidden className="reveal-icon" data-on={visible} />
+        </button>
+      </div>
+      {caps && <p aria-live="polite" className="field-hint mt-1 text-xs text-warn">Bloq Mayús está activado.</p>}
       <FieldError id={errId} error={error} />
     </div>
   );

@@ -25,7 +25,14 @@ npm run db:seed                 # roles, permisos, admin, almacén, tabla de com
 SEED_DEMO=1 npm run db:seed     # opcional: datos FICTICIOS marcados [DEMO]
 ```
 Admin inicial: `admin@maccompresores.local` con la contraseña de `SEED_ADMIN_PASSWORD`.
-Los usuarios demo (`ventas1@demo.local`, `ventas2@demo.local`, `almacen@demo.local`, `gerencia@demo.local`) usan la misma contraseña.
+Usuarios demo (uno por rol; misma contraseña que `SEED_ADMIN_PASSWORD`):
+
+| Rol | Correo | Ve |
+|---|---|---|
+| Administrador | `admin@demo.local` | Todo, incluidos Usuarios |
+| Gerencia | `gerencia@demo.local` | Todo salvo Usuarios; aprueba comisiones y precios especiales |
+| Ventas | `ventas1@demo.local`, `ventas2@demo.local` | Sus cotizaciones, ventas y comisiones; clientes y catálogo |
+| Almacén | `almacen@demo.local` | Inventario (escritura), productos y ventas |
 
 ## Ejecutar
 ```bash
