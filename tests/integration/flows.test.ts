@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { dec } from "@/lib/money";
 import { ROLE_PERMISSIONS, type RoleCode } from "@/lib/auth/permissions";
 import type { CurrentUser } from "@/lib/auth/session";
-import { changeQuoteStatus, createQuote, getQuote, updateQuote } from "@/modules/quotes/service";
+import { changeQuoteStatus, createQuote, expireOverdueQuotes, getQuote, updateQuote } from "@/modules/quotes/service";
 import { convertQuoteToSale, cancelSale } from "@/modules/sales/service";
 import { registerMovement, reverseMovement } from "@/modules/inventory/service";
 import { saveProduct } from "@/modules/products/service";
@@ -58,6 +58,26 @@ describe("autorización por objeto", () => {
     await expect(createQuote(sellerB, { customerId: customerA, validUntil: validUntil(), items: [{ productId: sepId, quantity: "1", discountPct: "0" }] }))
       .rejects.toThrow(/Cliente no encontrado/);
     await expect(getQuote(admin, q.id)).resolves.toBeTruthy();
+  });
+});
+
+describe("vencimiento de cotizaciones", () => {
+  it("vence solo las enviadas con vigencia pasada; la vigencia incluye el día final", async () => {
+    const mk = () => createQuote(sellerA, { customerId: customerA, validUntil: validUntil(), items: [{ productId: sepId, quantity: "1", discountPct: "0" }] });
+    const old = await mk(), draft = await mk(), accepted = await mk(), fresh = await mk();
+    for (const q of [old, accepted, fresh]) await changeQuoteStatus(sellerA, q.id, "SENT");
+    await changeQuoteStatus(sellerA, accepted.id, "ACCEPTED");
+    const past = new Date(Date.now() - 3 * 864e5), future = new Date(Date.now() + 5 * 864e5);
+    await db.quote.updateMany({ where: { id: { in: [old.id, draft.id, accepted.id] } }, data: { validUntil: past } });
+    await db.quote.update({ where: { id: fresh.id }, data: { validUntil: future } });
+
+    expect(await expireOverdueQuotes()).toBe(1);
+    const st = async (id: string) => (await db.quote.findUniqueOrThrow({ where: { id } })).status;
+    expect(await st(old.id)).toBe("EXPIRED");
+    expect(await st(draft.id)).toBe("DRAFT");
+    expect(await st(accepted.id)).toBe("ACCEPTED");
+    expect(await st(fresh.id)).toBe("SENT");
+    expect(await expireOverdueQuotes()).toBe(0);
   });
 });
 

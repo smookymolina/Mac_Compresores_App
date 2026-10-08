@@ -2,10 +2,11 @@ import { db } from "@/lib/db";
 import { dec, type Dec } from "@/lib/money";
 import { can, type CurrentUser } from "@/lib/auth/session";
 import { lowStockCount } from "@/modules/inventory/service";
-import { quoteScope } from "@/modules/quotes/service";
+import { expireOverdueQuotes, quoteScope } from "@/modules/quotes/service";
 import { saleScope } from "@/modules/sales/service";
 
 export async function getDashboard(user: CurrentUser) {
+  await expireOverdueQuotes();
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);

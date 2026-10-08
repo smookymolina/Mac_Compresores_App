@@ -13,6 +13,7 @@ export function quoteScope(user: CurrentUser): Prisma.QuoteWhereInput {
 }
 
 export async function listQuotes(user: CurrentUser, q: { status?: QuoteStatus; search?: string; page?: number }) {
+  await expireOverdueQuotes();
   const folio = q.search && /^\d+$/.test(q.search) ? Number(q.search) : undefined;
   const { page, skip, take } = pageArgs(q.page);
   const where: Prisma.QuoteWhereInput = {
@@ -138,3 +139,20 @@ function startOfToday() {
   d.setHours(0, 0, 0, 0);
   return d;
 }
+
+/**
+ * Marca como vencidas las cotizaciones enviadas cuya vigencia ya pasó (la vigencia incluye el día indicado).
+ * Idempotente y barata: se invoca al listar y desde el endpoint programado. Las aceptadas no vencen.
+ */
+export async function expireOverdueQuotes(now = new Date()) {
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  return db.$transaction(async (tx) => {
+    const due = await tx.quote.findMany({ where: { status: "SENT", validUntil: { lt: today } }, select: { id: true } });
+    if (due.length === 0) return 0;
+    const res = await tx.quote.updateMany({ where: { id: { in: due.map((q) => q.id) }, status: "SENT" }, data: { status: "EXPIRED" } });
+    if (res.count > 0) await audit({ userId: null, action: "quote.expired", entity: "Quote", data: { count: res.count, ids: due.map((q) => q.id) } }, tx);
+    return res.count;
+  });
+}
+
