@@ -28,6 +28,20 @@ el usuario fuera de banda, así que tras la llamada `ListPlugins` siguió vacío
 ("si alguno falla, continúa sin él y anótalo"), el rediseño se hizo **sin** estos plugins. Para usarlos en una
 sesión posterior basta habilitarlos desde la tarjeta / el marketplace; no se requiere ningún cambio en el repo.
 
+## Verificación de la fase 0 del segundo pase (2026-10-08)
+
+Requisito: `frontend-design`, `VectorLab UI/UX Skills`, `audit-suite` y `A11y Enforcer` activos antes de tocar código.
+
+- `ListPlugins` (sin filtro y con `data`/`frontend`) → **vacío**.
+- `ListSkills` (filtros `frontend-design`, `vectorlab`, `audit`, `a11y`, `ux`, `design`) → solo `mcp-builder`,
+  `canvas-design` y `brand-guidelines`; ninguna de las skills requeridas (`ux-audit`, `anti-slop`, `viewports`,
+  `audit-as-*`, `a11y-check`, `contrast`, etc.).
+- Los plugins sí figuran en Ajustes → Plugins de claude.ai ("Yours"), pero no llegan a las sesiones de Claude Code
+  en la nube. Para cargarlos aquí hay que declararlos en `.claude/settings.json` (`extraKnownMarketplaces` +
+  `enabledPlugins`) o habilitarlos de forma que `ListPlugins` los devuelva.
+
+**Resultado: fase 0 no superada. Fases 1–7 detenidas** hasta que los 4 plugins estén activos en la sesión.
+
 ## Descartados (y motivo)
 
 | Candidato | Motivo |
