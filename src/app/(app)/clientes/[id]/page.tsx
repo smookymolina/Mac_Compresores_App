@@ -35,7 +35,10 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
     <>
       <PageHeader
         title={c.legalName}
-        subtitle={`${c.rfc ?? "Sin RFC"} · Vendedor: ${c.owner?.name ?? "sin asignar"}`}
+        meta={[
+          { label: "RFC", value: c.rfc ?? "Sin RFC" },
+          { label: "Vendedor", value: c.owner?.name ?? "Sin asignar" },
+        ]}
         actions={can(user, "quotes.write") && <LinkButton href={`/cotizaciones/nueva?cliente=${c.id}`}>Nueva cotización</LinkButton>}
       />
       <div className="grid gap-4 lg:grid-cols-3">

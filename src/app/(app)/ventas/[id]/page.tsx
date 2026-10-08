@@ -24,12 +24,15 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
     <>
       <PageHeader
         title={`Venta V-${s.folio}`}
-        subtitle={`${s.customer.legalName} · ${s.seller.name} · ${fmtDateTime(s.confirmedAt)} · ${s.warehouse.name}`}
+        meta={[
+          { label: "Estado", value: s.status === "CONFIRMED" ? <Badge tone="green">Confirmada</Badge> : <Badge tone="red">Cancelada</Badge> },
+          { label: "Cotización", value: <Link className="text-accent-fg hover:underline" href={`/cotizaciones/${s.quote.id}`}>Cotización C-{s.quote.folio}</Link> },
+          { label: "Cliente", value: s.customer.legalName },
+          { label: "Vendedor", value: s.seller.name },
+          { label: "Fecha", value: fmtDateTime(s.confirmedAt) },
+          { label: "Almacén", value: s.warehouse.name },
+        ]}
       />
-      <div className="mb-4 flex items-center gap-3 text-sm">
-        {s.status === "CONFIRMED" ? <Badge tone="green">Confirmada</Badge> : <Badge tone="red">Cancelada</Badge>}
-        <Link className="font-medium text-accent-fg hover:underline" href={`/cotizaciones/${s.quote.id}`}>Cotización C-{s.quote.folio}</Link>
-      </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="overflow-hidden lg:col-span-2">
           <CardHeader title="Partidas" />

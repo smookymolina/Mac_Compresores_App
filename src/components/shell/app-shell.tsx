@@ -98,7 +98,7 @@ export function AppShell({
     <div className="min-h-dvh">
       <a href="#main" className="skip-link">Saltar al contenido</a>
 
-      <aside className={cn("fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-line bg-panel md:flex", collapsed ? "md:w-16" : "md:w-16 xl:w-60")}>
+      <aside className={cn("sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-line md:flex", collapsed ? "md:w-16" : "md:w-16 xl:w-60")}>
         <div className="flex h-14 shrink-0 items-center border-b border-line px-3 md:justify-center xl:justify-start">
           <span className={cn("logo-tile", collapsed ? "hidden" : "hidden xl:inline-flex")}>
             <Image src="/brand/logo-h.png" alt="MAC Compresores" width={118} height={32} priority className="h-8 w-auto" />
@@ -136,7 +136,7 @@ export function AppShell({
         </main>
       </div>
 
-      <Dialog open={drawer} onClose={() => setDrawer(false)} title="Menú" side="left">
+      <Dialog open={drawer} onClose={() => setDrawer(false)} title="Menú" side="left" className="sidebar">
         <NavLinks items={nav} mode="drawer" onNavigate={() => setDrawer(false)} />
       </Dialog>
     </div>

@@ -1,7 +1,7 @@
 // Primitivas del sistema de diseño (ver docs/design-system.md). Código propio, sin runtime adicional.
 export { Button, LinkButton, btnClass } from "./button";
 export type { BtnVariant } from "./button";
-export { Card, CardHeader, PageHeader, Stat } from "./card";
+export { Card, CardHeader, PageHeader, Stat, StatGroup } from "./card";
 export { Badge } from "./badge";
 export type { Tone } from "./badge";
 export { Field, SelectField } from "./fields";

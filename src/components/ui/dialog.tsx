@@ -9,12 +9,13 @@ import { cn } from "@/lib/utils";
  * restauración del foco. El contenido solo se monta mientras está abierto.
  */
 export function Dialog({
-  open, onClose, title, side = "center", children,
+  open, onClose, title, side = "center", className, children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   side?: "center" | "left" | "right";
+  className?: string;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -31,7 +32,7 @@ export function Dialog({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      className={cn("dialog", `dialog-${side}`)}
+      className={cn("dialog", `dialog-${side}`, className)}
       onClose={onClose}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} // clic en el fondo
     >

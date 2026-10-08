@@ -9,21 +9,22 @@
   color-scheme: light dark;
 
   /* Superficies y texto */
-  --bg: light-dark(#f5f7fa, #0e131a);
-  --panel: light-dark(#ffffff, #151b24);
-  --panel-2: light-dark(#f8f9fb, #1a212b);
-  --border: light-dark(#e4e7ec, #263040);
-  --border-strong: light-dark(#cfd5dd, #3a4759);
+  /* Neutros acero (ligeramente fríos): lienzo un paso por debajo de los paneles. */
+  --bg: light-dark(#eef1f5, #0c1015);
+  --panel: light-dark(#ffffff, #141920);
+  --panel-2: light-dark(#f6f8fa, #1a2029);
+  --border: light-dark(#dde2e9, #252d38);
+  --border-strong: light-dark(#c5ccd6, #343e4c);
   --border-input: light-dark(#8a94a3, #5f6b7c); /* ≥ 3:1 sobre panel (WCAG 1.4.11) */
-  --text: light-dark(#141c28, #e7ebf1);
-  --text-2: light-dark(#475467, #b0bac8);
-  --muted: light-dark(#667085, #8f9bad);
+  --text: light-dark(#111820, #e6eaf0);
+  --text-2: light-dark(#424d5c, #aeb8c6);
+  --muted: light-dark(#5f6b7a, #8b97a8);
 
   /* Acento (azul de marca) */
   --accent: light-dark(#046bd2, #1d6fc9);
   --accent-hover: light-dark(#045cb4, #2a7ddb);
   --accent-fg: light-dark(#045cb4, #6db0ff);
-  --accent-soft: light-dark(#e9f2fc, #14253a);
+  --accent-soft: light-dark(#e8f1fb, #14253a);
   --on-accent: #ffffff;
 
   /* Semánticos */
@@ -37,9 +38,10 @@
   --info-soft: var(--accent-soft);
 
   /* Radios, sombras, espaciado (base 4px), movimiento */
-  --r-sm: 4px;
-  --r: 6px;
-  --r-lg: 8px;
+  /* Radios contenidos: precisión de instrumento, jerarquía por tamaño (control < panel). */
+  --r-sm: 3px;
+  --r: 4px;
+  --r-lg: 6px;
   /* Elevación: borde 1px primero; sombras difusas < 0.08 en claro; en oscuro, luz de borde superior. */
   --elev-1: 0 1px 2px rgb(16 24 40 / 0.05);
   --elev-pop: 0 4px 16px rgb(16 24 40 / 0.07);
@@ -87,8 +89,8 @@
   --color-warn-soft: var(--warn-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
-  --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
   --radius-md: var(--r);
   --radius-lg: var(--r-lg);
   --shadow-sm: var(--elev-1);
@@ -97,7 +99,6 @@
 html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; scroll-padding-top: calc(var(--topbar-h) + 0.5rem); }
 body {
   @apply bg-surface text-ink antialiased;
-  font-feature-settings: "cv11", "ss01";
   line-height: 1.5;
 }
 h1, h2, h3 { line-height: 1.25; text-wrap: balance; }
@@ -173,7 +174,7 @@ a, button, select, summary, label { touch-action: manipulation; }
   .table th {
     position: sticky; top: 0; z-index: 2; height: 2.25rem; padding: 0 0.75rem; white-space: nowrap;
     background: var(--panel-2); border-bottom: 1px solid var(--border);
-    text-align: left; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.01em; color: var(--text-2);
+    text-align: left; font-size: 0.75rem; font-weight: 500; color: var(--text-2);
   }
   .table td { height: 2.5rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
   .table tbody tr:last-child td { border-bottom: 0; }
@@ -252,11 +253,35 @@ a, button, select, summary, label { touch-action: manipulation; }
   :root[data-theme="dark"] .logo-tile { background: #fff; padding: 0.25rem 0.5rem; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .logo-tile { background: #fff; padding: 0.25rem 0.5rem; } }
 
+  /* ---- Barra lateral grafito (ambos temas): reasigna los tokens dentro de su ámbito ---- */
+  .sidebar {
+    color-scheme: dark;
+    --panel: #11161d; --panel-2: #1a212b; --border: #222a35;
+    --text: #eef2f7; --text-2: #b3bdcb; --muted: #808c9d;
+    --accent-soft: #18304d; --accent-fg: #82bcff;
+    background: var(--panel); color: var(--text);
+  }
+  .sidebar .logo-tile { background: #fff; padding: 0.25rem 0.5rem; }
+
+  /* ---- Cabecera de vista: banda de documento a todo el ancho (::before sangra; .app-main recorta en x) ---- */
+  .page-head { position: relative; isolation: isolate; padding-block: 1.25rem 1.25rem; margin-bottom: 1.5rem; }
+  .page-head::before { content: ""; position: absolute; inset: 0 -100vmax; z-index: -1; background: var(--panel); border-bottom: 1px solid var(--border); }
+  .page-meta { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; margin-top: 0.5rem; font-size: 0.875rem; }
+  .page-meta dt { color: var(--muted); }
+  .page-meta dd { color: var(--text); font-weight: 500; }
+  .page-meta > div { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+
+  /* ---- Indicadores: una franja segmentada (lectura de instrumento), no tarjetas sueltas ---- */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--border); }
+  .kpis > * { background: var(--panel); padding: 1rem 1.25rem; min-width: 0; }
+  .kpi-value { font-family: var(--font-mono); font-size: 1.5rem; line-height: 1.2; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
   .skip-link { position: absolute; left: 0.5rem; top: -4rem; z-index: 60; padding: 0.5rem 0.75rem; border-radius: var(--r); background: var(--accent); color: var(--on-accent); font-size: 0.875rem; }
   .skip-link:focus { top: 0.5rem; }
 }
 
 /* Fuera de @layer: debe ganar a las utilidades de padding de <main>. Deja espacio para la barra fija. */
+.app-main { overflow-x: clip; }
 @media (max-width: 767px) { .app-main:has(.page-actions) { padding-bottom: 5.5rem; } }
 
 @keyframes enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

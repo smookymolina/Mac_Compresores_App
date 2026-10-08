@@ -32,7 +32,10 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
 
   return (
     <>
-      <PageHeader title={`Comisiones ${period.name}`} subtitle={`${fmtDate(period.startDate)} – ${fmtDate(period.endDate)} · ${period.status === "OPEN" ? "Abierto" : "Cerrado"}`} />
+      <PageHeader title={`Comisiones ${period.name}`} meta={[
+        { label: "Periodo", value: `${fmtDate(period.startDate)} – ${fmtDate(period.endDate)}` },
+        { label: "Estado", value: period.status === "OPEN" ? "Abierto" : "Cerrado" },
+      ]} />
 
       {manage && (
         <div className="mb-4 grid gap-4 lg:grid-cols-3">

@@ -3,7 +3,7 @@ import { AlertTriangle, Banknote, FileText, Receipt } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { getDashboard } from "@/modules/dashboard/service";
 import { QUOTE_STATUS_LABEL } from "@/modules/quotes/status";
-import { Card, CardHeader, EmptyState, DataTable, PageHeader, Stat } from "@/components/ui";
+import { Card, CardHeader, EmptyState, DataTable, PageHeader, Stat, StatGroup } from "@/components/ui";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 
@@ -17,14 +17,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title={`Hola, ${user.name}`} subtitle="Indicadores del mes en curso, calculados desde las operaciones registradas." />
+      <PageHeader title="Resumen del mes" subtitle={`Hola, ${user.name}. Indicadores del mes en curso, calculados desde las operaciones registradas.`} />
       {denied && <p role="alert" className="mb-4 rounded-md border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger">No tienes permiso para esa sección.</p>}
-      <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <StatGroup className="stagger">
         {d.salesMonth && <Stat icon={Banknote} label="Venta neta del mes (sin IVA)" value={fmtMoney(d.salesMonth.net)} hint={`${d.salesMonth.count} ventas confirmadas`} />}
         {d.salesMonth && <Stat icon={Receipt} label="Ventas del mes (con IVA)" value={fmtMoney(d.salesMonth.total)} />}
         {d.openQuotes && <Stat icon={FileText} label="Cotizaciones abiertas" value={d.openQuotes.count} hint={`${fmtMoney(d.openQuotes.total)} en proceso`} />}
         {d.lowStock !== null && <Stat icon={AlertTriangle} label="Productos bajo mínimo" value={d.lowStock} tone={d.lowStock > 0 ? "red" : undefined} hint="Existencia ≤ stock mínimo" />}
-      </div>
+      </StatGroup>
 
       <div className="stagger mt-4 grid gap-4 lg:grid-cols-2">
         {d.recentSales.length > 0 || d.salesMonth ? (

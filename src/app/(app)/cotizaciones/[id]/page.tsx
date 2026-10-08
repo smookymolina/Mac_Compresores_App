@@ -31,7 +31,13 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
     <>
       <PageHeader
         title={`Cotización C-${q.folio}`}
-        subtitle={`${q.customer.legalName} · ${q.seller.name} · vigente hasta ${fmtDate(q.validUntil)}`}
+        meta={[
+          { label: "Estado", value: <QuoteStatusBadge status={q.status} /> },
+          ...(q.sale ? [{ label: "Venta", value: <Link className="text-accent-fg hover:underline" href={`/ventas/${q.sale.id}`}>Venta V-{q.sale.folio}</Link> }] : []),
+          { label: "Cliente", value: q.customer.legalName },
+          { label: "Vendedor", value: q.seller.name },
+          { label: "Vigente hasta", value: fmtDate(q.validUntil) },
+        ]}
         actions={
           <>
             <a className={btnClass("secondary")} href={`/api/cotizaciones/${q.id}/pdf`} target="_blank" rel="noopener">PDF</a>
@@ -39,9 +45,6 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
           </>
         }
       />
-      <div className="mb-4 flex items-center gap-2"><QuoteStatusBadge status={q.status} />
-        {q.sale && <Link className="text-sm font-medium text-accent-fg hover:underline" href={`/ventas/${q.sale.id}`}>Venta V-{q.sale.folio}</Link>}
-      </div>
 
       <div className={aside ? "grid gap-4 lg:grid-cols-3" : undefined}>
         <Card className={aside ? "overflow-hidden lg:col-span-2" : "overflow-hidden"}>
