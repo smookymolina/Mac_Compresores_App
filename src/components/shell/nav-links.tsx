@@ -51,7 +51,7 @@ export function NavLinks({
         <div key={g || gi}>
           {g && (
             <>
-              <p className={cn("mb-1 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted", mode === "sidebar" && (collapsed ? "md:hidden" : "md:hidden xl:block"))}>{g}</p>
+              <p className={cn("mb-1 px-2.5 text-xs font-medium text-muted", mode === "sidebar" && (collapsed ? "md:hidden" : "md:hidden xl:block"))}>{g}</p>
               {mode === "sidebar" && <hr className={cn("mx-2 mb-2 border-line", collapsed ? "md:block" : "md:block xl:hidden")} />}
             </>
           )}

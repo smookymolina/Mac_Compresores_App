@@ -19,7 +19,7 @@ export function CardHeader({ title, description, actions }: { title: string; des
 /** Título de vista + una acción primaria. En móvil las acciones pasan a una barra inferior fija. */
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
       <div className="min-w-0">
         <h1 className="text-xl font-semibold tracking-tight text-ink md:text-2xl">{title}</h1>
         {subtitle && <p className="mt-0.5 max-w-prose text-sm text-ink-soft">{subtitle}</p>}

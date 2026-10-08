@@ -52,9 +52,9 @@ function UserMenu({ name, roleName, logout }: { name: string; roleName: string; 
         ref={button} type="button" aria-label="Cuenta" aria-expanded={open} aria-controls={panelId}
         onClick={() => setOpen((o) => !o)} className="btn btn-ghost gap-2 !px-1.5"
       >
-        <span aria-hidden className="grid size-7 place-items-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent-fg">{initials(name)}</span>
+        <span aria-hidden className="grid size-7 place-items-center rounded-full bg-accent-soft text-xs font-semibold text-accent-fg">{initials(name)}</span>
         <span className="hidden max-w-40 text-left lg:block">
-          <span className="block truncate text-[13px] font-medium leading-4 text-ink">{name}</span>
+          <span className="block truncate text-sm font-medium leading-4 text-ink">{name}</span>
           <span className="block truncate text-xs leading-4 text-muted">{roleName}</span>
         </span>
         <ChevronDown size={14} strokeWidth={1.75} aria-hidden className="hidden text-muted lg:block" />
