@@ -5,7 +5,7 @@ Solo capa visual: ninguna regla de negocio, acción, permiso ni ruta cambia. Fue
 ## Tokens
 - **Superficies/texto:** `bg` (fondo app), `panel`, `panel-2` (cabeceras, hover), `border`, `border-strong`, `text`, `text-2`, `muted`. Clases Tailwind: `bg-surface`, `bg-panel`, `bg-panel-2`, `border-line`, `text-ink`, `text-ink-soft`, `text-muted`.
 - **Acento:** azul de marca `#046bd2` (`bg-brand`, `text-accent-fg` para enlaces, `bg-accent-soft`). Un solo acento.
-- **Semánticos:** `ok`, `warn`, `danger`, `info` (+ `-soft`; `info` = acento). Contraste ≥ 4.5:1 texto/fondo en ambos temas.
+- **Semánticos:** `ok`, `warn`, `danger`, `info` (+ `-soft`; `info` = acento). Contraste ≥ 4.5:1 texto/fondo en ambos temas (mín. 4.72:1, verificado con A11y Enforcer `contrast.py`); bordes de campo `--border-input` ≥ 3:1 (WCAG 1.4.11).
 - **Tema:** claro/oscuro con `light-dark()`; sigue `prefers-color-scheme` y se puede forzar con `data-theme` (botón en la topbar, guardado en `localStorage`).
 - **Radios:** 4 / 6 / 8 px. **Elevación:** borde 1 px primero; `--elev-1` (tarjetas) y `--elev-pop` (menús, toasts) con alfa < 0.08 en claro; en oscuro, luz de borde superior (`inset`) en lugar de sombra. **Espaciado:** base 4 px (`--space-1…8`, utilidades Tailwind).
 - **Movimiento:** solo tokens `--dur-fast` 150 ms y `--dur` 200 ms; `--ease` (salida suave) para entradas, `--ease-in` para salidas. Solo `opacity`/`transform`. Escalonado 25 ms/elemento, ≤ 300 ms en total. Con `prefers-reduced-motion`: cambios instantáneos, sin escala de pulsación, sin pulso de skeleton.

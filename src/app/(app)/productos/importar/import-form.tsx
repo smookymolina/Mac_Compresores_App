@@ -33,9 +33,12 @@ export function ImportForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-3">
-      <input type="file" name="file" accept=".csv,text/csv" required className="input max-w-md" />
+      <div>
+        <label htmlFor="file" className="label">Archivo CSV</label>
+        <input id="file" type="file" name="file" accept=".csv,text/csv" required className="input max-w-md" />
+      </div>
       <Button disabled={busy}>{busy ? "Importando… (listas grandes tardan)" : "Importar"}</Button>
-      {res && !res.ok && <p className="text-danger">{res.error}</p>}
+      {res && !res.ok && <p role="alert" className="text-sm text-danger">{res.error}</p>}
       {res?.ok && (
         <div>
           <p className="text-ok">
