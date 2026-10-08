@@ -85,6 +85,8 @@ export function AppShell({
   const [drawer, setDrawer] = useState(false);
 
   useEffect(() => {
+    // Se lee tras hidratar para no desajustar el HTML del servidor.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     try { if (localStorage.getItem(STORAGE_KEY) === "collapsed") setCollapsed(true); } catch { /* sin preferencia guardada */ }
   }, []);
   const toggleCollapsed = () => {

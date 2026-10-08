@@ -19,4 +19,5 @@
    - [x] PDF alineado al formato oficial (PDF de referencia, 2026-10-08): ficha Empresa/Cliente/Folio/Fecha, partidas con descuento, «Complementos» del servicio de 8000 h (solo si la cotización lo incluye), totales, distribuidores oficiales (Milwaukee) y términos A–J. Sin firma de cotizador. Pendiente: datos bancarios.
 4. Cobranza (habilita comisiones sobre cobro) y expiración automática de cotizaciones.
    - [x] Paginación (50 por página, `src/lib/pagination.ts`) en clientes, cotizaciones y ventas; ventas con búsqueda por folio/cliente y filtro de estado (2026-10-08).
+   - [x] Seguridad (2026-10-08): Next 16.4.0 (corrige postcss), limitador de login persistente en BD (correo+IP, IP, correo), CSP/HSTS, purga de sesiones vencidas. Pendiente: `npm audit` marca prisma CLI (@prisma/config/deepmerge-ts, solo herramienta de desarrollo; el fix propuesto es un downgrade).
 5. Despliegue: Dockerfile de la app, `SESSION` en HTTPS (cookie `secure` ya activa en producción), respaldos de BD, limitador de login compartido (Redis) si hay varias instancias.

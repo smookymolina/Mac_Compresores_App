@@ -67,6 +67,15 @@ model Session {
   @@index([userId])
 }
 
+/// Contadores del limitador de login (persistentes y compartidos entre instancias).
+/// Claves: `ei:<correo>|<ip>`, `i:<ip>` y `e:<correo>`.
+model LoginAttempt {
+  key         String    @id
+  count       Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}
+
 // ───────── Catálogo ─────────
 
 /// Línea comercial: determina la tasa de comisión.

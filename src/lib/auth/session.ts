@@ -24,6 +24,8 @@ const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 export async function createSession(userId: string) {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  // Mantenimiento oportunista: elimina sesiones vencidas.
+  await db.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   await db.session.create({ data: { id: hashToken(token), userId, expiresAt } });
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,

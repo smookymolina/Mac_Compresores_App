@@ -49,7 +49,7 @@ export function QuoteEditor({
   const [searching, startSearch] = useTransition();
   const [, startSubmit] = useTransition();
   const [state, formAction, pending] = useActionState(action, null);
-  const defaultValid = new Date(Date.now() + 15 * 864e5).toISOString().slice(0, 10);
+  const [defaultValid] = useState(() => new Date(Date.now() + 15 * 864e5).toISOString().slice(0, 10));
 
   // Una consulta por pausa de tecleo (250 ms) y solo vale la respuesta de la última.
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);

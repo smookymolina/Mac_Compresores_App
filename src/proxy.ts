@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 // Filtro barato de presencia de cookie; la validación real ocurre en el servidor (getCurrentUser).
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   if (!req.cookies.has("mac_session")) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
