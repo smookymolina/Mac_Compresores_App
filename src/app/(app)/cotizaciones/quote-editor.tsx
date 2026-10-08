@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import type { ActionResult } from "@/lib/errors";
 import { Button } from "@/components/ui";
@@ -51,10 +51,18 @@ export function QuoteEditor({
   const [state, formAction, pending] = useActionState(action, null);
   const defaultValid = new Date(Date.now() + 15 * 864e5).toISOString().slice(0, 10);
 
+  // Una consulta por pausa de tecleo (250 ms) y solo vale la respuesta de la última.
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const latest = useRef("");
   const search = (t: string) => {
     setTerm(t);
+    clearTimeout(timer.current);
+    latest.current = t;
     if (t.trim().length < 2) return setFound([]);
-    startSearch(async () => setFound(await searchProductsAction(t)));
+    timer.current = setTimeout(() => startSearch(async () => {
+      const res = await searchProductsAction(t);
+      if (latest.current === t) setFound(res);
+    }), 250);
   };
   const add = (p: Found) => {
     setItems((xs) => [...xs, {
