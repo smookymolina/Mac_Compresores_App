@@ -8,7 +8,7 @@ Solo capa visual: ninguna regla de negocio, acción, permiso ni ruta cambia. Fue
 - **Semánticos:** `ok`, `warn`, `danger`, `info` (+ `-soft`; `info` = acento). Contraste ≥ 4.5:1 texto/fondo en ambos temas.
 - **Tema:** claro/oscuro con `light-dark()`; sigue `prefers-color-scheme` y se puede forzar con `data-theme` (botón en la topbar, guardado en `localStorage`).
 - **Radios:** 4 / 6 / 8 px. **Elevación:** borde 1 px primero; `--elev-1` (tarjetas) y `--elev-pop` (menús, toasts) con alfa < 0.08 en claro; en oscuro, luz de borde superior (`inset`) en lugar de sombra. **Espaciado:** base 4 px (`--space-1…8`, utilidades Tailwind).
-- **Movimiento:** `--dur-fast` 150 ms, `--dur` 200 ms, `--ease`. Solo `opacity`/`transform`; `prefers-reduced-motion` los reduce a ~0.
+- **Movimiento:** solo tokens `--dur-fast` 150 ms y `--dur` 200 ms; `--ease` (salida suave) para entradas, `--ease-in` para salidas. Solo `opacity`/`transform`. Escalonado 25 ms/elemento, ≤ 300 ms en total. Con `prefers-reduced-motion`: cambios instantáneos, sin escala de pulsación, sin pulso de skeleton.
 
 ## Tipografía
 Inter (UI) y JetBrains Mono (SKU, folios, códigos: clase `.mono`), ambas con `next/font`. Cifras con `tabular-nums` (`.num` en tablas, KPIs). Escala: 12 (solo meta: cabeceras de tabla, ayudas, fechas), 14 (tablas, etiquetas, cuerpo), 20–24 (título de vista y KPI). Pesos 400/500/600 (`<b>` = 600). Interlineado 1.5 cuerpo, 1.25 títulos (`text-wrap: balance`). Sin mayúsculas sostenidas en etiquetas.
