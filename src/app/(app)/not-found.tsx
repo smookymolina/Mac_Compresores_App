@@ -1,10 +1,10 @@
-import { Card, LinkButton } from "@/components/ui";
+import { SearchX } from "lucide-react";
+import { Card, EmptyState, LinkButton } from "@/components/ui";
 
 export default function NotFound() {
   return (
-    <Card className="p-6 text-center">
-      <p className="mb-4 font-medium">Registro no encontrado o sin acceso.</p>
-      <LinkButton href="/dashboard" variant="secondary">Volver al dashboard</LinkButton>
+    <Card>
+      <EmptyState icon={SearchX} title="Registro no encontrado o sin acceso." action={<LinkButton href="/dashboard" variant="secondary">Volver al dashboard</LinkButton>} />
     </Card>
   );
 }
