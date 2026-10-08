@@ -13,6 +13,9 @@ export default async function LoginPage() {
   return (
     <main className="grid min-h-dvh bg-surface lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <aside className="sidebar login-brand hidden flex-col gap-24 p-10 lg:flex">
+        <div aria-hidden className="login-flow">
+          {[0, 1, 2, 3, 4].map((i) => <span key={i} className="flow-line" style={{ "--n": i } as React.CSSProperties} />)}
+        </div>
         <Gauge className="login-gauge" />
         <span className="logo-tile page-enter relative self-start">
           <Image src="/brand/logo-h.png" alt="MAC Compresores" width={150} height={40} priority className="h-10 w-auto" />

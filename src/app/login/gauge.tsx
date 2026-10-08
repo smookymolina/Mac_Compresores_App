@@ -5,6 +5,7 @@ const CY = 100;
 const START = 135; // grados SVG (0 = derecha, sentido horario)
 const SWEEP = 270;
 const TICKS = 28;
+const LIT = 16; // marcas que la aguja alcanza (≈ 62 % de la escala)
 
 function polar(r: number, deg: number) {
   const a = (deg * Math.PI) / 180;
@@ -31,13 +32,16 @@ export function Gauge({ className }: { className?: string }) {
         return (
           <line
             key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-            className={major ? "gauge-tick gauge-tick-major" : "gauge-tick"}
+            className={`gauge-tick${major ? " gauge-tick-major" : ""}${i <= LIT ? " gauge-tick-lit" : ""}`}
             style={{ "--i": i } as React.CSSProperties}
           />
         );
       })}
       <g className="gauge-needle">
-        <line x1={CX} y1={CY + 12} x2={CX} y2={CY - 60} />
+        {/* Grupo interior: oscilación leve en reposo, separada del barrido inicial. */}
+        <g className="gauge-needle-idle">
+          <line x1={CX} y1={CY + 12} x2={CX} y2={CY - 60} />
+        </g>
       </g>
       <circle cx={CX} cy={CY} r={6} className="gauge-hub" />
     </svg>

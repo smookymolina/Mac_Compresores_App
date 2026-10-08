@@ -292,6 +292,29 @@ a, button, select, summary, label { touch-action: manipulation; }
   .login-rise > :nth-child(n + 4) { animation-delay: 180ms; }
   .login-form .input { transition: border-color var(--dur-fast); }
 
+  /* Marcas que la aguja alcanza: se encienden a su paso (retraso ≈ avance de la aguja). */
+  .gauge-tick-lit { animation: fade 200ms var(--ease) backwards, tick-lit 260ms var(--ease) both; animation-delay: calc(150ms + var(--i) * 15ms), calc(380ms + var(--i) * 42ms); }
+  .gauge-tick-lit.gauge-tick-major { stroke: #ffffff; }
+  /* Aguja en reposo: oscilación de ±1.2° tras el barrido, como una presión real. */
+  .gauge-needle-idle { transform-box: view-box; transform-origin: 100px 100px; animation: needle-idle 2.8s ease-in-out 1.5s infinite alternate; }
+
+  /* Flujo de aire: líneas finas que cruzan el panel (un solo tono, baja opacidad). */
+  .login-flow { position: absolute; inset: 0; pointer-events: none; }
+  .flow-line {
+    position: absolute; left: 0; height: 1px; width: 45%; opacity: 0;
+    top: calc(40% + var(--n) * 7%);
+    background: linear-gradient(to right, transparent, rgb(124 192 255 / 0.45), transparent);
+    animation: flow calc(7s + var(--n) * 1.3s) linear calc(600ms + var(--n) * 900ms) infinite;
+  }
+
+  /* Formulario: sacudida breve en error y barra de progreso en el botón mientras procesa. */
+  .login-form [role="status"] { animation: shake 320ms var(--ease); }
+  .login-form .btn[aria-busy="true"] { position: relative; overflow: hidden; }
+  .login-form .btn[aria-busy="true"]::after {
+    content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 40%;
+    background: rgb(255 255 255 / 0.8); animation: busy 900ms ease-in-out infinite;
+  }
+
   .skip-link { position: absolute; left: 0.5rem; top: -4rem; z-index: 60; padding: 0.5rem 0.75rem; border-radius: var(--r); background: var(--accent); color: var(--on-accent); font-size: 0.875rem; }
   .skip-link:focus { top: 0.5rem; }
 }
@@ -308,6 +331,11 @@ a, button, select, summary, label { touch-action: manipulation; }
 @keyframes pulse { 50% { opacity: 0.55; } }
 /* Excepción documentada: el barrido del manómetro (1.1 s) es la única animación larga y ocurre una vez. */
 @keyframes needle { from { transform: rotate(-135deg); } }
+@keyframes needle-idle { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
+@keyframes tick-lit { from { opacity: 0.35; } to { opacity: 1; } }
+@keyframes flow { 0% { opacity: 0; transform: translateX(-100%); } 15% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(240%); } }
+@keyframes shake { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
+@keyframes busy { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -320,4 +348,6 @@ a, button, select, summary, label { touch-action: manipulation; }
   /* Sin escala ni desplazamiento: solo cambios instantáneos u opacidad. */
   .btn:active, [data-tip]::after { transform: none; }
   .skeleton { animation: none; }
+  .flow-line, .login-form .btn[aria-busy="true"]::after { display: none; }
+  .gauge-needle-idle { animation: none; }
 }
