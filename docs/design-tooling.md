@@ -78,3 +78,17 @@ Para re-ejecutarla con las skills reales: habilitar los plugins, abrir una sesi�
 | `VectorLab UI/UX Skills` | 1.0.0 | `ux-audit`, `anti-slop`, `viewports`, `colour-palette`, `typography`, `spacing`, `surfaces`, `empty-states`, `errors`, `forms`, `loaders`, `icon-buttons`, `labels`, `page-patterns`, `keyboard`, `verbs`, `defaults`, `motion`, `transitions`, `reduced-motion` | 1–5 |
 | `audit-suite` | 1.1.0 | `audit-as-design-eng`, `audit-as-ux-eng`, `audit-as-frontend-eng`, `audit-as-a11y-eng`, `audit-as-perf-eng`, `web-design-guidelines`, `make-interfaces-feel-better`, `vercel-react-best-practices`, `emil-design-engineering` | 1–6 |
 | `A11y Enforcer` | 1.0.0 | `a11y-check`, `contrast`, `a11y-enforcer` | 5 |
+
+### Uso real en el tercer pase
+
+| Fase | Skills invocadas | Resultado concreto |
+|---|---|---|
+| 1 | `ux-audit`, `anti-slop`, `viewports`, `audit-as-design-eng`, `audit-as-ux-eng`, `audit-as-frontend-eng` | Diagnóstico en chat (sin informes en disco) |
+| 2 | `frontend-design`, `colour-palette`, `typography`, `spacing`, `surfaces`, `web-design-guidelines` (reglas de Vercel vía WebFetch), `make-interfaces-feel-better` | Elevación < 0.08, tipografía 12/14, `--hit` 44 px |
+| 3 | `forms`, `empty-states`, `errors`, `loaders`, `icon-buttons`, `labels`, `page-patterns`, `vercel-react-best-practices` | Tablas de detalle → `DataTable`, vacíos, búsqueda, tooltips |
+| 4 | `motion`, `transitions`, `reduced-motion` | Tokens 150/200 ms, escalonado ≤ 300 ms |
+| 5 | `a11y-enforcer` (`a11y_scan.py`, `contrast.py`), `a11y-check`, `contrast`, `audit-as-a11y-eng` | 1 error corregido; borde de campo a 3:1 |
+| 6 | `audit-as-perf-eng` | Debounce en búsqueda del editor; sin animar `box-shadow` |
+
+No invocadas: `web-animation-design` (no existe como skill en audit-suite 1.1.0; solo se cita como referencia),
+`keyboard`, `verbs`, `defaults`, `emil-design-engineering`.

@@ -25,6 +25,8 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const transitions = QUOTE_TRANSITIONS[q.status];
   const warehouses = q.status === "ACCEPTED" && can(user, "sales.create") ? await db.warehouse.findMany({ where: { active: true } }) : [];
 
+  const aside = (writable && transitions.length > 0) || warehouses.length > 0;
+
   return (
     <>
       <PageHeader
@@ -41,8 +43,8 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         {q.sale && <Link className="text-sm font-medium text-accent-fg hover:underline" href={`/ventas/${q.sale.id}`}>Venta V-{q.sale.folio}</Link>}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="overflow-hidden lg:col-span-2">
+      <div className={aside ? "grid gap-4 lg:grid-cols-3" : undefined}>
+        <Card className={aside ? "overflow-hidden lg:col-span-2" : "overflow-hidden"}>
           <CardHeader title="Partidas (precios congelados)" />
           <DataTable
             caption="Partidas de la cotización"

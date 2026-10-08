@@ -7,6 +7,7 @@ import { mkdirSync } from "node:fs";
 const out = process.argv[2] ?? "screenshots";
 const base = process.argv[3] ?? "http://localhost:3100";
 const password = process.env.SEED_ADMIN_PASSWORD ?? "";
+const schemes = (process.env.SCHEMES ?? "light,dark").split(",");
 const viewports = [
   { name: "mobile-375", width: 375, height: 812, isMobile: true, hasTouch: true },
   { name: "tablet-768", width: 768, height: 1024 },
@@ -26,8 +27,9 @@ mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 let overflow = 0;
 
-for (const { name, ...vp } of viewports) {
-  const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.isMobile, hasTouch: vp.hasTouch });
+for (const scheme of schemes) for (const { name: vpName, ...vp } of viewports) {
+  const name = `${scheme}-${vpName}`;
+  const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.isMobile, hasTouch: vp.hasTouch, colorScheme: scheme });
   const page = await ctx.newPage();
   const check = async (label) => {
     const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
@@ -51,6 +53,18 @@ for (const { name, ...vp } of viewports) {
     await page.waitForTimeout(450); // deja terminar las animaciones de entrada
     await page.screenshot({ path: `${out}/${name}-${label}.png`, fullPage: false });
     await check(label);
+  }
+
+  // Detalle con tabla de partidas (primera cotización de la lista).
+  await page.goto(`${base}/cotizaciones`);
+  const first = page.locator('a[href^="/cotizaciones/"]').filter({ hasText: /^C-/ }).first();
+  if (await first.count()) {
+    await first.click();
+    await page.waitForURL(/\/cotizaciones\/[0-9a-f-]{36}$/);
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(450);
+    await page.screenshot({ path: `${out}/${name}-detalle-cotizacion.png` });
+    await check("detalle-cotizacion");
   }
 
   // Drawer de navegación (móvil) o menú de usuario (tablet/escritorio).

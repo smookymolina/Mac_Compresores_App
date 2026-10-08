@@ -181,9 +181,16 @@ a, button, select, summary, label { touch-action: manipulation; }
   .table tbody tr { transition: background-color var(--dur-fast); }
   .table tbody tr:hover td { background: var(--panel-2); }
   .table .num, .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .table .mono, .mono { font-family: var(--font-mono); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+  /* Excepción óptica documentada: la mono tiene mayor altura x; 13 px equivale a 14 px de Inter. */
+  .table .mono, .mono { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
   .table th button { display: inline-flex; align-items: center; gap: 0.25rem; font: inherit; color: inherit; }
   .table th button:hover { color: var(--text); }
+  .table th button .sort-idle { opacity: 0.5; }
+  /* Icono de orden inactivo: solo al pasar o enfocar (con puntero fino); el espacio queda reservado. */
+  @media (hover: hover) {
+    .table th button .sort-idle { opacity: 0; transition: opacity var(--dur-fast); }
+    .table th button:hover .sort-idle, .table th button:focus-visible .sort-idle { opacity: 0.6; }
+  }
   .table th.num button { flex-direction: row-reverse; }
   /* Móvil: columna de identificación fija mientras se desplaza en horizontal. */
   @media (max-width: 767px) {

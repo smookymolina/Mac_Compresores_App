@@ -79,7 +79,7 @@ export function DataTable({
                   {c.sortable ? (
                     <button type="button" onClick={() => cycle(i)}>
                       {c.header}
-                      <Icon size={12} strokeWidth={1.75} aria-hidden className={cn(dir === null && "opacity-50")} />
+                      <Icon size={12} strokeWidth={1.75} aria-hidden className={cn(dir === null && "sort-idle")} />
                     </button>
                   ) : c.header}
                 </th>

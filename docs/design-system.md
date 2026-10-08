@@ -24,8 +24,11 @@ Filas de tabla 40–44 px, cabecera 36 px, controles 36 px (44 px con `pointer: 
 | `Field`/`SelectField`, `.input`, `.label` | `label` ligado por `id`, `aria-invalid` + `aria-describedby` en error |
 | `Badge` | Color + punto + texto (nunca solo color) |
 | `Card`, `CardHeader`, `PageHeader`, `Stat` (KPI) | En móvil las acciones de `PageHeader` pasan a barra inferior fija |
-| `DataTable` | Cabecera fija, orden por columna sobre las filas cargadas (`aria-sort`), estados vacío/carga/error. Móvil: scroll horizontal controlado con primera columna fija |
-| `EmptyState`, `ErrorState`, `Skeleton`, `TableSkeleton` | Skeletons en lugar de spinners (`loading.tsx`) |
+| `DataTable` | Cabecera fija, orden por columna sobre las filas cargadas (`aria-sort`; icono inactivo visible solo al pasar/enfocar), fila de totales `foot`, estados vacío/carga/error. También para tablas de detalle (partidas, historiales, movimientos). Móvil: scroll horizontal controlado con primera columna fija |
+| `EmptyState`, `FilteredEmpty`, `ErrorState`, `Skeleton`, `TableSkeleton` | Vacío = título + frase de valor + acción; `FilteredEmpty` ofrece «Limpiar filtros». |
+| `SearchInput` | Búsqueda de barra de filtros con lupa funcional |
+| Botón de icono (`.icon-btn` + `data-tip`) | Cuadrado, `aria-label` + tooltip CSS en hover/foco (no `title`) |
+| | Skeletons en lugar de spinners (`loading.tsx`) |
 | `Dialog` | `<dialog>` nativo: modal / drawer (`side`), foco atrapado, Esc, `aria-labelledby` |
 | `ToastProvider`/`useToast` | Éxitos de `ActionForm`; región `aria-live="polite"`. Los errores siguen en línea (`role="status"`) |
 

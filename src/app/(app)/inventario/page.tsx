@@ -34,8 +34,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <PageHeader title="Inventario" subtitle="Movimientos inmutables; las correcciones se registran como reversas auditadas." />
-      <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="overflow-hidden xl:col-span-2">
+      <div className={writable ? "grid gap-4 xl:grid-cols-3" : undefined}>
+        <Card className={writable ? "overflow-hidden xl:col-span-2" : "overflow-hidden"}>
           <CardHeader title="Existencias" />
           <form className="toolbar">
             <SearchInput name="q" defaultValue={p.q} placeholder="SKU o descripción" aria-label="Buscar por SKU o descripción" />
@@ -57,7 +57,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                 cells: [
                   b.product.sku, b.product.description, b.warehouse.code,
                   `${b.quantity.toString()} ${b.product.unit}`, b.minStock.toString(),
-                  low ? <Badge key="l" tone="red">Bajo mínimo</Badge> : null,
+                  low ? <Badge key="l" tone="red">Bajo mínimo</Badge> : <Badge key="l" tone="green">En stock</Badge>,
                 ],
                 sort: [b.product.sku, b.product.description, b.warehouse.code, b.quantity.toNumber(), b.minStock.toNumber(), low ? 1 : 0],
               };
