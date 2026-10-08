@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useTransition } from "react";
 import type { ActionResult } from "@/lib/errors";
-import { Button } from "@/components/ui";
+import { Button, useToast } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 
@@ -21,6 +21,7 @@ export function ActionForm<T>({
   const [state, formAction, pending] = useActionState<ActionResult<T> | null, FormData>(action, null);
   const [, startTransition] = useTransition();
   const ref = useRef<HTMLFormElement>(null);
+  const { push } = useToast();
   // Envío manual: evita el reseteo automático de React 19 que borraría lo capturado si hay error.
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -28,8 +29,10 @@ export function ActionForm<T>({
     startTransition(() => formAction(fd));
   };
   useEffect(() => {
-    if (state?.ok && resetOnSuccess) ref.current?.reset();
-  }, [state, resetOnSuccess]);
+    if (!state?.ok) return;
+    if (resetOnSuccess) ref.current?.reset();
+    push(state.message ?? "Guardado.", "success");
+  }, [state, resetOnSuccess, push]);
   const fieldErrors = state && !state.ok ? state.fieldErrors : undefined;
 
   return (
@@ -44,11 +47,7 @@ export function ActionForm<T>({
         <Button type="submit" disabled={pending} variant={variant}>
           {pending ? "Procesando…" : submitLabel}
         </Button>
-        {state && (
-          <p role="status" className={cn("text-sm", state.ok ? "text-ok" : "text-danger")}>
-            {state.ok ? (state.message ?? "Guardado.") : state.error}
-          </p>
-        )}
+        {state && !state.ok && <p role="status" className="text-sm text-danger">{state.error}</p>}
       </div>
     </form>
   );
