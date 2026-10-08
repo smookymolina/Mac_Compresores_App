@@ -7,8 +7,9 @@ Solo capa visual: ninguna regla de negocio, acción, permiso ni ruta cambia. Fue
 - **Acento:** azul de marca `#046bd2` (`bg-brand`, `text-accent-fg` para enlaces, `bg-accent-soft`). Un solo acento.
 - **Semánticos:** `ok`, `warn`, `danger`, `info` (+ `-soft`; `info` = acento). Contraste ≥ 4.5:1 texto/fondo en ambos temas (mín. 4.72:1, verificado con A11y Enforcer `contrast.py`); bordes de campo `--border-input` ≥ 3:1 (WCAG 1.4.11).
 - **Tema:** claro/oscuro con `light-dark()`; sigue `prefers-color-scheme` y se puede forzar con `data-theme` (botón en la topbar, guardado en `localStorage`).
-- **Identidad:** neutros acero fríos; barra lateral grafito en ambos temas (`.sidebar` reasigna los tokens en su ámbito); radios contenidos.
+- **Identidad:** paleta de maccompresores.com.mx (tema Astra): azul `#046bd2`/`#045cb4`, pizarra `#1e293b`/`#334155`, fondo `#F0F5FA`, bordes `#D1D5DB`; barra lateral grafito en ambos temas (`.sidebar` reasigna los tokens en su ámbito); radios contenidos.
 - **Radios:** 3 / 4 / 6 px (control < panel). **Elevación:** borde 1 px primero; `--elev-1` (tarjetas) y `--elev-pop` (menús, toasts) con alfa < 0.08 en claro; en oscuro, luz de borde superior (`inset`) en lugar de sombra. **Espaciado:** base 4 px (`--space-1…8`, utilidades Tailwind).
+- **Login:** único momento orquestado: manómetro SVG (`login/gauge.tsx`) cuya aguja barre una vez (1.1 s, excepción documentada; solo `transform`) + entrada escalonada del contenido ≤ 300 ms. Con movimiento reducido aparece en su estado final.
 - **Movimiento:** solo tokens `--dur-fast` 150 ms y `--dur` 200 ms; `--ease` (salida suave) para entradas, `--ease-in` para salidas. Solo `opacity`/`transform`. Escalonado 25 ms/elemento, ≤ 300 ms en total. Con `prefers-reduced-motion`: cambios instantáneos, sin escala de pulsación, sin pulso de skeleton.
 
 ## Tipografía
@@ -23,6 +24,7 @@ Filas de tabla 40–44 px, cabecera 36 px, controles 36 px (44 px con `pointer: 
 | `AppShell` | Sidebar: ≥1280 px expandido y colapsable; 768–1279 px solo iconos; <768 px drawer (`Dialog`). Topbar con breadcrumb, tema y menú de usuario |
 | `Button`/`LinkButton`/`btnClass` | `primary`, `secondary`, `danger`, `ghost`; `size="sm"` |
 | `Field`/`SelectField`, `.input`, `.label` | `label` ligado por `id`, `aria-invalid` + `aria-describedby` en error |
+| `Pager` | Pie de tabla: total, página y Anterior/Siguiente con estado en la URL (productos, clientes, cotizaciones, ventas) |
 | `Badge` | Color + punto + texto (nunca solo color) |
 | `Card`, `CardHeader` | Panel plano: borde 1 px, sin sombra |
 | `PageHeader` | Banda de documento a todo el ancho (`.page-head`, `.app-main` recorta en x) con `meta` clave-valor (estado, cliente, vendedor…) en lugar de cadenas con «·». En móvil las acciones pasan a barra inferior fija |

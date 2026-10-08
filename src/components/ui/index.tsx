@@ -9,4 +9,5 @@ export { EmptyState, ErrorState, FilteredEmpty, SearchInput, Skeleton, TableSkel
 export { DataTable } from "./data-table";
 export type { DataColumn, DataRow } from "./data-table";
 export { Dialog } from "./dialog";
+export { Pager } from "./pager";
 export { ToastProvider, useToast } from "./toast";

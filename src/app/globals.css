@@ -9,16 +9,16 @@
   color-scheme: light dark;
 
   /* Superficies y texto */
-  /* Neutros acero (ligeramente fríos): lienzo un paso por debajo de los paneles. */
-  --bg: light-dark(#eef1f5, #0c1015);
-  --panel: light-dark(#ffffff, #141920);
-  --panel-2: light-dark(#f6f8fa, #1a2029);
-  --border: light-dark(#dde2e9, #252d38);
-  --border-strong: light-dark(#c5ccd6, #343e4c);
-  --border-input: light-dark(#8a94a3, #5f6b7c); /* ≥ 3:1 sobre panel (WCAG 1.4.11) */
-  --text: light-dark(#111820, #e6eaf0);
-  --text-2: light-dark(#424d5c, #aeb8c6);
-  --muted: light-dark(#5f6b7a, #8b97a8);
+  /* Paleta de maccompresores.com.mx (tema Astra): slate #1e293b / #334155, fondo #F0F5FA, bordes #D1D5DB. */
+  --bg: light-dark(#f0f5fa, #0b1220);
+  --panel: light-dark(#ffffff, #111a2b);
+  --panel-2: light-dark(#f7f9fc, #172235);
+  --border: light-dark(#e2e8f0, #1f2b3e);
+  --border-strong: light-dark(#d1d5db, #2d3b52);
+  --border-input: light-dark(#8a94a3, #5b6b84); /* ≥ 3:1 sobre panel (WCAG 1.4.11) */
+  --text: light-dark(#1e293b, #e2e8f0);
+  --text-2: light-dark(#334155, #cbd5e1);
+  --muted: light-dark(#475569, #94a3b8);
 
   /* Acento (azul de marca) */
   --accent: light-dark(#046bd2, #1d6fc9);
@@ -254,11 +254,11 @@ a, button, select, summary, label { touch-action: manipulation; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .logo-tile { background: #fff; padding: 0.25rem 0.5rem; } }
 
   /* ---- Barra lateral grafito (ambos temas): reasigna los tokens dentro de su ámbito ---- */
+  /* Azul pizarra de los encabezados del sitio (#1e293b); en tema oscuro, un paso más profundo. */
   .sidebar {
-    color-scheme: dark;
-    --panel: #11161d; --panel-2: #1a212b; --border: #222a35;
-    --text: #eef2f7; --text-2: #b3bdcb; --muted: #808c9d;
-    --accent-soft: #18304d; --accent-fg: #82bcff;
+    --panel: light-dark(#1e293b, #0f172a); --panel-2: light-dark(#273449, #172235); --border: light-dark(#334155, #1f2b3e);
+    --text: #f1f5f9; --text-2: #cbd5e1; --muted: #94a3b8;
+    --accent-soft: #163a63; --accent-fg: #7cc0ff;
     background: var(--panel); color: var(--text);
   }
   .sidebar .logo-tile { background: #fff; padding: 0.25rem 0.5rem; }
@@ -276,6 +276,22 @@ a, button, select, summary, label { touch-action: manipulation; }
   .kpis > * { background: var(--panel); padding: 1rem 1.25rem; min-width: 0; }
   .kpi-value { font-family: var(--font-mono); font-size: 1.5rem; line-height: 1.2; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 
+  /* ---- Inicio de sesión: un solo momento orquestado (manómetro + entrada escalonada) ---- */
+  .login-brand { position: relative; overflow: hidden; }
+  .login-gauge { position: absolute; right: -7rem; bottom: -6rem; width: 30rem; max-width: none; pointer-events: none; }
+  .gauge-track { fill: none; stroke: rgb(203 213 225 / 0.18); stroke-width: 2; }
+  .gauge-zone { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; animation: fade 400ms var(--ease) 700ms backwards; }
+  .gauge-tick { stroke: rgb(203 213 225 / 0.35); stroke-width: 1.25; animation: fade 200ms var(--ease) backwards; animation-delay: calc(150ms + var(--i) * 15ms); }
+  .gauge-tick-major { stroke: rgb(226 232 240 / 0.7); stroke-width: 2; }
+  .gauge-needle { transform-box: view-box; transform-origin: 100px 100px; transform: rotate(32deg); animation: needle 1100ms cubic-bezier(0.16, 1, 0.3, 1) 300ms backwards; }
+  .gauge-needle line { stroke: #f1f5f9; stroke-width: 2.5; stroke-linecap: round; }
+  .gauge-hub { fill: var(--accent); stroke: #1e293b; stroke-width: 3; }
+  .login-rise > * { animation: enter 300ms var(--ease) backwards; }
+  .login-rise > :nth-child(2) { animation-delay: 60ms; }
+  .login-rise > :nth-child(3) { animation-delay: 120ms; }
+  .login-rise > :nth-child(n + 4) { animation-delay: 180ms; }
+  .login-form .input { transition: border-color var(--dur-fast); }
+
   .skip-link { position: absolute; left: 0.5rem; top: -4rem; z-index: 60; padding: 0.5rem 0.75rem; border-radius: var(--r); background: var(--accent); color: var(--on-accent); font-size: 0.875rem; }
   .skip-link:focus { top: 0.5rem; }
 }
@@ -290,6 +306,8 @@ a, button, select, summary, label { touch-action: manipulation; }
 @keyframes slide-left { from { opacity: 0.6; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
 @keyframes slide-right { from { opacity: 0.6; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 @keyframes pulse { 50% { opacity: 0.55; } }
+/* Excepción documentada: el barrido del manómetro (1.1 s) es la única animación larga y ocurre una vez. */
+@keyframes needle { from { transform: rotate(-135deg); } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

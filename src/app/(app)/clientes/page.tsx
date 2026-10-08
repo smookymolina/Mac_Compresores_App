@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { can, requirePagePermission } from "@/lib/auth/session";
-import { listCustomers } from "@/modules/customers/service";
-import { Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
+import { pageCustomers } from "@/modules/customers/service";
+import { Card, DataTable, EmptyState, LinkButton, PageHeader, Pager, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
 import { sp } from "@/lib/utils";
 
 export const metadata = { title: "Clientes" };
@@ -16,15 +16,16 @@ const COLUMNS: DataColumn[] = [
   { id: "sales", header: "Ventas", align: "right", sortable: true },
 ];
 
-export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
   const user = await requirePagePermission("customers.read");
-  const { q } = await searchParams;
-  const rows = await listCustomers(user, sp(q));
+  const { q, page: pageParam } = await searchParams;
+  const { items: rows, total, page, pages } = await pageCustomers(user, { search: sp(q), page: Number(pageParam) || 1 });
+  const qs = (n: number) => `?${new URLSearchParams({ ...(q && { q }), page: String(n) })}`;
   const canWrite = can(user, "customers.write");
 
   return (
     <>
-      <PageHeader title="Clientes" actions={canWrite && <LinkButton href="/clientes/nuevo">Nuevo cliente</LinkButton>} />
+      <PageHeader title="Clientes" subtitle={`${total.toLocaleString("es-MX")} clientes`} actions={canWrite && <LinkButton href="/clientes/nuevo">Nuevo cliente</LinkButton>} />
       <Card className="overflow-hidden">
         <form className="toolbar">
           <SearchInput name="q" defaultValue={q} placeholder="Razón social o RFC" aria-label="Buscar por razón social o RFC" />
@@ -43,6 +44,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
             sort: [c.legalName, c.rfc, c.owner?.name ?? "", c.paymentTermsDays, c._count.quotes, c._count.sales],
           }))}
         />
+        {total > 0 && <Pager page={page} pages={pages} total={total} noun="clientes" href={qs} />}
       </Card>
     </>
   );

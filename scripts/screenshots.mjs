@@ -39,6 +39,7 @@ for (const scheme of schemes) for (const { name: vpName, ...vp } of viewports) {
   };
 
   await page.goto(`${base}/login`);
+  await page.waitForTimeout(1700); // barrido del manómetro y entrada escalonada
   await page.screenshot({ path: `${out}/${name}-login.png` });
   await check("login");
 

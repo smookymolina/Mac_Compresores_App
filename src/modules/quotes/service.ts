@@ -1,5 +1,6 @@
 import type { Prisma, QuoteStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { pageArgs, paged } from "@/lib/pagination";
 import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
@@ -11,22 +12,29 @@ export function quoteScope(user: CurrentUser): Prisma.QuoteWhereInput {
   return can(user, "quotes.read_all") ? {} : { sellerId: user.id };
 }
 
-export async function listQuotes(user: CurrentUser, q: { status?: QuoteStatus; search?: string }) {
+export async function listQuotes(user: CurrentUser, q: { status?: QuoteStatus; search?: string; page?: number }) {
   const folio = q.search && /^\d+$/.test(q.search) ? Number(q.search) : undefined;
-  return db.quote.findMany({
-    where: {
-      AND: [
-        quoteScope(user),
-        q.status ? { status: q.status } : {},
-        q.search
-          ? { OR: [{ customer: { legalName: { contains: q.search, mode: "insensitive" } } }, ...(folio ? [{ folio }] : [])] }
-          : {},
-      ],
-    },
-    include: { customer: { select: { legalName: true } }, seller: { select: { name: true } } },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
+  const { page, skip, take } = pageArgs(q.page);
+  const where: Prisma.QuoteWhereInput = {
+    AND: [
+      quoteScope(user),
+      q.status ? { status: q.status } : {},
+      q.search
+        ? { OR: [{ customer: { legalName: { contains: q.search, mode: "insensitive" } } }, ...(folio ? [{ folio }] : [])] }
+        : {},
+    ],
+  };
+  const [items, total] = await Promise.all([
+    db.quote.findMany({
+      where,
+      include: { customer: { select: { legalName: true } }, seller: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+    }),
+    db.quote.count({ where }),
+  ]);
+  return paged(items, total, page);
 }
 
 export async function getQuote(user: CurrentUser, id: string) {

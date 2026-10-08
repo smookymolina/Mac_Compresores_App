@@ -2,9 +2,9 @@ import Link from "next/link";
 import { Receipt } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { listSales } from "@/modules/sales/service";
-import { Badge, Card, DataTable, EmptyState, PageHeader, type DataColumn } from "@/components/ui";
+import { Badge, Card, DataTable, EmptyState, FilteredEmpty, PageHeader, Pager, SearchInput, type DataColumn } from "@/components/ui";
 import { fmtMoney } from "@/lib/money";
-import { fmtDate } from "@/lib/utils";
+import { fmtDate, sp } from "@/lib/utils";
 
 export const metadata = { title: "Ventas" };
 
@@ -18,17 +18,30 @@ const COLUMNS: DataColumn[] = [
   { id: "total", header: "Total", align: "right", sortable: true },
 ];
 
-export default async function SalesPage() {
+const STATUS_LABEL = { CONFIRMED: "Confirmada", CANCELLED: "Cancelada" } as const;
+
+export default async function SalesPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; page?: string }> }) {
   const user = await requirePagePermission("sales.read_all", "sales.read_own");
-  const rows = await listSales(user);
+  const p = await searchParams;
+  const status = p.status && p.status in STATUS_LABEL ? (p.status as keyof typeof STATUS_LABEL) : undefined;
+  const { items: rows, total, page, pages } = await listSales(user, { search: sp(p.q), status, page: Number(p.page) || 1 });
+  const qs = (n: number) => `?${new URLSearchParams({ ...(p.q && { q: p.q }), ...(status && { status }), page: String(n) })}`;
   return (
     <>
-      <PageHeader title="Ventas" subtitle="Se generan al convertir una cotización aceptada." />
+      <PageHeader title="Ventas" subtitle={`${total.toLocaleString("es-MX")} ventas · se generan al convertir una cotización aceptada.`} />
       <Card className="overflow-hidden">
+        <form className="toolbar">
+          <SearchInput name="q" defaultValue={p.q} placeholder="Folio o cliente" aria-label="Buscar por folio o cliente" />
+          <select name="status" defaultValue={status ?? ""} aria-label="Estado" className="input">
+            <option value="">Todos los estados</option>
+            {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <button className="btn btn-secondary">Filtrar</button>
+        </form>
         <DataTable
           caption="Ventas"
           columns={COLUMNS}
-          empty={<EmptyState icon={Receipt} title="Sin ventas">Convierte una cotización aceptada para registrar la primera venta.</EmptyState>}
+          empty={p.q || status ? <FilteredEmpty clearHref="/ventas" /> : <EmptyState icon={Receipt} title="Sin ventas">Convierte una cotización aceptada para registrar la primera venta.</EmptyState>}
           rows={rows.map((s) => ({
             id: s.id,
             cells: [
@@ -40,6 +53,7 @@ export default async function SalesPage() {
             sort: [s.folio, s.quote.folio, s.customer.legalName, s.seller.name, s.confirmedAt.getTime(), s.status, s.total.toNumber()],
           }))}
         />
+        {total > 0 && <Pager page={page} pages={pages} total={total} noun="ventas" href={qs} />}
       </Card>
     </>
   );

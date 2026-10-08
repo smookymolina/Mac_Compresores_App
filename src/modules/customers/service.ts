@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { pageArgs, paged } from "@/lib/pagination";
 import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
@@ -10,6 +11,31 @@ export function customerScope(user: CurrentUser): Prisma.CustomerWhereInput {
   return can(user, "quotes.read_all") ? {} : { OR: [{ ownerId: user.id }, { ownerId: null }] };
 }
 
+/** Listado paginado para la vista de clientes. */
+export async function pageCustomers(user: CurrentUser, q: { search?: string; page?: number }) {
+  const { page, skip, take } = pageArgs(q.page);
+  const where: Prisma.CustomerWhereInput = {
+    AND: [
+      customerScope(user),
+      q.search
+        ? { OR: [{ legalName: { contains: q.search, mode: "insensitive" } }, { rfc: { contains: q.search, mode: "insensitive" } }] }
+        : {},
+    ],
+  };
+  const [items, total] = await Promise.all([
+    db.customer.findMany({
+      where,
+      include: { owner: { select: { name: true } }, _count: { select: { quotes: true, sales: true } } },
+      orderBy: { legalName: "asc" },
+      skip,
+      take,
+    }),
+    db.customer.count({ where }),
+  ]);
+  return paged(items, total, page);
+}
+
+/** Lista corta para selectores (p. ej. cliente de una cotización). */
 export async function listCustomers(user: CurrentUser, search?: string) {
   return db.customer.findMany({
     where: {

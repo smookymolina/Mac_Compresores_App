@@ -16,5 +16,6 @@
 1. Confirmar con dirección los supuestos de comisiones (`architecture.md`) y activar la regla.
 2. Revisar ~2,500 filas de la lista con SKU repetido (mismo OEM + no. de parte) y ~330 con `Type` = `#N/A`.
 3. Cotización original (`Cotizacion Original.xlsm`) está protegida con contraseña: con acceso, alinear el PDF a su formato (condiciones, datos bancarios, firma).
-4. Cobranza (habilita comisiones sobre cobro), expiración automática de cotizaciones, paginación en listas grandes de clientes/cotizaciones.
+4. Cobranza (habilita comisiones sobre cobro) y expiración automática de cotizaciones.
+   - [x] Paginación (50 por página, `src/lib/pagination.ts`) en clientes, cotizaciones y ventas; ventas con búsqueda por folio/cliente y filtro de estado (2026-10-08).
 5. Despliegue: Dockerfile de la app, `SESSION` en HTTPS (cookie `secure` ya activa en producción), respaldos de BD, limitador de login compartido (Redis) si hay varias instancias.

@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Package } from "lucide-react";
+import { Package } from "lucide-react";
 import type { ProductLine, ProductStatus } from "@prisma/client";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { listProducts } from "@/modules/products/service";
 import { LINE_LABEL, LINES } from "@/modules/products/lines";
-import { Badge, Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
+import { Badge, Card, DataTable, EmptyState, LinkButton, PageHeader, Pager, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { sp } from "@/lib/utils";
 
@@ -79,13 +79,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: SP 
             sort: [r.sku, r.description, r.line, r.unit, ...(showCost ? [r.cost.toNumber()] : []), r.price.toNumber(), r.taxRate.toNumber(), r.status],
           }))}
         />
-        <nav aria-label="Paginación" className="flex items-center justify-between gap-3 border-t border-line px-3 py-2.5 text-sm text-ink-soft">
-          <span className="tabular-nums">Página {page} de {pages}</span>
-          <span className="flex gap-2">
-            {page > 1 && <Link className="btn btn-secondary btn-sm" href={qs(page - 1)}><ChevronLeft size={14} strokeWidth={1.75} aria-hidden /> Anterior</Link>}
-            {page < pages && <Link className="btn btn-secondary btn-sm" href={qs(page + 1)}>Siguiente <ChevronRight size={14} strokeWidth={1.75} aria-hidden /></Link>}
-          </span>
-        </nav>
+        <Pager page={page} pages={pages} total={total} noun="productos" href={qs} />
       </Card>
     </>
   );

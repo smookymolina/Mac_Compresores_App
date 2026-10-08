@@ -4,7 +4,7 @@ import type { QuoteStatus } from "@prisma/client";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { listQuotes } from "@/modules/quotes/service";
 import { QUOTE_STATUS_LABEL } from "@/modules/quotes/status";
-import { Card, DataTable, EmptyState, LinkButton, PageHeader, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
+import { Card, DataTable, EmptyState, LinkButton, PageHeader, Pager, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
 import { QuoteStatusBadge } from "./status-badge";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate, sp } from "@/lib/utils";
@@ -21,16 +21,17 @@ const COLUMNS: DataColumn[] = [
   { id: "total", header: "Total", align: "right", sortable: true },
 ];
 
-export default async function QuotesPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string }> }) {
+export default async function QuotesPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; page?: string }> }) {
   const user = await requirePagePermission("quotes.read_all", "quotes.read_own");
   const p = await searchParams;
   const status = p.status && p.status in QUOTE_STATUS_LABEL ? (p.status as QuoteStatus) : undefined;
-  const rows = await listQuotes(user, { status, search: sp(p.q) });
+  const { items: rows, total, page, pages } = await listQuotes(user, { status, search: sp(p.q), page: Number(p.page) || 1 });
+  const qs = (n: number) => `?${new URLSearchParams({ ...(p.q && { q: p.q }), ...(status && { status }), page: String(n) })}`;
   const canWrite = can(user, "quotes.write");
 
   return (
     <>
-      <PageHeader title="Cotizaciones" actions={canWrite && <LinkButton href="/cotizaciones/nueva">Nueva cotización</LinkButton>} />
+      <PageHeader title="Cotizaciones" subtitle={`${total.toLocaleString("es-MX")} cotizaciones`} actions={canWrite && <LinkButton href="/cotizaciones/nueva">Nueva cotización</LinkButton>} />
       <Card className="overflow-hidden">
         <form className="toolbar">
           <SearchInput name="q" defaultValue={p.q} placeholder="Folio o cliente" aria-label="Buscar por folio o cliente" />
@@ -55,6 +56,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
             sort: [q.folio, q.customer.legalName, q.seller.name, q.createdAt.getTime(), q.validUntil.getTime(), QUOTE_STATUS_LABEL[q.status], q.total.toNumber()],
           }))}
         />
+        {total > 0 && <Pager page={page} pages={pages} total={total} noun="cotizaciones" href={qs} />}
       </Card>
     </>
   );

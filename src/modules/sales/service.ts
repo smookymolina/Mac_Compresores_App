@@ -1,5 +1,6 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SaleStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { pageArgs, paged } from "@/lib/pagination";
 import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
@@ -10,13 +11,29 @@ export function saleScope(user: CurrentUser): Prisma.SaleWhereInput {
   return can(user, "sales.read_all") ? {} : { sellerId: user.id };
 }
 
-export async function listSales(user: CurrentUser) {
-  return db.sale.findMany({
-    where: saleScope(user),
-    include: { customer: { select: { legalName: true } }, seller: { select: { name: true } }, quote: { select: { folio: true } } },
-    orderBy: { confirmedAt: "desc" },
-    take: 200,
-  });
+export async function listSales(user: CurrentUser, q: { search?: string; status?: SaleStatus; page?: number } = {}) {
+  const folio = q.search && /^\d+$/.test(q.search) ? Number(q.search) : undefined;
+  const { page, skip, take } = pageArgs(q.page);
+  const where: Prisma.SaleWhereInput = {
+    AND: [
+      saleScope(user),
+      q.status ? { status: q.status } : {},
+      q.search
+        ? { OR: [{ customer: { legalName: { contains: q.search, mode: "insensitive" } } }, ...(folio ? [{ folio }] : [])] }
+        : {},
+    ],
+  };
+  const [items, total] = await Promise.all([
+    db.sale.findMany({
+      where,
+      include: { customer: { select: { legalName: true } }, seller: { select: { name: true } }, quote: { select: { folio: true } } },
+      orderBy: { confirmedAt: "desc" },
+      skip,
+      take,
+    }),
+    db.sale.count({ where }),
+  ]);
+  return paged(items, total, page);
 }
 
 export async function getSale(user: CurrentUser, id: string) {
