@@ -7,16 +7,6 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: mac
-          POSTGRES_PASSWORD: mac_ci
-          POSTGRES_DB: mac_compresores_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U mac" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://mac:mac_ci@localhost:5432/mac_compresores_test?schema=public
       TEST_DATABASE_URL: postgresql://mac:mac_ci@localhost:5432/mac_compresores_test?schema=public
@@ -27,6 +17,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # PostgreSQL preinstalado en el runner (sin descargar imágenes de Docker Hub, que limita las descargas).
+      - name: PostgreSQL
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE USER mac WITH PASSWORD 'mac_ci' CREATEDB;" -c "CREATE DATABASE mac_compresores_test OWNER mac;"
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
