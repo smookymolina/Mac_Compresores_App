@@ -24,6 +24,9 @@ SMTP_USER='contacto@maccompresores.com.mx'
 SMTP_PASS='<contraseña del buzón>'
 SMTP_FROM_NAME='Mac Compresores'
 SMTP_FROM_EMAIL='contacto@maccompresores.com.mx'
+CRON_SECRET='<openssl rand -hex 32>'
+BANK_INFO='Banco: …|Titular: …|Cuenta: …|CLABE: …'
+BACKUP_KEEP_DAYS=14
 ```
 Usa comillas **simples** en valores con `$`, `#`, `!` o `%` (Compose no interpola dentro de comillas simples).
 
@@ -35,6 +38,25 @@ docker compose up -d --build        # db → migrate (migraciones + seed) → ap
 docker compose ps && docker compose logs migrate --tail 30
 ```
 Actualizar a una versión nueva: `git pull` y de nuevo `docker compose up -d --build`. Nunca `down -v` (borra la BD).
+
+Servicios que levanta Compose: `db`, `migrate` (migraciones + seed, una vez), `app`, `backup` (respaldo diario
+03:00 de México en `./backups`, conserva `BACKUP_KEEP_DAYS` días) y `scheduler` (trabajo diario 07:00 de México:
+vence cotizaciones, recuerda las que vencen en 3 días, avisa stock bajo mínimo y cobro vencido).
+
+### Respaldos
+- Listar: `ls -lh backups/` · Forzar uno ahora: `docker compose restart backup` (respalda al arrancar).
+- Restaurar (¡reemplaza los datos!):
+  ```bash
+  docker compose stop app scheduler
+  gunzip -c backups/<archivo>.sql.gz | docker compose exec -T db psql -U mac -d mac_compresores -v ON_ERROR_STOP=1 \
+    -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' -f -
+  docker compose start app scheduler
+  ```
+- Copia fuera del VPS (recomendado): sincroniza `./backups` a otro almacenamiento, p. ej. con `rclone` en un cron
+  del host (`rclone sync /opt/mac-compresores/backups remoto:mac-backups`) o con los respaldos del panel de Hostinger.
+
+### Trabajo diario
+Probar manualmente: `docker compose exec scheduler sh -c 'curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/daily'`
 
 ## 3. Nginx (`/etc/nginx/sites-available/maccompresores.app`)
 ```nginx

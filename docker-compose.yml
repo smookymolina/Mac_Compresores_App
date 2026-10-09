@@ -45,10 +45,42 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Mac Compresores}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      # Secreto del trabajo diario (lo usa el servicio scheduler) y datos bancarios del PDF (líneas separadas por "|").
+      CRON_SECRET: ${CRON_SECRET:-}
+      BANK_INFO: ${BANK_INFO:-}
     ports:
       - "${APP_PORT:-3080}:3000"
     depends_on:
       migrate: { condition: service_completed_successfully }
+
+  # Respaldo diario de la BD en ./backups (conserva BACKUP_KEEP_DAYS días). Ver docs/deploy-hostinger.md.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    entrypoint: ["sh", "/backup.sh"]
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-mac}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-mac_dev_only}
+      PGDATABASE: ${POSTGRES_DB:-mac_compresores}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./docker/backup.sh:/backup.sh:ro
+      - ./backups:/backups
+    depends_on:
+      db: { condition: service_healthy }
+
+  # Trabajo diario de la app: vence cotizaciones, recuerda vencimientos y avisa stock bajo mínimo.
+  scheduler:
+    image: curlimages/curl:8.11.1
+    restart: unless-stopped
+    entrypoint: ["sh", "/scheduler.sh"]
+    environment:
+      CRON_SECRET: ${CRON_SECRET:-}
+    volumes:
+      - ./docker/scheduler.sh:/scheduler.sh:ro
+    depends_on:
+      app: { condition: service_started }
 
 volumes:
   pgdata:

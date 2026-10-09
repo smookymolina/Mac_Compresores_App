@@ -6,9 +6,11 @@ import { AppError } from "@/lib/errors";
 import { uuid } from "@/lib/validation";
 import { getQuote } from "@/modules/quotes/service";
 import { QUOTE_STATUS_LABEL, QUOTE_TRANSITIONS } from "@/modules/quotes/status";
-import { changeQuoteStatusAction, convertToSaleAction } from "@/modules/quotes/actions";
+import { changeQuoteStatusAction, convertToSaleAction, emailQuoteAction } from "@/modules/quotes/actions";
+import { suggestedRecipient } from "@/modules/quotes/email";
+import { isMailConfigured } from "@/lib/mail";
 import { ActionForm } from "@/components/action-form";
-import { Card, CardHeader, LinkButton, DataTable, PageHeader, SelectField, btnClass } from "@/components/ui";
+import { Card, CardHeader, LinkButton, DataTable, Field, PageHeader, SelectField, btnClass } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 import { QuoteStatusBadge } from "../status-badge";
@@ -25,7 +27,9 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const transitions = QUOTE_TRANSITIONS[q.status];
   const warehouses = q.status === "ACCEPTED" && can(user, "sales.create") ? await db.warehouse.findMany({ where: { active: true } }) : [];
 
-  const aside = (writable && transitions.length > 0) || warehouses.length > 0;
+  const canEmail = writable && ["DRAFT", "SENT", "ACCEPTED"].includes(q.status) && isMailConfigured();
+  const aside = (writable && transitions.length > 0) || warehouses.length > 0 || canEmail;
+  const defaultMessage = `Estimado cliente:\n\nAdjuntamos la cotización C-${q.folio} solicitada. Quedamos atentos a cualquier duda.\n\nSaludos cordiales.`;
 
   return (
     <>
@@ -83,6 +87,22 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         </Card>
 
         <div className="space-y-4">
+          {canEmail && (
+            <Card className="p-4">
+              <h3 className="mb-1 text-sm font-semibold">Enviar por correo</h3>
+              <p className="mb-3 text-xs text-ink-soft">
+                Se adjunta el PDF; las respuestas llegan a {q.seller.email}.{q.status === "DRAFT" && " La cotización pasará a «Enviada»."}
+              </p>
+              <ActionForm action={emailQuoteAction.bind(null, q.id)} submitLabel="Enviar cotización" variant="secondary">
+                <Field label="Para" name="to" type="text" inputMode="email" defaultValue={suggestedRecipient(q)} hint="Varios correos separados por coma" required />
+                <Field label="CC (opcional)" name="cc" type="text" inputMode="email" />
+                <div>
+                  <label htmlFor="message" className="label">Mensaje</label>
+                  <textarea id="message" name="message" rows={5} className="input" defaultValue={defaultMessage} required maxLength={2000} />
+                </div>
+              </ActionForm>
+            </Card>
+          )}
           {writable && transitions.length > 0 && (
             <Card className="p-4">
               <ActionForm action={changeQuoteStatusAction.bind(null, q.id)} submitLabel="Cambiar estado" variant="secondary">

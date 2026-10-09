@@ -2,7 +2,9 @@ import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 
 export interface MailMessage {
-  to: string;
+  to: string | string[];
+  cc?: string[];
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
   subject: string;
   text: string;
   html: string;
@@ -41,6 +43,8 @@ export async function sendMail(msg: MailMessage) {
   await getTransporter().sendMail({
     from: { name: process.env.SMTP_FROM_NAME?.trim() || "MAC Compresores", address: env("SMTP_FROM_EMAIL") },
     to: msg.to,
+    cc: msg.cc,
+    attachments: msg.attachments,
     replyTo: msg.replyTo,
     subject: msg.subject,
     text: msg.text,

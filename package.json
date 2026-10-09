@@ -1,6 +1,6 @@
 {
   "name": "mac-compresores",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -51,5 +51,11 @@
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.29"
+    },
+    "deepmerge-ts": "8.0.2"
   }
 }

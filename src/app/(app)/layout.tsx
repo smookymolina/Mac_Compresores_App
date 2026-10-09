@@ -9,11 +9,13 @@ const NAV: (NavItem & { anyOf: Permission[] })[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard", group: "", anyOf: ["dashboard.read"] },
   { href: "/cotizaciones", label: "Cotizaciones", icon: "quotes", group: "Comercial", anyOf: ["quotes.read_all", "quotes.read_own"] },
   { href: "/ventas", label: "Ventas", icon: "sales", group: "Comercial", anyOf: ["sales.read_all", "sales.read_own"] },
+  { href: "/cobranza", label: "Cobranza", icon: "receivables", group: "Comercial", anyOf: ["sales.read_all", "sales.read_own"] },
   { href: "/clientes", label: "Clientes", icon: "customers", group: "Comercial", anyOf: ["customers.read"] },
   { href: "/productos", label: "Productos y precios", icon: "products", group: "Catálogo y almacén", anyOf: ["products.read"] },
   { href: "/inventario", label: "Inventario", icon: "inventory", group: "Catálogo y almacén", anyOf: ["inventory.read"] },
   { href: "/comisiones", label: "Comisiones", icon: "commissions", group: "Gestión", anyOf: ["commissions.read_all", "commissions.read_own"] },
   { href: "/usuarios", label: "Usuarios", icon: "users", group: "Gestión", anyOf: ["users.manage"] },
+  { href: "/reportes", label: "Reportes", icon: "reports", group: "Gestión", anyOf: ["reports.export"] },
   { href: "/auditoria", label: "Auditoría", icon: "audit", group: "Gestión", anyOf: ["audit.read"] },
 ];
 

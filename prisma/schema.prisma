@@ -48,6 +48,8 @@ model User {
   updatedAt      DateTime             @updatedAt
   sessions       Session[]
   passwordResets PasswordResetToken[]
+  notifications  Notification[]
+  payments       Payment[]            @relation("PaymentCreatedBy")
 
   customers         Customer[]
   quotes            Quote[]             @relation("QuoteSeller")
@@ -340,8 +342,39 @@ model Sale {
   confirmedAt   DateTime   @default(now())
   createdById   String     @db.Uuid
   items         SaleItem[]
+  payments      Payment[]
 
   @@index([sellerId, confirmedAt])
+}
+
+// ───────── Cobranza ─────────
+
+enum PaymentMethod {
+  TRANSFER
+  CASH
+  CARD
+  CHECK
+  OTHER
+}
+
+/// Pago recibido de una venta. Inmutable: una corrección se registra anulándolo (voidedAt) con motivo.
+model Payment {
+  id          String        @id @default(uuid()) @db.Uuid
+  saleId      String        @db.Uuid
+  sale        Sale          @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  amount      Decimal       @db.Decimal(14, 2)
+  paidAt      DateTime      @db.Date
+  method      PaymentMethod
+  reference   String?
+  createdById String        @db.Uuid
+  createdBy   User          @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime      @default(now())
+  voidedAt    DateTime?
+  voidedById  String?       @db.Uuid
+  voidReason  String?
+
+  @@index([saleId])
+  @@index([paidAt])
 }
 
 model SaleItem {
@@ -467,6 +500,31 @@ model CommissionEntry {
   createdAt    DateTime          @default(now())
 
   @@unique([periodId, sellerId, line])
+}
+
+// ───────── Notificaciones y límites ─────────
+
+/// Aviso dentro de la app. dedupeKey evita repetir el mismo aviso (p. ej. el trabajo diario).
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String?
+  href      String?
+  dedupeKey String?   @unique
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+/// Contador de intentos por clave (login, recuperación) compartido entre instancias y reinicios.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
 }
 
 // ───────── Aprobaciones y auditoría ─────────

@@ -56,6 +56,8 @@ const TERMS = [
   "Todos los precios indicados en la presente cotización están expresados en moneda nacional (MXN, pesos mexicanos).",
 ];
 
+export const bankInfo = () => (process.env.BANK_INFO ?? "").split("|").map((l) => l.trim()).filter(Boolean).slice(0, 8);
+
 const isService8000 = (i: { sku: string; description: string }) => /8000/.test(i.sku) || /8000\s*h/i.test(i.description);
 
 // Las fuentes estándar usan WinAnsi: se sustituyen caracteres no representables.
@@ -253,6 +255,16 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
     text("Notas", M, y - 10, { f: bold, size: 9 });
     y -= 22;
     lines.forEach((l) => { text(l, M, y, { size: 8.5, color: SLATE7 }); y -= 11; });
+    y -= 8;
+  }
+
+  // ---- Datos bancarios (BANK_INFO: líneas separadas por "|"; se omite si no está configurado) ----
+  const bank = bankInfo();
+  if (bank.length > 0) {
+    ensure(bank.length * 11 + 22);
+    text("Datos bancarios", M, y - 10, { f: bold, size: 9 });
+    y -= 22;
+    bank.forEach((l) => { text(l, M, y, { size: 8.5, color: SLATE7 }); y -= 11; });
     y -= 8;
   }
 

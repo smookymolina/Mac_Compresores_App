@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { APP_VERSION } from "@/lib/version";
 import { Breadcrumb } from "./breadcrumb";
 import { NavLinks, type NavItem } from "./nav-links";
+import { CommandPalette } from "./command-palette";
+import { NotificationBell } from "./notification-bell";
 
 const STORAGE_KEY = "sidebar";
 
@@ -133,6 +135,8 @@ export function AppShell({
             <Menu size={20} strokeWidth={1.75} aria-hidden />
           </button>
           <div className="min-w-0 flex-1"><Breadcrumb /></div>
+          <CommandPalette />
+          <NotificationBell />
           <ThemeToggle />
           <UserMenu name={user.name} roleName={user.roleName} logout={logout} />
         </header>

@@ -6,7 +6,8 @@ import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
 import { customerScope } from "@/modules/customers/service";
 import { buildItemSnapshots, type RequestedItem } from "./pricing";
-import { canTransition } from "./status";
+import { notify } from "@/modules/notifications/service";
+import { QUOTE_STATUS_LABEL, canTransition } from "./status";
 
 export function quoteScope(user: CurrentUser): Prisma.QuoteWhereInput {
   return can(user, "quotes.read_all") ? {} : { sellerId: user.id };
@@ -131,6 +132,13 @@ export async function changeQuoteStatus(user: CurrentUser, id: string, to: Quote
     await audit({ userId: user.id, action: "quote.status", entity: "Quote", entityId: id,
       data: { from: quote.status, to } }, tx);
   });
+  // Si otra persona movió la cotización, el vendedor se entera.
+  if (quote.seller.id !== user.id) {
+    await notify([quote.seller.id], {
+      kind: "quote.status", title: `C-${quote.folio}: ${QUOTE_STATUS_LABEL[to]}`,
+      body: `${user.name} cambió el estado de la cotización.`, href: `/cotizaciones/${id}`,
+    });
+  }
 }
 
 function startOfToday() {

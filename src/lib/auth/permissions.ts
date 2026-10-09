@@ -20,6 +20,8 @@ export const PERMISSIONS = [
   "commissions.approve",
   "dashboard.read",
   "audit.read",
+  "payments.write",
+  "reports.export",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -35,7 +37,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {
     "inventory.read",
     "sales.read_all", "sales.read_own", "sales.create",
     "commissions.read_all", "commissions.read_own", "commissions.manage", "commissions.approve",
-    "dashboard.read", "audit.read",
+    "dashboard.read", "audit.read", "payments.write", "reports.export",
   ],
   VENTAS: [
     "products.read",

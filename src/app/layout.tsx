@@ -10,6 +10,9 @@ const mono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], w
 export const metadata: Metadata = {
   title: { default: "MAC Compresores", template: "%s · MAC Compresores" },
   robots: { index: false, follow: false },
+  applicationName: "MAC Compresores",
+  appleWebApp: { capable: true, title: "MAC", statusBarStyle: "black-translucent" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {

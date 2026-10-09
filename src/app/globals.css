@@ -318,6 +318,40 @@ a, button, select, summary, label { touch-action: manipulation; }
   .row-hover:hover { background: var(--panel-2); }
   .bar-fill { transform-origin: left; animation: grow-x 800ms var(--ease) backwards; animation-delay: calc(300ms + var(--i, 0) * 90ms); }
 
+  /* Topbar: disparador de búsqueda global y contador de avisos. */
+  .search-trigger {
+    display: inline-flex; align-items: center; gap: 0.5rem; height: 2.25rem; padding: 0 0.625rem; border: 1px solid var(--border);
+    border-radius: var(--r); color: var(--muted); font-size: 0.8125rem; transition: border-color var(--dur-fast), color var(--dur-fast);
+  }
+  .search-trigger:hover { border-color: var(--border-strong); color: var(--text); }
+  @media (min-width: 1024px) { .search-trigger { min-width: 14rem; } .search-trigger kbd { margin-left: auto; } }
+  @media (max-width: 1023px) { .search-trigger { border-color: transparent; width: 2.25rem; justify-content: center; padding: 0; } }
+  .search-trigger kbd { padding: 0 0.375rem; border: 1px solid var(--border); border-radius: var(--r-sm); font-family: var(--font-mono); font-size: 0.6875rem; }
+  .bell-badge {
+    position: absolute; top: 0.125rem; right: 0.125rem; min-width: 1.05rem; height: 1.05rem; padding: 0 0.25rem; border-radius: 999px;
+    background: var(--danger); color: #fff; font-size: 0.625rem; font-weight: 600; line-height: 1.05rem; text-align: center;
+    animation: pop 260ms var(--ease);
+  }
+
+  /* Barras por mes (una serie): barras finas con extremo redondeado, eje recesivo, columna completa como zona de toque. */
+  .mb-plot { position: relative; height: 13rem; padding-left: 3.25rem; padding-bottom: 1.5rem; }
+  .mb-grid { position: absolute; inset: 0 0 1.5rem 0; pointer-events: none; }
+  .mb-grid span { position: absolute; left: 0; right: 0; transform: translateY(50%); border-bottom: 1px dashed var(--border); font-size: 0.6875rem; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1; }
+  .mb-grid span:last-child { border-bottom-style: solid; border-color: var(--border-strong); }
+  .mb-cols { position: relative; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); height: 100%; }
+  .mb-col { position: relative; display: flex; justify-content: center; align-items: flex-end; height: 100%; border-radius: var(--r-sm); outline-offset: -2px; }
+  .mb-col:hover, .mb-col:focus-visible { background: color-mix(in oklab, var(--accent) 6%, transparent); }
+  .mb-bar { width: min(60%, 1.75rem); border-radius: 4px 4px 0 0; background: color-mix(in oklab, var(--accent) 55%, var(--panel)); transform-origin: bottom; animation: grow-y 700ms var(--ease) backwards; animation-delay: calc(250ms + var(--i) * 45ms); }
+  .mb-bar.is-current { background: var(--accent); }
+  .mb-col:hover .mb-bar, .mb-col:focus-visible .mb-bar { background: var(--accent); }
+  .mb-label { position: absolute; bottom: -1.375rem; font-size: 0.6875rem; color: var(--muted); }
+  .mb-value { position: absolute; margin-bottom: 0.25rem; font-size: 0.75rem; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .mb-col[data-tip]::after { top: auto; bottom: calc(100% + 0.25rem); }
+  .mb-table summary { margin-top: 0.75rem; cursor: pointer; font-size: 0.75rem; color: var(--muted); }
+  .goal-track { display: block; height: 0.5rem; overflow: hidden; border-radius: 999px; background: var(--border); }
+  .goal-fill { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+  .goal-fill.is-met { background: var(--ok); }
+
   /* Vacío: ficha que flota con un anillo que late (como las uniones de la tubería). */
   .empty-icon { position: relative; animation: float 2.8s ease-in-out infinite alternate; }
   .empty-icon::after { content: ""; position: absolute; inset: 0; border: 1px solid var(--accent-fg); border-radius: inherit; opacity: 0; animation: node-ping 2.8s var(--ease) 600ms infinite; }

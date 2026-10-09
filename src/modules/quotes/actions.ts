@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { emailQuote } from "./email";
 import { requirePermission } from "@/lib/auth/session";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, pctToFraction, uuid } from "@/lib/validation";
@@ -74,5 +75,22 @@ export async function convertToSaleAction(quoteId: string, _: ActionResult<unkno
     revalidatePath("/ventas");
     redirect(`/ventas/${saleId}`);
   }
+  return res;
+}
+
+const emailList = z.string().trim().max(500).transform((v) => v.split(/[,;\s]+/).filter(Boolean))
+  .pipe(z.array(z.string().email("Correo inválido")).max(10));
+
+export async function emailQuoteAction(id: string, _: ActionResult<unknown> | null, fd: FormData) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("quotes.write");
+    const d = z.object({
+      to: emailList.refine((v) => v.length > 0, "Indica al menos un correo"),
+      cc: emailList,
+      message: z.string().trim().min(1, "Escribe un mensaje").max(2000),
+    }).parse({ to: fd.get("to"), cc: fd.get("cc") ?? "", message: fd.get("message") });
+    await emailQuote(user, id, d);
+  }, "Cotización enviada por correo.");
+  if (res.ok) revalidatePath(`/cotizaciones/${id}`);
   return res;
 }

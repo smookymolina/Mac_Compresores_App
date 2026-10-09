@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Receipt } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { listSales } from "@/modules/sales/service";
+import { paidBySale } from "@/modules/payments/service";
 import { Badge, Card, DataTable, EmptyState, FilteredEmpty, PageHeader, Pager, SearchInput, type DataColumn } from "@/components/ui";
-import { fmtMoney } from "@/lib/money";
+import { dec, fmtMoney } from "@/lib/money";
 import { fmtDate, sp } from "@/lib/utils";
 
 export const metadata = { title: "Ventas" };
@@ -16,6 +17,7 @@ const COLUMNS: DataColumn[] = [
   { id: "date", header: "Fecha", sortable: true, cellClass: "whitespace-nowrap" },
   { id: "status", header: "Estado", sortable: true },
   { id: "total", header: "Total", align: "right", sortable: true },
+  { id: "balance", header: "Saldo", align: "right", sortable: true },
 ];
 
 const STATUS_LABEL = { CONFIRMED: "Confirmada", CANCELLED: "Cancelada" } as const;
@@ -25,6 +27,8 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const p = await searchParams;
   const status = p.status && p.status in STATUS_LABEL ? (p.status as keyof typeof STATUS_LABEL) : undefined;
   const { items: rows, total, page, pages } = await listSales(user, { search: sp(p.q), status, page: Number(p.page) || 1 });
+  const paid = await paidBySale(rows.map((r) => r.id));
+  const balanceOf = (s: (typeof rows)[number]) => (s.status === "CONFIRMED" ? s.total.sub(paid.get(s.id) ?? dec(0)) : dec(0));
   const qs = (n: number) => `?${new URLSearchParams({ ...(p.q && { q: p.q }), ...(status && { status }), page: String(n) })}`;
   return (
     <>
@@ -49,8 +53,9 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
               `C-${s.quote.folio}`, s.customer.legalName, s.seller.name, fmtDate(s.confirmedAt),
               s.status === "CONFIRMED" ? <Badge key="b" tone="green">Confirmada</Badge> : <Badge key="b" tone="red">Cancelada</Badge>,
               fmtMoney(s.total),
+              s.status !== "CONFIRMED" ? "—" : balanceOf(s).lte(0) ? <span key="s" className="text-ok">Pagada</span> : fmtMoney(balanceOf(s)),
             ],
-            sort: [s.folio, s.quote.folio, s.customer.legalName, s.seller.name, s.confirmedAt.getTime(), s.status, s.total.toNumber()],
+            sort: [s.folio, s.quote.folio, s.customer.legalName, s.seller.name, s.confirmedAt.getTime(), s.status, s.total.toNumber(), balanceOf(s).toNumber()],
           }))}
         />
         {total > 0 && <Pager page={page} pages={pages} total={total} noun="ventas" href={qs} />}

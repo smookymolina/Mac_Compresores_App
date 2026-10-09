@@ -10,4 +10,5 @@ export { DataTable } from "./data-table";
 export type { DataColumn, DataRow } from "./data-table";
 export { Dialog } from "./dialog";
 export { Pager } from "./pager";
+export { MonthBars } from "./month-bars";
 export { ToastProvider, useToast } from "./toast";

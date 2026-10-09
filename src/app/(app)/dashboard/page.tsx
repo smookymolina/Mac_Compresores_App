@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { AlertTriangle, Banknote, FileText, Receipt } from "lucide-react";
+import { AlertTriangle, Banknote, FileText, HandCoins, Receipt, Target } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { getDashboard } from "@/modules/dashboard/service";
 import { QUOTE_STATUS_LABEL } from "@/modules/quotes/status";
-import { Card, CardHeader, EmptyState, DataTable, PageHeader, Stat, StatGroup } from "@/components/ui";
+import { Card, CardHeader, EmptyState, DataTable, MonthBars, PageHeader, Stat, StatGroup } from "@/components/ui";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 
@@ -40,10 +40,46 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         {d.salesMonth && <Stat icon={Banknote} label="Venta neta del mes (sin IVA)" value={fmtMoney(d.salesMonth.net)} hint={`${d.salesMonth.count} ventas confirmadas`} />}
         {d.salesMonth && <Stat icon={Receipt} label="Ventas del mes (con IVA)" value={fmtMoney(d.salesMonth.total)} />}
         {d.openQuotes && <Stat icon={FileText} label="Cotizaciones abiertas" value={d.openQuotes.count} hint={`${fmtMoney(d.openQuotes.total)} en proceso`} />}
+        {d.receivables && (
+          <Stat icon={HandCoins} label="Por cobrar" value={fmtMoney(d.receivables.pending)}
+            tone={d.receivables.overdueCount > 0 ? "red" : undefined}
+            hint={d.receivables.overdueCount > 0 ? `${fmtMoney(d.receivables.overdue)} vencido (${d.receivables.overdueCount})` : "Sin saldos vencidos"} />
+        )}
+        {d.conversion && (
+          <Stat icon={Target} label="Conversión (90 días)" value={d.conversion.rate === null ? "—" : `${Math.round(d.conversion.rate * 100)} %`}
+            hint={d.conversion.decided > 0 ? `${d.conversion.won} de ${d.conversion.decided} cotizaciones resueltas` : "Aún sin cotizaciones resueltas"} />
+        )}
         {d.lowStock !== null && <Stat icon={AlertTriangle} label="Productos bajo mínimo" value={d.lowStock} tone={d.lowStock > 0 ? "red" : undefined} hint="Existencia ≤ stock mínimo" />}
       </StatGroup>
 
       <div className="stagger mt-4 grid gap-4 lg:grid-cols-2">
+        {d.monthly && (
+          <Card className="lg:col-span-2">
+            <CardHeader title="Venta neta por mes" description="Últimos 12 meses, sin IVA" />
+            <div className="p-4"><MonthBars data={d.monthly} caption="Venta neta por mes, últimos 12 meses" /></div>
+          </Card>
+        )}
+
+        {d.targets && (
+          <Card className="lg:col-span-2">
+            <CardHeader title={`Metas · ${d.targets.period}`} description="Venta neta del periodo de comisiones contra la meta de cada vendedor" />
+            <ul className="space-y-3 p-4 text-sm">
+              {d.targets.rows.map((t, i) => {
+                const pct = t.target.gt(0) ? t.actual.div(t.target).toNumber() : 0;
+                return (
+                  <li key={t.name} className="grid grid-cols-[minmax(5rem,10rem)_1fr_minmax(7rem,12rem)] items-center gap-3">
+                    <span className="truncate">{t.name}</span>
+                    <span className="goal-track" role="img" aria-label={`${Math.round(pct * 100)} % de la meta`}>
+                      <span className={`goal-fill bar-fill${pct >= 1 ? " is-met" : ""}`} style={{ width: `${Math.min(pct, 1) * 100}%`, "--i": i } as React.CSSProperties} />
+                    </span>
+                    <span className="num text-xs"><b className="text-sm">{Math.round(pct * 100)} %</b> · {fmtMoney(t.actual)} / {fmtMoney(t.target)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        )}
+
         {d.recentSales.length > 0 || d.salesMonth ? (
           <Card className="overflow-hidden">
             <CardHeader title="Últimas ventas" />

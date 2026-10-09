@@ -6,6 +6,7 @@ import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
 import { quoteScope } from "@/modules/quotes/service";
 import { applyMovement } from "@/modules/inventory/service";
+import { notify } from "@/modules/notifications/service";
 
 export function saleScope(user: CurrentUser): Prisma.SaleWhereInput {
   return can(user, "sales.read_all") ? {} : { sellerId: user.id };
@@ -64,7 +65,7 @@ export async function convertQuoteToSale(user: CurrentUser, quoteId: string, war
   if (!wh) throw new AppError("Almacén inválido.");
 
   try {
-    return await db.$transaction(async (tx) => {
+    const created = await db.$transaction(async (tx) => {
       const guard = await tx.quote.updateMany({ where: { id: quoteId, status: "ACCEPTED" }, data: { status: "CONVERTED" } });
       if (guard.count === 0) throw new AppError("La cotización ya fue procesada.", "CONFLICT");
 
@@ -94,6 +95,13 @@ export async function convertQuoteToSale(user: CurrentUser, quoteId: string, war
         data: { quoteFolio: quote.folio, total: quote.total.toString() } }, tx);
       return sale;
     });
+    if (quote.sellerId !== user.id) {
+      await notify([quote.sellerId], {
+        kind: "sale.confirm", title: `Venta V-${created.folio} confirmada`,
+        body: `Desde tu cotización C-${quote.folio}.`, href: `/ventas/${created.id}`,
+      });
+    }
+    return created;
   } catch (e) {
     if (typeof e === "object" && e && "code" in e && (e as { code: string }).code === "P2002") {
       throw new AppError("La cotización ya fue convertida en venta.", "CONFLICT");
@@ -116,6 +124,10 @@ export async function cancelSale(user: CurrentUser, saleId: string, reason: stri
   await db.$transaction(async (tx) => {
     const guard = await tx.sale.updateMany({ where: { id: saleId, status: "CONFIRMED" }, data: { status: "CANCELLED" } });
     if (guard.count === 0) throw new AppError("La venta ya está cancelada.", "CONFLICT");
+    // El UPDATE anterior bloquea la fila: un pago simultáneo espera y luego ve la venta cancelada.
+    if ((await tx.payment.count({ where: { saleId, voidedAt: null } })) > 0) {
+      throw new AppError("La venta tiene pagos registrados: anúlalos antes de cancelarla.", "CONFLICT");
+    }
     const outs = await tx.inventoryMovement.findMany({ where: { refType: "SALE", refId: saleId, type: "SALE_OUT" } });
     for (const m of outs) {
       await applyMovement(tx, {
