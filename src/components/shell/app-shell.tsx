@@ -99,7 +99,8 @@ export function AppShell({
     <div className="min-h-dvh">
       <a href="#main" className="skip-link">Saltar al contenido</a>
 
-      <aside className={cn("sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-line md:flex", collapsed ? "md:w-16" : "md:w-16 xl:w-60")}>
+      <aside className={cn("sidebar app-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-line md:flex", collapsed ? "md:w-16" : "md:w-16 xl:w-60")}>
+        <div aria-hidden className="sidebar-grid" />
         <div className="flex h-14 shrink-0 items-center border-b border-line px-3 md:justify-center xl:justify-start">
           <span className={cn("logo-tile", collapsed ? "hidden" : "hidden xl:inline-flex")}>
             <Image src="/brand/logo-h.png" alt="MAC Compresores" width={118} height={32} priority className="h-8 w-auto" />
@@ -110,6 +111,9 @@ export function AppShell({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <NavLinks items={nav} mode="sidebar" collapsed={collapsed} />
+        </div>
+        <div className={cn("sidebar-status border-t border-line px-4 py-2.5", collapsed ? "hidden" : "hidden xl:flex")}>
+          <span aria-hidden className="auth-status-dot" /> Sistema en línea
         </div>
         <div className="hidden border-t border-line p-2 xl:block">
           <button

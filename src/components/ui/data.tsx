@@ -14,8 +14,8 @@ export function EmptyState({
   icon?: React.ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean }>;
 }) {
   return (
-    <div className="flex flex-col items-center px-4 py-12 text-center">
-      <span className="mb-3 grid size-10 place-items-center rounded-lg bg-panel-2 text-muted">
+    <div className="empty flex flex-col items-center px-4 py-12 text-center">
+      <span className="empty-icon mb-3 grid size-10 place-items-center rounded-lg bg-panel-2 text-muted">
         <Icon size={20} strokeWidth={1.75} aria-hidden />
       </span>
       <p className="text-sm font-medium text-ink">{title}</p>
