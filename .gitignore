@@ -44,3 +44,7 @@ next-env.d.ts
 /test-results
 /playwright-report
 /backups/
+
+# Respaldos manuales de la BD (nunca subir)
+backup_*.sql
+respaldo_*.sql.gz
