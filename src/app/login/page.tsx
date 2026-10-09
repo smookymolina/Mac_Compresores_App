@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { APP_VERSION } from "@/lib/version";
@@ -9,7 +10,8 @@ import { Gauge } from "./gauge";
 
 export const metadata = { title: "Iniciar sesión" };
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ restablecida?: string }> }) {
+  const { restablecida } = await searchParams;
   if (await getCurrentUser()) redirect("/dashboard");
   return (
     <main className="grid min-h-dvh bg-surface lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -35,10 +37,18 @@ export default async function LoginPage() {
             <h1 className="text-xl font-semibold tracking-tight">Iniciar sesión</h1>
             <p className="mt-1 text-sm text-ink-soft">Accede con tu cuenta del sistema.</p>
           </div>
+          {restablecida && (
+            <p role="status" className="mt-4 rounded-md border border-line bg-accent-soft px-3 py-2 text-sm text-accent-fg">
+              Contraseña actualizada. Inicia sesión con la nueva.
+            </p>
+          )}
           <ActionForm action={loginAction} submitLabel="Entrar" className="mt-6 space-y-4 [&_.btn]:w-full">
             <Field label="Correo" name="email" type="email" autoComplete="username" spellCheck={false} required />
             <Field label="Contraseña" name="password" type="password" autoComplete="current-password" required />
           </ActionForm>
+          <p className="mt-4 text-sm">
+            <Link href="/recuperar" className="font-medium text-accent-fg hover:underline">¿Olvidaste tu contraseña?</Link>
+          </p>
           <p className="mt-8 text-xs text-muted">Sistema interno · acceso solo para personal autorizado · v{APP_VERSION}</p>
         </div>
       </div>

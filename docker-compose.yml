@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mac_dev_only}
       POSTGRES_DB: ${POSTGRES_DB:-mac_compresores}
     ports:
-      - "5433:5432" # acceso desde el host para desarrollo/pruebas
+      - "127.0.0.1:5433:5432" # solo desde el propio host (desarrollo/pruebas); nunca expuesto a la red
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
@@ -23,6 +23,7 @@ services:
     build: { context: ., target: migrator }
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-mac}:${POSTGRES_PASSWORD:-mac_dev_only}@db:5432/${POSTGRES_DB:-mac_compresores}?schema=public
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Define SEED_ADMIN_PASSWORD en .env}
       SEED_DEMO: ${SEED_DEMO:-1}
     depends_on:
@@ -36,6 +37,14 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-mac}:${POSTGRES_PASSWORD:-mac_dev_only}@db:5432/${POSTGRES_DB:-mac_compresores}?schema=public
       # HTTP en red local (pruebas desde móvil). Con HTTPS/proxy en producción: true.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Enlaces de los correos y SMTP (recuperación de contraseña).
+      APP_URL: ${APP_URL:-http://localhost:3080}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Mac Compresores}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
     ports:
       - "${APP_PORT:-3080}:3000"
     depends_on:

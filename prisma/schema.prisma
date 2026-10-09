@@ -37,20 +37,21 @@ model RolePermission {
 }
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique
-  name         String
-  passwordHash String
-  roleId       String    @db.Uuid
-  role         Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  active       Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  sessions     Session[]
+  id             String               @id @default(uuid()) @db.Uuid
+  email          String               @unique
+  name           String
+  passwordHash   String
+  roleId         String               @db.Uuid
+  role           Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  active         Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  sessions       Session[]
+  passwordResets PasswordResetToken[]
 
   customers         Customer[]
-  quotes            Quote[]            @relation("QuoteSeller")
-  sales             Sale[]             @relation("SaleSeller")
+  quotes            Quote[]             @relation("QuoteSeller")
+  sales             Sale[]              @relation("SaleSeller")
   movements         InventoryMovement[]
   auditLogs         AuditLog[]
   commissionEntries CommissionEntry[]
@@ -63,6 +64,18 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Token de un solo uso para restablecer la contraseña; el token en claro solo viaja en el correo.
+model PasswordResetToken {
+  id        String    @id // SHA-256 del token
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }
@@ -97,25 +110,25 @@ model Category {
 }
 
 model Product {
-  id             String        @id @default(uuid()) @db.Uuid
-  sku            String        @unique
-  oemName        String?
-  oemPartNumber  String?
-  supplierCode   String? // "Item #" / "Air Supply Number"
-  description    String
-  categoryId     String?       @db.Uuid
-  category       Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  line           ProductLine
-  kind           ProductKind   @default(PRODUCT)
-  unit           String        @default("PZA")
-  cost           Decimal       @default(0) @db.Decimal(14, 4)
-  markup         Decimal       @default(0) @db.Decimal(8, 4) // "Utilidad" (fracción)
-  shipping       Decimal       @default(0) @db.Decimal(14, 2) // "Envío"
-  price          Decimal       @default(0) @db.Decimal(14, 2)
-  taxRate        Decimal       @default(0.16) @db.Decimal(5, 4)
-  status         ProductStatus @default(ACTIVE)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id            String        @id @default(uuid()) @db.Uuid
+  sku           String        @unique
+  oemName       String?
+  oemPartNumber String?
+  supplierCode  String? // "Item #" / "Air Supply Number"
+  description   String
+  categoryId    String?       @db.Uuid
+  category      Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  line          ProductLine
+  kind          ProductKind   @default(PRODUCT)
+  unit          String        @default("PZA")
+  cost          Decimal       @default(0) @db.Decimal(14, 4)
+  markup        Decimal       @default(0) @db.Decimal(8, 4) // "Utilidad" (fracción)
+  shipping      Decimal       @default(0) @db.Decimal(14, 2) // "Envío"
+  price         Decimal       @default(0) @db.Decimal(14, 2)
+  taxRate       Decimal       @default(0.16) @db.Decimal(5, 4)
+  status        ProductStatus @default(ACTIVE)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   priceHistory PriceHistory[]
   balances     StockBalance[]
@@ -372,15 +385,15 @@ enum RuleSetStatus {
 
 /// Regla versionada: tasa "meta cumplida" vs "meta no cumplida" por línea.
 model CommissionRuleSet {
-  id            String          @id @default(uuid()) @db.Uuid
+  id            String            @id @default(uuid()) @db.Uuid
   name          String
   version       Int
-  basis         CommissionBasis @default(NET_SALES)
-  status        RuleSetStatus   @default(DRAFT)
+  basis         CommissionBasis   @default(NET_SALES)
+  status        RuleSetStatus     @default(DRAFT)
   notes         String?
-  activatedById String?         @db.Uuid
+  activatedById String?           @db.Uuid
   activatedAt   DateTime?
-  createdAt     DateTime        @default(now())
+  createdAt     DateTime          @default(now())
   rates         CommissionRate[]
   entries       CommissionEntry[]
 
@@ -433,25 +446,25 @@ enum CommissionStatus {
 }
 
 model CommissionEntry {
-  id             String            @id @default(uuid()) @db.Uuid
-  periodId       String            @db.Uuid
-  period         CommissionPeriod  @relation(fields: [periodId], references: [id], onDelete: Restrict)
-  sellerId       String            @db.Uuid
-  seller         User              @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-  ruleSetId      String            @db.Uuid
-  ruleSet        CommissionRuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
-  line           ProductLine
-  baseAmount     Decimal           @db.Decimal(14, 2)
-  sellerTotal    Decimal           @db.Decimal(14, 2) // base total del vendedor en el periodo
-  targetAmount   Decimal           @db.Decimal(14, 2)
-  metTarget      Boolean
-  rate           Decimal           @db.Decimal(6, 4)
-  amount         Decimal           @db.Decimal(14, 2)
-  status         CommissionStatus  @default(CALCULATED)
-  approvedById   String?           @db.Uuid
-  approvedAt     DateTime?
-  paidAt         DateTime?
-  createdAt      DateTime          @default(now())
+  id           String            @id @default(uuid()) @db.Uuid
+  periodId     String            @db.Uuid
+  period       CommissionPeriod  @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  sellerId     String            @db.Uuid
+  seller       User              @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  ruleSetId    String            @db.Uuid
+  ruleSet      CommissionRuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
+  line         ProductLine
+  baseAmount   Decimal           @db.Decimal(14, 2)
+  sellerTotal  Decimal           @db.Decimal(14, 2) // base total del vendedor en el periodo
+  targetAmount Decimal           @db.Decimal(14, 2)
+  metTarget    Boolean
+  rate         Decimal           @db.Decimal(6, 4)
+  amount       Decimal           @db.Decimal(14, 2)
+  status       CommissionStatus  @default(CALCULATED)
+  approvedById String?           @db.Uuid
+  approvedAt   DateTime?
+  paidAt       DateTime?
+  createdAt    DateTime          @default(now())
 
   @@unique([periodId, sellerId, line])
 }
@@ -459,13 +472,13 @@ model CommissionEntry {
 // ───────── Aprobaciones y auditoría ─────────
 
 model Approval {
-  id         String   @id @default(uuid()) @db.Uuid
-  entityType String
-  entityId   String
-  action     String
-  decidedById String  @db.Uuid
-  comment    String?
-  createdAt  DateTime @default(now())
+  id          String   @id @default(uuid()) @db.Uuid
+  entityType  String
+  entityId    String
+  action      String
+  decidedById String   @db.Uuid
+  comment     String?
+  createdAt   DateTime @default(now())
 
   @@index([entityType, entityId])
 }

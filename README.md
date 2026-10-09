@@ -14,6 +14,7 @@ docker compose up -d --build    # db → migrate (migraciones + seed) → app
 App en **http://localhost:3080** (o `http://<IP-de-tu-PC>:3080` desde el celular en la misma Wi‑Fi).
 Variables: `APP_PORT` (3080), `SEED_DEMO` (1 = datos ficticios [DEMO]), `COOKIE_SECURE` (false para HTTP en LAN; `true` detrás de HTTPS).
 Actualizar tras cambios de código: `docker compose up -d --build app`.
+Recuperación de contraseña por correo: define `APP_URL` y `SMTP_*` (ver `.env.example`). Producción en VPS: `docs/deploy-hostinger.md`.
 
 ## Instalación local (desarrollo)
 ```bash

@@ -5,7 +5,8 @@ import { z } from "zod";
 import { createSession, destroySession } from "@/lib/auth/session";
 import { audit } from "@/lib/audit";
 import { verifyCredentials } from "@/modules/users/service";
-import type { ActionResult } from "@/lib/errors";
+import { runAction, type ActionResult } from "@/lib/errors";
+import { requestPasswordReset, resetPassword } from "./service";
 
 const schema = z.object({ email: z.string().trim().email(), password: z.string().min(1).max(200) });
 
@@ -34,4 +35,37 @@ export async function loginAction(_: ActionResult | null, fd: FormData): Promise
 export async function logoutAction() {
   await destroySession();
   redirect("/login");
+}
+
+// Límite por correo para no saturar buzones ni el SMTP (en memoria, por instancia).
+const resetRequests = new Map<string, { n: number; until: number }>();
+const RESET_SENT = "Si el correo está registrado, te enviamos un enlace para restablecer la contraseña. Revisa tu bandeja de entrada.";
+
+export async function requestPasswordResetAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return runAction<undefined>(async () => {
+    const { email } = z.object({ email: z.string().trim().email("Correo inválido").max(200) }).parse({ email: fd.get("email") });
+    const key = email.toLowerCase();
+    const r = resetRequests.get(key);
+    const active = r && r.until > Date.now();
+    // Pasado el límite se responde igual que siempre, sin enviar más correos.
+    if (active && r.n >= 3) return undefined;
+    resetRequests.set(key, { n: (active ? r.n : 0) + 1, until: active ? r.until : Date.now() + 15 * 60_000 });
+    await requestPasswordReset(key);
+    return undefined;
+  }, RESET_SENT);
+}
+
+const newPassword = z.object({
+  token: z.string().min(20).max(200),
+  password: z.string().min(10, "Mínimo 10 caracteres").max(100),
+  confirm: z.string(),
+}).refine((d) => d.password === d.confirm, { path: ["confirm"], message: "Las contraseñas no coinciden" });
+
+export async function resetPasswordAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const res = await runAction(async () => {
+    const d = newPassword.parse({ token: fd.get("token"), password: fd.get("password"), confirm: fd.get("confirm") });
+    await resetPassword(d.token, d.password);
+  });
+  if (res.ok) redirect("/login?restablecida=1");
+  return res;
 }

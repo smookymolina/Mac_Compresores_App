@@ -21,6 +21,7 @@ const COMMISSION_TABLE: [ProductLine, string, string][] = [
 ];
 
 async function main() {
+  const adminEmail = (process.env.SEED_ADMIN_EMAIL?.trim() || "admin@maccompresores.local").toLowerCase();
   const adminPassword = process.env.SEED_ADMIN_PASSWORD;
   if (!adminPassword || adminPassword.length < 8) throw new Error("Define SEED_ADMIN_PASSWORD (mín. 8 caracteres) en .env");
 
@@ -37,8 +38,8 @@ async function main() {
 
   const hash = await bcrypt.hash(adminPassword, 12);
   await db.user.upsert({
-    where: { email: "admin@maccompresores.local" },
-    create: { email: "admin@maccompresores.local", name: "Administrador", passwordHash: hash, roleId: roles.ADMIN },
+    where: { email: adminEmail },
+    create: { email: adminEmail, name: "Administrador", passwordHash: hash, roleId: roles.ADMIN },
     update: {},
   });
 
@@ -57,11 +58,11 @@ async function main() {
     });
   }
 
-  if (process.env.SEED_DEMO === "1") await demo(roles, hash);
+  if (process.env.SEED_DEMO === "1") await demo(roles, hash, adminEmail);
   console.log("Seed completo.");
 }
 
-async function demo(roles: Record<RoleCode, string>, hash: string) {
+async function demo(roles: Record<RoleCode, string>, hash: string, adminEmail: string) {
   const users: [string, string, RoleCode][] = [
     ["ventas1@demo.local", "[DEMO] Vendedor Uno", "VENTAS"],
     ["ventas2@demo.local", "[DEMO] Vendedor Dos", "VENTAS"],
@@ -79,7 +80,7 @@ async function demo(roles: Record<RoleCode, string>, hash: string) {
     ["DEMO-EQP-005", "[DEMO] Compresor tornillo 15 HP", "EQUIPO_VENTA", "PRODUCT", "90000", "125000"],
   ];
   const wh = await db.warehouse.findUniqueOrThrow({ where: { code: "PRINCIPAL" } });
-  const admin = await db.user.findUniqueOrThrow({ where: { email: "admin@maccompresores.local" } });
+  const admin = await db.user.findUniqueOrThrow({ where: { email: adminEmail } });
   for (const [sku, description, line, kind, cost, price] of products) {
     const p = await db.product.upsert({
       where: { sku },
