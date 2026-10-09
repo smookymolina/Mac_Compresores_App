@@ -17,6 +17,7 @@ services:
       DATABASE_URL: postgresql://mac:${POSTGRES_PASSWORD}@db:5432/mac_compresores?schema=public
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
       SEED_DEMO: ${SEED_DEMO}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
     depends_on: { db: { condition: service_healthy } }
     restart: "no"
   app:
@@ -25,6 +26,13 @@ services:
     environment:
       DATABASE_URL: postgresql://mac:${POSTGRES_PASSWORD}@db:5432/mac_compresores?schema=public
       COOKIE_SECURE: ${COOKIE_SECURE}
+      APP_URL: ${APP_URL:-https://maccompresores.app}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Mac Compresores}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
     ports: ["127.0.0.1:3080:3000"]
     depends_on: { migrate: { condition: service_completed_successfully } }
 volumes:
