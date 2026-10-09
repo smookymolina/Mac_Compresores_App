@@ -17,20 +17,20 @@ export default async function ReportsPage() {
         {Object.entries(REPORTS).map(([kind, r]) => (
           <Card key={kind}>
             <CardHeader title={r.title} description={r.description} />
-            <form action={`/api/reportes/${kind}`} method="get" className="flex flex-wrap items-end gap-3 p-4">
+            <form action={`/api/reportes/${kind}`} method="get" className="grid grid-cols-2 items-end gap-3 p-4">
               {r.dated && (
                 <>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                     <label htmlFor={`${kind}-desde`} className="label">Desde</label>
                     <input id={`${kind}-desde`} name="desde" type="date" defaultValue={first} required className="input" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                     <label htmlFor={`${kind}-hasta`} className="label">Hasta</label>
                     <input id={`${kind}-hasta`} name="hasta" type="date" defaultValue={today} required className="input" />
                   </div>
                 </>
               )}
-              <button className="btn btn-secondary"><Download size={16} strokeWidth={1.75} aria-hidden /> Descargar CSV</button>
+              <button className="btn btn-secondary col-span-2 justify-self-start"><Download size={16} strokeWidth={1.75} aria-hidden /> Descargar CSV</button>
             </form>
           </Card>
         ))}

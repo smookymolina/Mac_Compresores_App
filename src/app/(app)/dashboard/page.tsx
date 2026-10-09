@@ -67,9 +67,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               {d.targets.rows.map((t, i) => {
                 const pct = t.target.gt(0) ? t.actual.div(t.target).toNumber() : 0;
                 return (
-                  <li key={t.name} className="grid grid-cols-[minmax(5rem,10rem)_1fr_minmax(7rem,12rem)] items-center gap-3">
+                  <li key={t.name} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[minmax(5rem,10rem)_1fr_minmax(7rem,12rem)]">
                     <span className="truncate">{t.name}</span>
-                    <span className="goal-track" role="img" aria-label={`${Math.round(pct * 100)} % de la meta`}>
+                    <span className="goal-track order-last col-span-2 sm:order-none sm:col-span-1" role="img" aria-label={`${Math.round(pct * 100)} % de la meta`}>
                       <span className={`goal-fill bar-fill${pct >= 1 ? " is-met" : ""}`} style={{ width: `${Math.min(pct, 1) * 100}%`, "--i": i } as React.CSSProperties} />
                     </span>
                     <span className="num text-xs"><b className="text-sm">{Math.round(pct * 100)} %</b> · {fmtMoney(t.actual)} / {fmtMoney(t.target)}</span>
@@ -127,9 +127,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <CardHeader title="Venta neta del mes por vendedor" />
             <ul className="space-y-2 p-4 text-sm">
               {d.bySeller.map((s, i) => (
-                <li key={s.name} className="grid grid-cols-[minmax(5rem,10rem)_1fr_minmax(5.5rem,8rem)] items-center gap-3">
+                <li key={s.name} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[minmax(5rem,10rem)_1fr_minmax(5.5rem,8rem)]">
                   <span className="truncate">{s.name}</span>
-                  <span className="h-2 overflow-hidden rounded-full bg-line">
+                  <span className="order-last col-span-2 h-2 overflow-hidden rounded-full bg-line sm:order-none sm:col-span-1">
                     <span className="bar-fill block h-2 rounded-full bg-brand" style={{ width: `${(s.net.toNumber() / maxSeller) * 100}%`, "--i": i } as React.CSSProperties} />
                   </span>
                   <span className="num">{fmtMoney(s.net)}</span>

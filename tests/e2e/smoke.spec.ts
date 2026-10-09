@@ -11,7 +11,8 @@ async function login(page: Page, email: string, password = PASSWORD, expectOk = 
 }
 
 test("rechaza credenciales inválidas", async ({ page }) => {
-  await login(page, "nadie@demo.local", "incorrecta123", false);
+  // Correo único: el límite de intentos vive en la BD y sobrevive entre corridas.
+  await login(page, `nadie-${Date.now()}@demo.local`, "incorrecta123", false);
   await expect(page.getByRole("status")).toHaveText(/inválidos/);
 });
 
@@ -61,4 +62,16 @@ test("gerencia: cotización → aceptada → venta con salida de inventario", as
   await page.getByRole("button", { name: "Convertir en venta" }).click();
   await expect(page.getByRole("heading", { name: /Venta V-\d+/ })).toBeVisible();
   await expect(page.getByText("Confirmada")).toBeVisible();
+});
+
+// Regresión: con un loading.tsx en (app), las acciones con revalidatePath dejaban el botón en «Procesando…».
+test("almacén registra una entrada y el formulario confirma", async ({ page }) => {
+  await login(page, "almacen@demo.local");
+  await page.goto("/inventario");
+  await page.getByLabel("SKU", { exact: true }).fill("DEMO-FIL-002");
+  await page.getByLabel("Cantidad", { exact: true }).fill("1");
+  await page.getByLabel("Motivo / referencia", { exact: true }).fill("Entrada de prueba e2e");
+  await page.getByRole("button", { name: "Registrar", exact: true }).click();
+  await expect(page.getByText("Movimiento registrado.").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Registrar", exact: true })).toBeEnabled();
 });

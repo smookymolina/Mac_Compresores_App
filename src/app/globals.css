@@ -293,8 +293,9 @@ a, button, select, summary, label { touch-action: manipulation; }
   .page-meta > div { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
 
   /* ---- Indicadores: una franja segmentada (lectura de instrumento), no tarjetas sueltas ---- */
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--border); }
-  .kpis > * { background: var(--panel); padding: 1rem 1.25rem; min-width: 0; }
+  /* Separadores con sombra de 1 px por celda (no con el fondo del contenedor): una fila incompleta queda limpia. */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--panel); }
+  .kpis > * { background: var(--panel); padding: 1rem 1.25rem; min-width: 0; box-shadow: 1px 0 0 var(--border), 0 1px 0 var(--border); }
   .kpi-value { font-family: var(--font-mono); font-size: 1.5rem; line-height: 1.2; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
   /* Lectura de instrumento: barra de acento que se enciende, icono en ficha y cifra que sube. */
   .kpi { position: relative; transition: background-color var(--dur); }

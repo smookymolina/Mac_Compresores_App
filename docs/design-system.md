@@ -34,7 +34,10 @@ Filas de tabla 40–44 px, cabecera 36 px, controles 36 px (44 px con `pointer: 
 | `EmptyState`, `FilteredEmpty`, `ErrorState`, `Skeleton`, `TableSkeleton` | Vacío = título + frase de valor + acción; `FilteredEmpty` ofrece «Limpiar filtros». |
 | `SearchInput` | Búsqueda de barra de filtros con lupa funcional |
 | Botón de icono (`.icon-btn` + `data-tip`) | Cuadrado, `aria-label` + tooltip CSS en hover/foco (no `title`) |
-| | Skeletons en lugar de spinners (`loading.tsx`) |
+| | Sin `loading.tsx` en `(app)`: con Next 15 dejaba colgadas («Procesando…») las acciones con `revalidatePath` (vercel/next.js#66426); no volver a agregarlo. `Skeleton`/`TableSkeleton` siguen disponibles dentro de páginas |
+| `MonthBars` | Barras de una serie por mes (dashboard): un tono, eje recesivo, etiqueta directa solo del mes actual, tooltip por columna enfocable y «Ver como tabla» |
+| `CommandPalette` | Búsqueda global (Ctrl/⌘+K) en la topbar: cotizaciones, ventas, clientes y productos según permisos |
+| `NotificationBell` | Avisos en la topbar: contador de no leídos (se actualiza cada minuto) y panel con los últimos 20 |
 | `Dialog` | `<dialog>` nativo: modal / drawer (`side`), foco atrapado, Esc, `aria-labelledby` |
 | `ToastProvider`/`useToast` | Éxitos de `ActionForm`; región `aria-live="polite"`. Los errores siguen en línea (`role="status"`) |
 
