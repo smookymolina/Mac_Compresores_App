@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
+import { APP_VERSION } from "@/lib/version";
 import { ActionForm } from "@/components/action-form";
 import { Field } from "@/components/ui";
 import { loginAction } from "@/modules/auth/actions";
@@ -38,7 +39,7 @@ export default async function LoginPage() {
             <Field label="Correo" name="email" type="email" autoComplete="username" spellCheck={false} required />
             <Field label="Contraseña" name="password" type="password" autoComplete="current-password" required />
           </ActionForm>
-          <p className="mt-8 text-xs text-muted">Sistema interno · acceso solo para personal autorizado</p>
+          <p className="mt-8 text-xs text-muted">Sistema interno · acceso solo para personal autorizado · v{APP_VERSION}</p>
         </div>
       </div>
     </main>

@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { APP_VERSION } from "@/lib/version";
 import { Breadcrumb } from "./breadcrumb";
 import { NavLinks, type NavItem } from "./nav-links";
 
@@ -134,6 +135,9 @@ export function AppShell({
         <main id="main" tabIndex={-1} className="app-main p-4 outline-none md:p-6">
           <div className="mx-auto max-w-[96rem]">{children}</div>
         </main>
+        <footer className="border-t border-line px-4 py-3 text-xs text-muted md:px-6">
+          <div className="mx-auto max-w-[96rem]">MAC Compresores · v{APP_VERSION}</div>
+        </footer>
       </div>
 
       <Dialog open={drawer} onClose={() => setDrawer(false)} title="Menú" side="left" className="sidebar">
