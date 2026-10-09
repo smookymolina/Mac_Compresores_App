@@ -33,6 +33,9 @@ Usa comillas **simples** en valores con `$`, `#`, `!` o `%` (Compose no interpol
 > El seed solo **crea** el admin si no existe; no cambia la contraseña de uno existente.
 
 ## 2. Levantar
+> En el VPS de producción se usa `docker-compose.prod.yml` (Postgres sin puerto publicado, app solo en
+> 127.0.0.1:3080): antepón `-f docker-compose.prod.yml` a cada comando `docker compose` de esta guía.
+
 ```bash
 docker compose up -d --build        # db → migrate (migraciones + seed) → app; reinicio automático
 docker compose ps && docker compose logs migrate --tail 30
