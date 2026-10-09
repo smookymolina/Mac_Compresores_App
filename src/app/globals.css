@@ -276,9 +276,73 @@ a, button, select, summary, label { touch-action: manipulation; }
   .kpis > * { background: var(--panel); padding: 1rem 1.25rem; min-width: 0; }
   .kpi-value { font-family: var(--font-mono); font-size: 1.5rem; line-height: 1.2; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 
-  /* ---- Inicio de sesión: un solo momento orquestado (manómetro + entrada escalonada) ---- */
-  .login-brand { position: relative; overflow: hidden; }
-  .login-gauge { position: absolute; right: -7rem; bottom: -6rem; width: 30rem; max-width: none; pointer-events: none; }
+  /* ---- Pantallas de acceso (login, recuperar, restablecer): momento orquestado de la app ----
+     Escritorio: panel de marca tipo sala de control (cuadrícula de plano, tubería con aire en circulación,
+     manómetro con lectura digital) + formulario en tarjeta. Móvil: banda de marca compacta y el formulario
+     como hoja que sube. Animaciones decorativas en bucle solo aquí; con movimiento reducido todo queda quieto. */
+  .auth { display: grid; min-height: 100dvh; background: var(--panel); }
+  @media (min-width: 1024px) { .auth { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); } }
+
+  .auth-brand { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 1.25rem; min-height: 14rem; padding: 1.25rem 1.25rem 2.75rem; }
+  @media (min-width: 1024px) { .auth-brand { min-height: 100dvh; padding: 2.5rem; gap: 0; } }
+  .auth-grid {
+    position: absolute; inset: -48px; pointer-events: none;
+    background-image: linear-gradient(rgb(148 163 184 / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(148 163 184 / 0.07) 1px, transparent 1px);
+    background-size: 48px 48px; animation: grid-drift 24s linear infinite;
+  }
+  .auth-pipes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .pipe { fill: none; stroke: rgb(148 163 184 / 0.16); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 1; animation: pipe-draw 1400ms var(--ease) 150ms backwards; }
+  .pipe-flow {
+    fill: none; stroke: #7cc0ff; stroke-opacity: 0.6; stroke-width: 2; stroke-linecap: round; stroke-dasharray: 3 18;
+    animation: pipe-flow calc(2.2s + var(--n) * 0.35s) linear infinite, fade 700ms var(--ease) calc(900ms + var(--n) * 120ms) backwards;
+  }
+  .pipe-node-core { fill: #7cc0ff; animation: fade 400ms var(--ease) calc(1100ms + var(--n) * 80ms) backwards; }
+  .pipe-node-ring { fill: none; stroke: #7cc0ff; stroke-width: 1.5; opacity: 0; transform-box: fill-box; transform-origin: center; animation: node-ping 2.8s var(--ease) calc(1.4s + var(--n) * 0.5s) infinite; }
+
+  .auth-brand-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .auth-logo { animation: enter 400ms var(--ease) backwards; }
+  .auth-status {
+    display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.625rem; border: 1px solid var(--border); border-radius: 999px;
+    background: rgb(15 23 42 / 0.45); color: var(--text-2); font-size: 0.75rem; font-weight: 500; white-space: nowrap;
+    animation: fade 400ms var(--ease) 500ms backwards;
+  }
+  .auth-status-dot { position: relative; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: #4cc27a; }
+  .auth-status-dot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: #4cc27a; animation: status-ping 2s var(--ease) 1s infinite; }
+
+  .auth-copy { position: relative; z-index: 1; max-width: 62%; }
+  @media (min-width: 1024px) { .auth-copy { max-width: 26rem; margin-top: 5rem; } }
+  .auth-headline { font-size: 1.25rem; line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+  @media (min-width: 1024px) { .auth-headline { font-size: 2rem; line-height: 1.2; } }
+  .auth-word { display: inline-block; white-space: pre; animation: word-rise 520ms var(--ease) backwards; animation-delay: calc(250ms + var(--i) * 55ms); }
+  .auth-ticker { height: 1.5rem; margin-top: 0.75rem; overflow: hidden; color: var(--text-2); font-size: 0.8125rem; animation: fade 400ms var(--ease) 900ms backwards; }
+  @media (min-width: 1024px) { .auth-ticker { font-size: 0.9375rem; margin-top: 1rem; } }
+  .auth-ticker-track { animation: ticker 10s var(--ease) 1.6s infinite; }
+  .auth-ticker-track li { display: flex; align-items: center; gap: 0.5rem; height: 1.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .auth-ticker-track li::before { content: ""; flex: none; width: 0.75rem; height: 2px; background: var(--accent-fg); }
+  .auth-modules { display: none; }
+  @media (min-width: 1024px) {
+    .auth-modules { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; margin-top: 2rem; }
+    .auth-modules li {
+      display: inline-flex; align-items: center; gap: 0.625rem; min-width: 13rem; padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border); border-radius: var(--r); background: rgb(15 23 42 / 0.5); color: var(--text); font-size: 0.875rem; font-weight: 500;
+      transition: transform var(--dur) var(--ease), border-color var(--dur);
+      animation: slide-in 450ms var(--ease) backwards; animation-delay: calc(1100ms + var(--i) * 110ms);
+    }
+    .auth-modules li:hover { transform: translateX(4px); border-color: var(--accent-fg); }
+    .auth-modules svg { color: var(--accent-fg); }
+  }
+
+  .auth-instrument { position: absolute; z-index: 0; right: -1.5rem; top: 3.5rem; width: 12rem; pointer-events: none; }
+  @media (min-width: 1024px) { .auth-instrument { top: auto; right: -5rem; bottom: -4.5rem; width: 26rem; } }
+  @media (min-width: 1024px) and (max-height: 760px) { .auth-instrument { width: 20rem; bottom: -4rem; } }
+  .auth-gauge { display: block; width: 100%; height: auto; }
+  .readout { position: absolute; left: 50%; top: 63%; transform: translateX(-50%); display: flex; align-items: baseline; gap: 0.25rem; font-family: var(--font-mono); animation: fade 400ms var(--ease) 500ms backwards; }
+  .readout-value { font-size: 1.125rem; font-weight: 500; color: #f8fafc; font-variant-numeric: tabular-nums; animation: psi-count 1100ms cubic-bezier(0.16, 1, 0.3, 1) 300ms both, psi-idle 2.8s ease-in-out 1.5s infinite alternate; }
+  .readout-value::after { counter-reset: psi var(--psi); content: counter(psi); }
+  .readout-unit { font-size: 0.625rem; color: var(--muted); letter-spacing: 0.08em; }
+  @media (min-width: 1024px) { .readout-value { font-size: 2.25rem; } .readout-unit { font-size: 0.8125rem; } }
+
+  /* Gauge (manómetro): escala, aguja con barrido inicial y oscilación en reposo. */
   .gauge-track { fill: none; stroke: rgb(203 213 225 / 0.18); stroke-width: 2; }
   .gauge-zone { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; animation: fade 400ms var(--ease) 700ms backwards; }
   .gauge-tick { stroke: rgb(203 213 225 / 0.35); stroke-width: 1.25; animation: fade 200ms var(--ease) backwards; animation-delay: calc(150ms + var(--i) * 15ms); }
@@ -286,26 +350,58 @@ a, button, select, summary, label { touch-action: manipulation; }
   .gauge-needle { transform-box: view-box; transform-origin: 100px 100px; transform: rotate(32deg); animation: needle 1100ms cubic-bezier(0.16, 1, 0.3, 1) 300ms backwards; }
   .gauge-needle line { stroke: #f1f5f9; stroke-width: 2.5; stroke-linecap: round; }
   .gauge-hub { fill: var(--accent); stroke: #1e293b; stroke-width: 3; }
-  .login-rise > * { animation: enter 300ms var(--ease) backwards; }
-  .login-rise > :nth-child(2) { animation-delay: 60ms; }
-  .login-rise > :nth-child(3) { animation-delay: 120ms; }
-  .login-rise > :nth-child(n + 4) { animation-delay: 180ms; }
-  .login-form .input { transition: border-color var(--dur-fast); }
-
-  /* Marcas que la aguja alcanza: se encienden a su paso (retraso ≈ avance de la aguja). */
   .gauge-tick-lit { animation: fade 200ms var(--ease) backwards, tick-lit 260ms var(--ease) both; animation-delay: calc(150ms + var(--i) * 15ms), calc(380ms + var(--i) * 42ms); }
   .gauge-tick-lit.gauge-tick-major { stroke: #ffffff; }
-  /* Aguja en reposo: oscilación de ±1.2° tras el barrido, como una presión real. */
   .gauge-needle-idle { transform-box: view-box; transform-origin: 100px 100px; animation: needle-idle 2.8s ease-in-out 1.5s infinite alternate; }
 
-  /* Flujo de aire: líneas finas que cruzan el panel (un solo tono, baja opacidad). */
-  .login-flow { position: absolute; inset: 0; pointer-events: none; }
-  .flow-line {
-    position: absolute; left: 0; height: 1px; width: 45%; opacity: 0;
-    top: calc(40% + var(--n) * 7%);
-    background: linear-gradient(to right, transparent, rgb(124 192 255 / 0.45), transparent);
-    animation: flow calc(7s + var(--n) * 1.3s) linear calc(600ms + var(--n) * 900ms) infinite;
+  /* Lado del formulario: hoja que sube en móvil; tarjeta sobre retícula de puntos en escritorio. */
+  .auth-panel { position: relative; z-index: 1; }
+  .auth-sheet {
+    margin-top: -1.25rem; min-height: calc(100dvh - 12.75rem); padding: 1.75rem 1.25rem 2rem; border-radius: 0.75rem 0.75rem 0 0;
+    border-top: 1px solid var(--border); background: var(--panel); box-shadow: 0 -8px 24px rgb(15 23 42 / 0.14); animation: sheet-up 520ms var(--ease) 80ms backwards;
   }
+  @media (min-width: 1024px) {
+    .auth-panel { display: grid; place-items: center; padding: 2rem; background-color: var(--bg); background-image: radial-gradient(var(--border-strong) 1px, transparent 1px); background-size: 22px 22px; }
+    .auth-sheet { width: 100%; max-width: 26rem; min-height: 0; margin: 0; padding: 2.25rem; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--elev-pop); animation: pop 450ms var(--ease) 150ms backwards; }
+  }
+  .auth-form { display: flex; flex-direction: column; gap: 1.25rem; }
+  .auth-form > * { animation: enter-up 420ms var(--ease) backwards; }
+  .auth-form > :nth-child(1) { animation-delay: 200ms; }
+  .auth-form > :nth-child(2) { animation-delay: 260ms; }
+  .auth-form > :nth-child(3) { animation-delay: 330ms; }
+  .auth-form > :nth-child(n + 4) { animation-delay: 400ms; }
+  .auth-eyebrow { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--accent-fg); font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.04em; }
+  .auth-eyebrow::before { content: ""; width: 1.25rem; height: 2px; background: currentColor; transform-origin: left; animation: grow-x 500ms var(--ease) 350ms backwards; }
+  .auth-legal { font-size: 0.75rem; color: var(--muted); }
+  .auth-notice { margin-bottom: 1rem; padding: 0.5rem 0.75rem; border: 1px solid color-mix(in oklab, var(--ok) 35%, transparent); border-radius: var(--r); background: var(--ok-soft); color: var(--ok); font-size: 0.875rem; }
+  .login-form .auth-notice { animation: enter-up 320ms var(--ease); }
+  .auth-link { position: relative; font-weight: 500; color: var(--accent-fg); }
+  .auth-link::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform var(--dur) var(--ease); }
+  .auth-link:hover::after, .auth-link:focus-visible::after { transform: scaleX(1); }
+
+  .auth-fields { display: flex; flex-direction: column; gap: 1rem; }
+  .auth-fields > * + * { margin-top: 0 !important; }
+  .auth .input { min-height: 2.75rem; transition: border-color var(--dur-fast), background-color var(--dur-fast); }
+  .auth-fields .btn { width: 100%; min-height: 2.75rem; font-size: 0.9375rem; }
+  .auth-fields .btn-primary::before { content: "→"; order: 1; transition: transform var(--dur) var(--ease); }
+  .auth-fields .btn-primary:hover::before { transform: translateX(4px); }
+  .auth-fields .btn[aria-busy="true"]::before { content: none; }
+
+  /* Campos con icono / acción (también fuera del login). */
+  .input-wrap { position: relative; }
+  .input-wrap.has-icon .input { padding-left: 2.25rem; }
+  .input-wrap.has-action .input { padding-right: 2.75rem; }
+  .input-icon { position: absolute; left: 0.75rem; top: 50%; display: flex; color: var(--muted); pointer-events: none; transform: translateY(-50%); transition: color var(--dur-fast); }
+  .input-wrap:focus-within .input-icon { color: var(--accent-fg); }
+  .input-action { position: absolute; right: 0.25rem; top: 50%; display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: var(--r-sm); color: var(--muted); transform: translateY(-50%); transition: color var(--dur-fast), background-color var(--dur-fast); }
+  .input-action:hover { color: var(--text); background: var(--panel-2); }
+  .input-action svg { animation: pop 180ms var(--ease); }
+  .caps-hint { margin-top: 0.25rem; font-size: 0.75rem; color: var(--warn); }
+  .caps-hint:empty { display: none; }
+  .caps-hint.is-on { animation: enter 200ms var(--ease); }
+  /* Barra de foco que se extiende bajo el campo (solo pantallas de acceso). */
+  .auth .input-wrap::after { content: ""; position: absolute; left: 1px; right: 1px; bottom: 0; height: 2px; border-radius: 0 0 var(--r) var(--r); background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform 260ms var(--ease); pointer-events: none; }
+  .auth .input-wrap:focus-within::after { transform: scaleX(1); }
 
   /* Formulario: sacudida breve en error y barra de progreso en el botón mientras procesa. */
   .login-form [role="status"] { animation: shake 320ms var(--ease); }
@@ -333,7 +429,21 @@ a, button, select, summary, label { touch-action: manipulation; }
 @keyframes needle { from { transform: rotate(-135deg); } }
 @keyframes needle-idle { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
 @keyframes tick-lit { from { opacity: 0.35; } to { opacity: 1; } }
-@keyframes flow { 0% { opacity: 0; transform: translateX(-100%); } 15% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(240%); } }
+@keyframes enter-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes word-rise { from { opacity: 0; transform: translateY(0.5em); } to { opacity: 1; transform: none; } }
+@keyframes slide-in { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes sheet-up { from { transform: translateY(32px); } to { transform: none; } }
+@keyframes grow-x { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes grid-drift { to { transform: translate(48px, 48px); } }
+@keyframes pipe-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes pipe-flow { to { stroke-dashoffset: -42; } }
+@keyframes node-ping { 0% { opacity: 0.9; transform: scale(0.6); } 80%, 100% { opacity: 0; transform: scale(2.4); } }
+@keyframes status-ping { 0% { opacity: 0.7; transform: scale(1); } 80%, 100% { opacity: 0; transform: scale(2.6); } }
+/* Rotación de mensajes: 3 mensajes + copia del primero para cerrar el ciclo sin salto visible. */
+@keyframes ticker { 0%, 27% { transform: none; } 33%, 60% { transform: translateY(-1.5rem); } 66%, 93% { transform: translateY(-3rem); } 100% { transform: translateY(-4.5rem); } }
+@property --psi { syntax: "<integer>"; inherits: true; initial-value: 118; }
+@keyframes psi-count { from { --psi: 0; } to { --psi: 118; } }
+@keyframes psi-idle { from { --psi: 117; } to { --psi: 119; } }
 @keyframes shake { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
 @keyframes busy { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 
@@ -348,6 +458,6 @@ a, button, select, summary, label { touch-action: manipulation; }
   /* Sin escala ni desplazamiento: solo cambios instantáneos u opacidad. */
   .btn:active, [data-tip]::after { transform: none; }
   .skeleton { animation: none; }
-  .flow-line, .login-form .btn[aria-busy="true"]::after { display: none; }
-  .gauge-needle-idle { animation: none; }
+  .login-form .btn[aria-busy="true"]::after, .pipe-flow, .pipe-node-ring, .auth-status-dot::after { display: none; }
+  .gauge-needle-idle, .auth-grid, .auth-ticker-track, .readout-value { animation: none; }
 }

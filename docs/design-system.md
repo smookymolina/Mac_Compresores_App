@@ -9,7 +9,7 @@ Solo capa visual: ninguna regla de negocio, acción, permiso ni ruta cambia. Fue
 - **Tema:** claro/oscuro con `light-dark()`; sigue `prefers-color-scheme` y se puede forzar con `data-theme` (botón en la topbar, guardado en `localStorage`).
 - **Identidad:** paleta de maccompresores.com.mx (tema Astra): azul `#046bd2`/`#045cb4`, pizarra `#1e293b`/`#334155`, fondo `#F0F5FA`, bordes `#D1D5DB`; barra lateral grafito en ambos temas (`.sidebar` reasigna los tokens en su ámbito); radios contenidos.
 - **Radios:** 3 / 4 / 6 px (control < panel). **Elevación:** borde 1 px primero; `--elev-1` (tarjetas) y `--elev-pop` (menús, toasts) con alfa < 0.08 en claro; en oscuro, luz de borde superior (`inset`) en lugar de sombra. **Espaciado:** base 4 px (`--space-1…8`, utilidades Tailwind).
-- **Login:** único momento orquestado: manómetro SVG (`login/gauge.tsx`) cuya aguja barre una vez (1.1 s, excepción documentada; solo `transform`) + entrada escalonada del contenido ≤ 300 ms. Con movimiento reducido aparece en su estado final.
+- **Pantallas de acceso** (`AuthShell`: login, recuperar, restablecer): único momento orquestado y única zona con animación en bucle. Escritorio: panel de marca tipo sala de control (cuadrícula de plano que se desplaza, tubería que se dibuja y por la que circula aire, uniones que laten, manómetro con barrido de aguja y lectura digital en PSI, titular palabra por palabra, mensajes rotativos, módulos escalonados, indicador «Sistema en línea») + formulario en tarjeta sobre retícula de puntos. Móvil: banda de marca compacta y el formulario como hoja que sube. Campos con icono, barra de foco, `PasswordField` (ver lo escrito + aviso de Bloq Mayús) y botón con flecha. Excepciones documentadas: duraciones > 300 ms, `stroke-dashoffset` y bucles solo aquí. Con movimiento reducido todo aparece en su estado final y sin bucles.
 - **Movimiento:** solo tokens `--dur-fast` 150 ms y `--dur` 200 ms; `--ease` (salida suave) para entradas, `--ease-in` para salidas. Solo `opacity`/`transform`. Escalonado 25 ms/elemento, ≤ 300 ms en total. Con `prefers-reduced-motion`: cambios instantáneos, sin escala de pulsación, sin pulso de skeleton.
 
 ## Tipografía
@@ -23,7 +23,7 @@ Filas de tabla 40–44 px, cabecera 36 px, controles 36 px (44 px con `pointer: 
 |---|---|
 | `AppShell` | Sidebar: ≥1280 px expandido y colapsable; 768–1279 px solo iconos; <768 px drawer (`Dialog`). Topbar con breadcrumb, tema y menú de usuario |
 | `Button`/`LinkButton`/`btnClass` | `primary`, `secondary`, `danger`, `ghost`; `size="sm"` |
-| `Field`/`SelectField`, `.input`, `.label` | `label` ligado por `id`, `aria-invalid` + `aria-describedby` en error |
+| `Field`/`PasswordField`/`SelectField`, `.input`, `.label` | `label` ligado por `id`, `aria-invalid` + `aria-describedby` en error; `icon` opcional; `PasswordField` con botón «Mostrar lo escrito» (su etiqueta no repite la del campo) |
 | `Pager` | Pie de tabla: total, página y Anterior/Siguiente con estado en la URL (productos, clientes, cotizaciones, ventas) |
 | `Badge` | Color + punto + texto (nunca solo color) |
 | `Card`, `CardHeader` | Panel plano: borde 1 px, sin sombra |

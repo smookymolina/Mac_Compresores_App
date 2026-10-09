@@ -4,7 +4,7 @@ export type { BtnVariant } from "./button";
 export { Card, CardHeader, PageHeader, Stat, StatGroup } from "./card";
 export { Badge } from "./badge";
 export type { Tone } from "./badge";
-export { Field, SelectField } from "./fields";
+export { Field, PasswordField, SelectField } from "./fields";
 export { EmptyState, ErrorState, FilteredEmpty, SearchInput, Skeleton, TableSkeleton, TableWrap } from "./data";
 export { DataTable } from "./data-table";
 export type { DataColumn, DataRow } from "./data-table";

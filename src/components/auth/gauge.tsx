@@ -1,4 +1,4 @@
-// Manómetro decorativo del panel de marca: escala de 270° y aguja que barre una vez al cargar.
+// Manómetro decorativo del panel de acceso: escala de 270° y aguja que barre una vez al cargar.
 // Solo transform/opacity (ver .gauge-* en globals.css); con movimiento reducido queda en su posición final.
 const CX = 100;
 const CY = 100;

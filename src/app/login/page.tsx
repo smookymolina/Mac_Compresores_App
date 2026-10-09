@@ -1,12 +1,11 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Lock, Mail } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/session";
-import { APP_VERSION } from "@/lib/version";
 import { ActionForm } from "@/components/action-form";
-import { Field } from "@/components/ui";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { Field, PasswordField } from "@/components/ui";
 import { loginAction } from "@/modules/auth/actions";
-import { Gauge } from "./gauge";
 
 export const metadata = { title: "Iniciar sesión" };
 
@@ -14,44 +13,21 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { restablecida } = await searchParams;
   if (await getCurrentUser()) redirect("/dashboard");
   return (
-    <main className="grid min-h-dvh bg-surface lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      <aside className="sidebar login-brand hidden flex-col gap-24 p-10 lg:flex">
-        <div aria-hidden className="login-flow">
-          {[0, 1, 2, 3, 4].map((i) => <span key={i} className="flow-line" style={{ "--n": i } as React.CSSProperties} />)}
-        </div>
-        <Gauge className="login-gauge" />
-        <span className="logo-tile page-enter relative self-start">
-          <Image src="/brand/logo-h.png" alt="MAC Compresores" width={150} height={40} priority className="h-10 w-auto" />
-        </span>
-        <div className="login-rise relative max-w-sm">
-          <p className="text-2xl font-semibold leading-tight tracking-tight">Cotizaciones, ventas e inventario en un solo sistema.</p>
-          <p className="mt-3 text-sm text-ink-soft">Precios del catálogo, existencias por almacén y comisiones calculadas con las reglas vigentes.</p>
-        </div>
-      </aside>
-      <div className="grid place-items-center bg-panel p-4 sm:p-8">
-        <div className="login-rise login-form w-full max-w-sm">
-          <span className="logo-tile mb-8 inline-flex lg:hidden">
-            <Image src="/brand/logo-h.png" alt="MAC Compresores" width={150} height={40} priority className="h-10 w-auto" />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Iniciar sesión</h1>
-            <p className="mt-1 text-sm text-ink-soft">Accede con tu cuenta del sistema.</p>
-          </div>
-          {restablecida && (
-            <p role="status" className="mt-4 rounded-md border border-line bg-accent-soft px-3 py-2 text-sm text-accent-fg">
-              Contraseña actualizada. Inicia sesión con la nueva.
-            </p>
-          )}
-          <ActionForm action={loginAction} submitLabel="Entrar" className="mt-6 space-y-4 [&_.btn]:w-full">
-            <Field label="Correo" name="email" type="email" autoComplete="username" spellCheck={false} required />
-            <Field label="Contraseña" name="password" type="password" autoComplete="current-password" required />
-          </ActionForm>
-          <p className="mt-4 text-sm">
-            <Link href="/recuperar" className="font-medium text-accent-fg hover:underline">¿Olvidaste tu contraseña?</Link>
-          </p>
-          <p className="mt-8 text-xs text-muted">Sistema interno · acceso solo para personal autorizado · v{APP_VERSION}</p>
-        </div>
-      </div>
-    </main>
+    <AuthShell
+      eyebrow="Acceso al sistema"
+      title="Iniciar sesión"
+      description="Accede con tu cuenta del sistema."
+      footer={<Link href="/recuperar" className="auth-link">¿Olvidaste tu contraseña?</Link>}
+    >
+      {restablecida && (
+        <p role="status" className="auth-notice">Contraseña actualizada. Inicia sesión con la nueva.</p>
+      )}
+      <ActionForm action={loginAction} submitLabel="Entrar" className="auth-fields">
+        <Field label="Correo" name="email" type="email" autoComplete="username" spellCheck={false} required
+          icon={<Mail size={16} strokeWidth={1.75} />} placeholder="nombre@maccompresores.com.mx" />
+        <PasswordField label="Contraseña" name="password" autoComplete="current-password" required
+          icon={<Lock size={16} strokeWidth={1.75} />} />
+      </ActionForm>
+    </AuthShell>
   );
 }
