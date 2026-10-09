@@ -50,7 +50,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         }
       />
 
-      <div className={aside ? "grid gap-4 lg:grid-cols-3" : undefined}>
+      <div className={aside ? "grid grid-cols-1 gap-4 lg:grid-cols-3" : undefined}>
         <Card className={aside ? "overflow-hidden lg:col-span-2" : "overflow-hidden"}>
           <CardHeader title="Partidas (precios congelados)" />
           <DataTable

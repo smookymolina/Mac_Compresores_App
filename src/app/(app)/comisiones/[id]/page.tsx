@@ -78,7 +78,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
                 <CardHeader
                   title={first.seller.name}
                   actions={
-                    <span className="flex items-center gap-2 text-xs">
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                       {first.metTarget ? <Badge tone="green">Meta cumplida</Badge> : <Badge tone="red">Meta no cumplida</Badge>}
                       <span>Base {fmtMoney(first.sellerTotal)} / meta {fmtMoney(first.targetAmount)}</span>
                       <span className="text-ink-soft">Regla v{first.ruleSet.version}</span>

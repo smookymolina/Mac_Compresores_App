@@ -15,7 +15,7 @@ export default async function UsersPage() {
   return (
     <>
       <PageHeader title="Usuarios y roles" subtitle="Cambiar rol, desactivar o restablecer contraseña cierra las sesiones abiertas del usuario." />
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader title="Usuarios" />
           <ul className="divide-y divide-line">

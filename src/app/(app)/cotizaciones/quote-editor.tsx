@@ -117,7 +117,28 @@ export function QuoteEditor({
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-line">
+      {/* Móvil: partidas como tarjetas (la tabla de abajo es solo para md+) */}
+      <ul className="divide-y divide-line rounded-md border border-line md:hidden">
+        {items.length === 0 && <li className="py-6 text-center text-sm text-ink-soft">Sin partidas.</li>}
+        {items.map((it, i) => (
+          <li key={i} className="space-y-2 p-3">
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1 text-sm">
+                <b className="break-words">{i + 1}. {it.sku}</b>
+                <div className="text-xs text-ink-soft">{it.description}</div>
+                <div className="text-xs tabular-nums text-ink-soft">Lista ${it.listPrice}</div>
+              </div>
+              <button type="button" aria-label="Quitar" className="btn btn-ghost icon-btn text-danger" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))}><Trash2 size={16} /></button>
+            </div>
+            <div className={canOverride ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
+              <label className="text-xs text-ink-soft">Cant.<input className="input num mt-1" inputMode="decimal" value={it.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} /></label>
+              {canOverride && <label className="text-xs text-ink-soft">P. especial<input className="input num mt-1" inputMode="decimal" placeholder="—" value={it.unitPrice} onChange={(e) => upd(i, { unitPrice: e.target.value })} /></label>}
+              <label className="text-xs text-ink-soft">Desc. %<input className="input num mt-1" inputMode="decimal" value={it.discountPct} max={canOverride ? 99 : MAX_DISCOUNT} onChange={(e) => upd(i, { discountPct: e.target.value })} /></label>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden overflow-x-auto rounded-md border border-line md:block">
         <table className="table">
           <thead>
             <tr><th>#</th><th>Concepto</th><th className="num">Cant.</th><th className="num">Precio lista</th>{canOverride && <th className="num">Precio especial</th>}<th className="num">Desc. %</th><th /></tr>

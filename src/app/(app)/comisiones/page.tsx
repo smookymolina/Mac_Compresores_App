@@ -113,7 +113,7 @@ export default async function CommissionsPage() {
               <SelectField label="Base de cálculo" name="basis" defaultValue={latest?.basis} options={Object.entries(BASIS).map(([value, label]) => ({ value, label }))} />
               <Field label="Notas" name="notes" />
             </div>
-            <div className="grid gap-2 sm:grid-cols-[1fr_8rem_8rem]">
+            <div className="grid grid-cols-[1fr_4.5rem_4.5rem] gap-2 sm:grid-cols-[1fr_8rem_8rem]">
               <span className="label">Línea</span><span className="label">Meta cumplida %</span><span className="label">No cumplida %</span>
               {LINES.map((l) => {
                 const r = latest?.rates.find((x) => x.line === l);

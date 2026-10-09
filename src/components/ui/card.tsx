@@ -42,7 +42,7 @@ export function PageHeader({
         {subtitle && <p className="page-sub mt-1 max-w-prose text-sm text-ink-soft">{subtitle}</p>}
         {meta && meta.length > 0 && (
           <dl className="page-meta">
-            {meta.map((m) => <div key={m.label}><dt>{m.label}</dt><dd className="truncate">{m.value}</dd></div>)}
+            {meta.map((m) => <div key={m.label}><dt>{m.label}</dt><dd className="min-w-0 break-words">{m.value}</dd></div>)}
           </dl>
         )}
       </div>

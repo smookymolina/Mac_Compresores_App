@@ -26,7 +26,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   return (
     <>
       <PageHeader title={product.sku} subtitle={product.description} />
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="p-4 lg:col-span-2">
           {editable ? (
             <ProductForm product={product} />

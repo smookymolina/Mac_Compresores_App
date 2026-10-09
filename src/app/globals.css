@@ -161,7 +161,7 @@ a, button, select, summary, label { touch-action: manipulation; }
 
   /* Barra de filtros sobre una tabla */
   .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.75rem; border-bottom: 1px solid var(--border); }
-  .toolbar .input { width: auto; flex: 1 1 12rem; max-width: 20rem; }
+  .toolbar .input { width: auto; min-width: 0; flex: 1 1 12rem; max-width: 20rem; }
   .search { position: relative; display: flex; flex: 1 1 14rem; max-width: 22rem; }
   .search > svg { position: absolute; left: 0.625rem; top: 50%; translate: 0 -50%; color: var(--muted); pointer-events: none; }
   .toolbar .search .input, .search .input { max-width: none; padding-left: 2rem; }
@@ -267,6 +267,8 @@ a, button, select, summary, label { touch-action: manipulation; }
   /* Banda grafito (mismo lenguaje que las pantallas de acceso): cuadrícula de plano que se desplaza, tubería
      con aire en circulación a la derecha y título que sube palabra por palabra. */
   .page-head { position: relative; isolation: isolate; padding-block: 1.5rem; margin-bottom: 1.5rem; }
+  /* Móvil: .page-actions (fija) vive dentro de este contexto; debe quedar sobre las celdas sticky de las tablas */
+  @media (max-width: 767px) { .page-head { z-index: 10; } }
   .page-head::before {
     content: ""; position: absolute; inset: 0 -100vmax; z-index: -1; background-color: var(--panel); border-bottom: 1px solid var(--border);
     background-image: linear-gradient(rgb(148 163 184 / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(148 163 184 / 0.07) 1px, transparent 1px);
@@ -348,6 +350,12 @@ a, button, select, summary, label { touch-action: manipulation; }
   .mb-label { position: absolute; bottom: -1.375rem; font-size: 0.6875rem; color: var(--muted); }
   .mb-value { position: absolute; margin-bottom: 0.25rem; font-size: 0.75rem; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .mb-col[data-tip]::after { top: auto; bottom: calc(100% + 0.25rem); }
+  @media (max-width: 639px) {
+    .mb-plot { padding-right: 1rem; }
+    .mb-col:nth-child(even):not(:last-child) .mb-label { display: none; }
+    .mb-value { font-size: 0.625rem; }
+    .mb-col:last-child .mb-value { left: 0; }
+  }
   .mb-table summary { margin-top: 0.75rem; cursor: pointer; font-size: 0.75rem; color: var(--muted); }
   .goal-track { display: block; height: 0.5rem; overflow: hidden; border-radius: 999px; background: var(--border); }
   .goal-fill { display: block; height: 100%; border-radius: 999px; background: var(--accent); }

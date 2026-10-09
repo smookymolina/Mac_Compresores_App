@@ -41,7 +41,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         ]}
         actions={can(user, "quotes.write") && <LinkButton href={`/cotizaciones/nueva?cliente=${c.id}`}>Nueva cotización</LinkButton>}
       />
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           {writable && <Card className="p-4"><CustomerForm customer={c} sellers={sellers} /></Card>}
           <Card className="overflow-hidden">

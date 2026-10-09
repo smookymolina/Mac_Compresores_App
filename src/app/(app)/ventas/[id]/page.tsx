@@ -46,7 +46,7 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
           }] : []),
         ]}
       />
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="overflow-hidden lg:col-span-2">
           <CardHeader title="Partidas" />
           <DataTable
@@ -78,7 +78,7 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
         </Card>
         <Card className="overflow-hidden lg:col-span-2">
           <CardHeader title="Cobranza" description={`Vence el ${fmtDate(due)} (${s.customer.paymentTermsDays} días de crédito)`} />
-          <dl className="grid grid-cols-3 gap-px bg-line text-sm">
+          <dl className="grid grid-cols-1 gap-px bg-line text-sm sm:grid-cols-3">
             <div className="bg-panel p-4"><dt className="text-ink-soft">Total</dt><dd className="num kpi-value mt-1 text-left text-lg">{fmtMoney(s.total)}</dd></div>
             <div className="bg-panel p-4"><dt className="text-ink-soft">Pagado</dt><dd className="num kpi-value mt-1 text-left text-lg">{fmtMoney(paid)}</dd></div>
             <div className="bg-panel p-4"><dt className="text-ink-soft">Saldo</dt><dd className={`num kpi-value mt-1 text-left text-lg ${overdue ? "text-danger" : ""}`}>{fmtMoney(balance)}</dd></div>
