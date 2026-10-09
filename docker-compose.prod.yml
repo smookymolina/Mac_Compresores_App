@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mac
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: mac_compresores
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mac -d mac_compresores"]
+      interval: 5s
+      retries: 10
+  migrate:
+    build: { context: ., target: migrator }
+    environment:
+      DATABASE_URL: postgresql://mac:${POSTGRES_PASSWORD}@db:5432/mac_compresores?schema=public
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
+      SEED_DEMO: ${SEED_DEMO}
+    depends_on: { db: { condition: service_healthy } }
+    restart: "no"
+  app:
+    build: { context: ., target: runner }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://mac:${POSTGRES_PASSWORD}@db:5432/mac_compresores?schema=public
+      COOKIE_SECURE: ${COOKIE_SECURE}
+    ports: ["127.0.0.1:3080:3000"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+volumes:
+  pgdata:
