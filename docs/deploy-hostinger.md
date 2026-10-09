@@ -20,10 +20,10 @@ APP_PORT='127.0.0.1:3080'        # solo accesible vía Nginx
 COOKIE_SECURE=true
 SMTP_HOST='smtp.hostinger.com'
 SMTP_PORT=465
-SMTP_USER='contacto@maccompresores.com.mx'
+SMTP_USER='ventas@maccompresores.com.mx'
 SMTP_PASS='<contraseña del buzón>'
 SMTP_FROM_NAME='Mac Compresores'
-SMTP_FROM_EMAIL='contacto@maccompresores.com.mx'
+SMTP_FROM_EMAIL='ventas@maccompresores.com.mx'
 CRON_SECRET='<openssl rand -hex 32>'
 BANK_INFO='Banco: …|Titular: …|Cuenta: …|CLABE: …'
 BACKUP_KEEP_DAYS=14
@@ -96,5 +96,5 @@ Firewall: abre solo 22, 80 y 443 (`ufw allow OpenSSH && ufw allow 'Nginx Full' &
 
 ## 5. Verificar
 - `curl -I https://maccompresores.app/login` → `200`; `http://` y `www` → `301` a `https://maccompresores.app`.
-- En `/recuperar`, solicita el enlace para el correo del admin: debe llegar desde `contacto@maccompresores.com.mx`.
+- En `/recuperar`, solicita el enlace para el correo del admin: debe llegar desde `ventas@maccompresores.com.mx`.
   Si no llega: `docker compose logs app | grep '\[mail\]'`.
