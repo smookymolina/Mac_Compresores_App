@@ -97,3 +97,30 @@ export async function updateUser(
   });
   if (input.password && !prev.invitePending) notifyPasswordChanged(prev);
 }
+
+/**
+ * Elimina una cuenta. Solo si no tiene historial operativo (cotizaciones, ventas, pagos, movimientos, comisiones):
+ * esos registros la referencian con Restrict y deben conservarse; en ese caso se pide desactivarla.
+ * Sesiones, tokens y avisos se borran en cascada; la auditoría conserva el evento con usuario nulo.
+ */
+export async function deleteUser(actor: CurrentUser, id: string) {
+  if (id === actor.id) throw new AppError("No puedes eliminar tu propia cuenta.");
+  await db.$transaction(async (tx) => {
+    const u = await tx.user.findUnique({ where: { id }, include: { role: true } });
+    if (!u) throw new AppError("El usuario no existe.", "NOT_FOUND");
+    if (u.role.code === "ADMIN" && u.active) {
+      const admins = await tx.user.count({ where: { active: true, role: { code: "ADMIN" } } });
+      if (admins <= 1) throw new AppError("No puedes eliminar al único administrador activo.");
+    }
+    await tx.customer.updateMany({ where: { ownerId: id }, data: { ownerId: null } });
+    try {
+      await tx.user.delete({ where: { id } });
+    } catch (e) {
+      if ((e as { code?: string }).code === "P2003") {
+        throw new AppError("Esta cuenta tiene historial (cotizaciones, ventas, pagos o movimientos) y no se puede eliminar. Desactívala en su lugar.", "CONFLICT");
+      }
+      throw e;
+    }
+    await audit({ userId: actor.id, action: "user.delete", entity: "User", entityId: id, data: { email: u.email, name: u.name } }, tx);
+  });
+}

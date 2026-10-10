@@ -677,3 +677,7 @@ a, button, select, summary, label { touch-action: manipulation; }
   }
   @media (max-width: 379px) { .send-tab svg { display: none; } }
 }
+
+/* ---- Ajustes móvil v1.2.0: modales dentro de celdas de tabla y enlaces largos ---- */
+.dialog { text-align: start; white-space: normal; }
+.send-link-url { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

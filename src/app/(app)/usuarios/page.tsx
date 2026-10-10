@@ -1,14 +1,14 @@
 import { requirePagePermission } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { listUsers } from "@/modules/users/service";
-import { createUserAction, resendInvitationAction, updateUserAction } from "@/modules/users/actions";
+import { createUserAction, deleteUserAction, resendInvitationAction, updateUserAction } from "@/modules/users/actions";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, CardHeader, Field, PageHeader, SelectField } from "@/components/ui";
 
 export const metadata = { title: "Usuarios" };
 
 export default async function UsersPage() {
-  await requirePagePermission("users.manage");
+  const me = await requirePagePermission("users.manage");
   const [users, roles] = await Promise.all([listUsers(), db.role.findMany({ orderBy: { name: "asc" } })]);
   const roleOpts = roles.map((r) => ({ value: r.id, label: r.name }));
 
@@ -44,6 +44,15 @@ export default async function UsersPage() {
                     </div>
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={u.active} /> Activo</label>
                   </ActionForm>
+                  {u.id !== me.id && (
+                    <div className="mt-4 rounded-md border border-line p-3">
+                      <p className="mb-2 text-sm text-ink-soft">
+                        Eliminar borra la cuenta de forma permanente. Si tiene cotizaciones, ventas o movimientos no se puede eliminar: desactívala.
+                      </p>
+                      <ActionForm action={deleteUserAction.bind(null, u.id)} submitLabel="Eliminar cuenta" variant="danger"
+                        confirmText={`Confirmo que quiero eliminar a ${u.name}`} />
+                    </div>
+                  )}
                 </details>
               </li>
             ))}

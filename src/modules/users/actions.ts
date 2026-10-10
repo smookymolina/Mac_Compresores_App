@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { formObject, uuid } from "@/lib/validation";
-import { createUser, resendInvitation, updateUser, type InviteResult } from "./service";
+import { createUser, deleteUser, resendInvitation, updateUser, type InviteResult } from "./service";
 
 const password = z.string().min(10, "Mínimo 10 caracteres").max(100);
 
@@ -52,6 +52,15 @@ export async function updateUserAction(id: string, _: ActionResult<unknown> | nu
     }).parse(raw);
     await updateUser(actor, id, { ...d, active: raw.active === "on" });
   }, "Usuario actualizado.");
+  if (res.ok) revalidatePath("/usuarios");
+  return res;
+}
+
+export async function deleteUserAction(id: string, _: ActionResult<unknown> | null, _fd: FormData) {
+  const res = await runAction(async () => {
+    const actor = await requirePermission("users.manage");
+    await deleteUser(actor, uuid.parse(id));
+  }, "Usuario eliminado.");
   if (res.ok) revalidatePath("/usuarios");
   return res;
 }
