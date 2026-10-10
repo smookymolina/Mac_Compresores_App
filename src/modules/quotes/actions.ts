@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { emailQuote } from "./email";
+import { emailQuote, logQuoteWhatsApp, shareQuoteLink } from "./email";
+import { normalizePhone } from "./phone";
 import { requirePermission } from "@/lib/auth/session";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, pctToFraction, uuid } from "@/lib/validation";
@@ -91,6 +92,30 @@ export async function emailQuoteAction(id: string, _: ActionResult<unknown> | nu
     }).parse({ to: fd.get("to"), cc: fd.get("cc") ?? "", message: fd.get("message") });
     await emailQuote(user, id, d);
   }, "Cotización enviada por correo.");
+  if (res.ok) revalidatePath(`/cotizaciones/${id}`);
+  return res;
+}
+
+/** Enlace público firmado al PDF para WhatsApp. */
+export async function shareQuoteLinkAction(id: string, _fd: FormData) {
+  return runAction(async () => {
+    const user = await requirePermission("quotes.write");
+    return shareQuoteLink(user, uuid.parse(id));
+  });
+}
+
+const whatsappLog = z.object({
+  phone: z.string().trim().max(30).optional().transform((v) => normalizePhone(v)),
+  channel: z.enum(["link", "file"]),
+});
+
+/** Auditoría del envío por WhatsApp (y borrador → «Enviada»). */
+export async function logQuoteWhatsAppAction(id: string, fd: FormData) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("quotes.write");
+    const d = whatsappLog.parse({ phone: fd.get("phone") ?? undefined, channel: fd.get("channel") });
+    await logQuoteWhatsApp(user, uuid.parse(id), d);
+  });
   if (res.ok) revalidatePath(`/cotizaciones/${id}`);
   return res;
 }

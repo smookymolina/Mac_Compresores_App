@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { AppError, runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, formObject, uuid } from "@/lib/validation";
-import { registerMovement, reverseMovement, setMinStock } from "./service";
+import { registerMovement, reverseMovement, setMinStock, setWarehouseActive } from "./service";
 
 const movementSchema = z.object({
   sku: z.string().trim().min(1),
@@ -52,6 +52,26 @@ export async function createWarehouseAction(_: ActionResult<unknown> | null, fd:
     const w = await db.warehouse.create({ data: d });
     await audit({ userId: user.id, action: "warehouse.create", entity: "Warehouse", entityId: w.id });
   }, "Almacén creado.");
+  if (res.ok) revalidatePath("/inventario");
+  return res;
+}
+
+export async function minStockAction(_: ActionResult<unknown> | null, fd: FormData) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("inventory.write");
+    // Nombres propios (min*) para no repetir ids con el formulario de movimientos en la misma página.
+    const d = z.object({ minSku: z.string().trim().min(1), minWarehouseId: uuid, minQty: decimalStr({ min: 0, scale: 3 }) }).parse(formObject(fd));
+    await setMinStock(user, await productIdBySku(d.minSku), d.minWarehouseId, d.minQty);
+  }, "Stock mínimo guardado.");
+  if (res.ok) revalidatePath("/inventario");
+  return res;
+}
+
+export async function setWarehouseActiveAction(id: string, active: boolean, _: ActionResult<unknown> | null) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("inventory.write");
+    await setWarehouseActive(user, uuid.parse(id), active);
+  }, active ? "Almacén reactivado." : "Almacén desactivado.");
   if (res.ok) revalidatePath("/inventario");
   return res;
 }

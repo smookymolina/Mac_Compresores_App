@@ -7,7 +7,7 @@ import { audit } from "@/lib/audit";
 import { verifyCredentials } from "@/modules/users/service";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { clear, hit, isLimited } from "@/lib/rate-limit";
-import { requestPasswordReset, resetPassword } from "./service";
+import { acceptInvitation, requestPasswordReset, resetPassword } from "./service";
 
 const schema = z.object({ email: z.string().trim().email(), password: z.string().min(1).max(200) });
 
@@ -65,4 +65,18 @@ export async function resetPasswordAction(_: ActionResult | null, fd: FormData):
   });
   if (res.ok) redirect("/login?restablecida=1");
   return res;
+}
+
+/** Activa una invitación: guarda la contraseña elegida y abre la sesión directamente. */
+export async function acceptInvitationAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  let userId: string | undefined;
+  const res = await runAction(async () => {
+    const d = newPassword.parse({ token: fd.get("token"), password: fd.get("password"), confirm: fd.get("confirm") });
+    userId = await acceptInvitation(d.token, d.password);
+    return undefined;
+  });
+  if (!res.ok || !userId) return res;
+  await createSession(userId);
+  await audit({ userId, action: "auth.login", entity: "User", entityId: userId });
+  redirect("/dashboard");
 }

@@ -64,6 +64,13 @@ export default async function CommissionsPage() {
       </Card>
 
       <h2 className="mb-2 text-sm font-semibold">Reglas versionadas</h2>
+      {ruleSets.length === 0 && (
+        <Card>
+          <EmptyState title="Sin reglas de comisión">
+            {manage ? "Crea la primera versión con el formulario de abajo; quedará en borrador hasta activarla." : "Gerencia aún no ha registrado la tabla de comisiones."}
+          </EmptyState>
+        </Card>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
         {ruleSets.map((rs) => (
           <Card key={rs.id} className="overflow-hidden">

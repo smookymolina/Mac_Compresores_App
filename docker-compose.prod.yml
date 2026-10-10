@@ -34,6 +34,7 @@ services:
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Mac Compresores}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
       CRON_SECRET: ${CRON_SECRET:-}
+      SHARE_SECRET: ${SHARE_SECRET:-}
       BANK_INFO: ${BANK_INFO:-}
     ports: ["127.0.0.1:3080:3000"]
     depends_on: { migrate: { condition: service_completed_successfully } }

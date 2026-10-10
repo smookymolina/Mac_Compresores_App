@@ -48,12 +48,16 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
               empty={<EmptyState title="Sin metas">Define la meta de cada vendedor con el formulario de abajo.</EmptyState>}
             />
             <div className="border-t border-line p-4">
-              <ActionForm action={setTargetAction.bind(null, period.id)} submitLabel="Guardar meta" variant="secondary">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <SelectField label="Vendedor" name="sellerId" options={sellers.map((s) => ({ value: s.id, label: s.name }))} />
-                  <Field label="Meta del periodo (misma base que la regla)" name="amount" inputMode="decimal" required />
-                </div>
-              </ActionForm>
+              {sellers.length === 0 ? (
+                <p className="text-sm text-ink-soft">No hay vendedores activos para asignar metas. Da de alta usuarios con rol Ventas.</p>
+              ) : (
+                <ActionForm action={setTargetAction.bind(null, period.id)} submitLabel="Guardar meta" variant="secondary">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <SelectField label="Vendedor" name="sellerId" options={sellers.map((s) => ({ value: s.id, label: s.name }))} />
+                    <Field label="Meta del periodo (misma base que la regla)" name="amount" inputMode="decimal" required />
+                  </div>
+                </ActionForm>
+              )}
             </div>
           </Card>
           <Card className="space-y-3 p-4">
@@ -66,7 +70,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
       )}
 
       {bySeller.size === 0 ? (
-        <Card><EmptyState title="Sin comisiones calculadas">Calcula el periodo para ver las comisiones por vendedor.</EmptyState></Card>
+        <Card><EmptyState title="Sin comisiones calculadas">{manage ? "Calcula el periodo para ver las comisiones por vendedor." : "Aparecerán aquí cuando gerencia calcule el periodo."}</EmptyState></Card>
       ) : (
         <div className="space-y-4">
           {[...bySeller.entries()].map(([sellerId, rows]) => {

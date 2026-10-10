@@ -580,3 +580,100 @@ a, button, select, summary, label { touch-action: manipulation; }
   .gauge-needle-idle, .auth-grid, .auth-ticker-track, .readout-value, .page-head::before, .sidebar-grid, .empty-icon { animation: none; }
   .empty-icon::after { display: none; }
 }
+
+/* ---- Recordatorios de cobranza ---- */
+@layer components {
+  .reminder-cell { width: 1%; white-space: nowrap; }
+  .reminder-status { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
+  .reminder-sent { font-size: 0.75rem; line-height: 1rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .reminder-facts {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; overflow: hidden;
+    border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--border); font-size: 0.875rem;
+  }
+  .reminder-facts > div { min-width: 0; padding: var(--space-2) var(--space-3); background: var(--panel-2); }
+  .reminder-facts dt { font-size: 0.75rem; color: var(--muted); }
+  .reminder-facts dd { margin: 0; font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
+  .reminder-last { display: flex; align-items: flex-start; gap: var(--space-2); font-size: 0.75rem; line-height: 1.125rem; color: var(--text-2); }
+  .reminder-last > svg { flex-shrink: 0; margin-top: 2px; }
+  .reminder-last.is-blocked { padding: var(--space-2) var(--space-3); border-radius: var(--r-sm); background: var(--warn-soft); color: var(--warn); }
+  .reminder-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-3); }
+  .reminder-actions > p { flex: 1 1 100%; margin: 0; }
+  .reminder-dialog.dialog-center { width: min(36rem, calc(100vw - 2rem)); }
+  @media (max-width: 639px) {
+    .reminder-facts { grid-template-columns: minmax(0, 1fr); }
+    .reminder-actions > .btn { flex: 1 1 0; }
+    .reminder-dialog.dialog-center { width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); }
+  }
+}
+
+/* ---- Completitud de secciones ---- */
+@layer components {
+  /* Acción compacta dentro de una fila de lista (quitar contacto, desactivar almacén). */
+  .section-row-action { flex-shrink: 0; max-width: 55%; }
+  .section-row-action > div { justify-content: flex-end; gap: 0.25rem 0.5rem; }
+  .section-row-action [role="status"] { flex-basis: 100%; text-align: right; font-size: 0.75rem; }
+  /* KPI enlazado al detalle: toda la celda es el objetivo. */
+  .kpi-link { display: block; color: inherit; text-decoration: none; }
+  .kpi-link:focus-visible { outline: 2px solid var(--accent-fg); outline-offset: -2px; }
+  /* Rango de fechas de auditoría: etiqueta visible pegada al campo. */
+  .toolbar .audit-date { display: flex; align-items: center; gap: 0.375rem; flex: 1 1 11rem; max-width: 14rem; font-size: 0.75rem; color: var(--text-2); }
+  .toolbar .audit-date .input { flex: 1 1 auto; max-width: none; }
+  @media (max-width: 767px) {
+    .toolbar .audit-date { max-width: none; flex-basis: 100%; }
+    .toolbar .audit-date > span { min-width: 3rem; }
+  }
+}
+
+/* ---- Enviar (cotizaciones/reportes) ---- */
+@layer components {
+  .send-dialog.dialog-center { width: min(34rem, calc(100vw - 1rem)); max-height: calc(100dvh - 1rem); }
+  .send-body { padding: 1rem; }
+  /* Pestañas segmentadas: correo / WhatsApp */
+  .send-tabs {
+    display: flex; gap: 0.25rem; padding: 0.25rem; margin-bottom: 1rem;
+    border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--panel-2);
+  }
+  .send-tab {
+    flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem;
+    min-height: 2.25rem; padding: 0 0.5rem; border: 1px solid transparent; border-radius: var(--r);
+    font-size: 0.875rem; font-weight: 500; color: var(--text-2); white-space: nowrap;
+    transition: background-color var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+  }
+  .send-tab:hover { color: var(--text); }
+  .send-tab[aria-selected="true"] { background: var(--panel); border-color: var(--border-strong); color: var(--text); box-shadow: var(--elev-1); }
+  .send-tab[aria-selected="true"] svg { color: var(--accent-fg); }
+  @media (pointer: coarse) { .send-tab { min-height: var(--hit); } }
+  .send-panel { animation: fade var(--dur-fast) var(--ease); }
+  /* Sugerencias de destinatario (cliente y contactos) */
+  .send-chips { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.5rem; }
+  .send-chip {
+    display: inline-flex; align-items: baseline; gap: 0.25rem; max-width: 100%; min-height: 1.75rem; padding: 0.125rem 0.5rem;
+    border: 1px solid var(--border-strong); border-radius: var(--r); background: var(--panel);
+    font-size: 0.75rem; color: var(--text-2); transition: background-color var(--dur-fast), border-color var(--dur-fast);
+  }
+  .send-chip:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .send-chip-label { font-weight: 500; color: var(--text); }
+  .send-chip-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (pointer: coarse) { .send-chip { min-height: 2.25rem; align-items: center; } }
+  /* Enlace firmado */
+  .send-link {
+    display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.625rem 0.75rem;
+    border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--r); background: var(--panel-2);
+  }
+  .send-link > svg { margin-top: 0.125rem; }
+  .send-link-url { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-2); overflow-wrap: anywhere; line-height: 1.4; }
+  .send-alert {
+    display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.625rem 0.75rem; border-radius: var(--r);
+    background: var(--warn-soft); color: var(--warn); font-size: 0.875rem;
+  }
+  .send-alert > svg { flex-shrink: 0; margin-top: 0.125rem; }
+  .send-error { font-size: 0.875rem; color: var(--danger); }
+  .send-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; padding-top: 0.25rem; }
+  .send-actions .send-error { flex: 1 1 100%; }
+  @media (max-width: 639px) {
+    .send-actions { flex-direction: column-reverse; align-items: stretch; }
+    .send-actions .send-error { order: 99; }
+    .send-tab { font-size: 0.8125rem; }
+  }
+  @media (max-width: 379px) { .send-tab svg { display: none; } }
+}

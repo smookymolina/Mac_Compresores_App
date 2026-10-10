@@ -4,11 +4,13 @@ import { can, requirePagePermission } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
 import { uuid } from "@/lib/validation";
 import { getCustomer } from "@/modules/customers/service";
-import { addAddressAction, addContactAction } from "@/modules/customers/actions";
+import {
+  addAddressAction, addContactAction, removeAddressAction, removeContactAction, setCustomerActiveAction,
+} from "@/modules/customers/actions";
 import { listSellers } from "@/modules/users/service";
 import { QUOTE_STATUS_LABEL } from "@/modules/quotes/status";
 import { ActionForm } from "@/components/action-form";
-import { Card, CardHeader, DataTable, EmptyState, Field, LinkButton, PageHeader, type DataColumn } from "@/components/ui";
+import { Badge, Card, CardHeader, DataTable, EmptyState, Field, LinkButton, PageHeader, type DataColumn } from "@/components/ui";
 
 const HIST_COLS: DataColumn[] = [
   { id: "folio", header: "Folio", sortable: true },
@@ -38,9 +40,15 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         meta={[
           { label: "RFC", value: c.rfc ?? "Sin RFC" },
           { label: "Vendedor", value: c.owner?.name ?? "Sin asignar" },
+          { label: "Estado", value: c.active ? "Activo" : "Inactivo" },
         ]}
-        actions={can(user, "quotes.write") && <LinkButton href={`/cotizaciones/nueva?cliente=${c.id}`}>Nueva cotización</LinkButton>}
+        actions={c.active && can(user, "quotes.write") && <LinkButton href={`/cotizaciones/nueva?cliente=${c.id}`}>Nueva cotización</LinkButton>}
       />
+      {!c.active && (
+        <p role="status" className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-sm text-ink-soft">
+          <Badge>Inactivo</Badge> Este cliente no se ofrece para nuevas cotizaciones; su historial se conserva.
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           {writable && <Card className="p-4"><CustomerForm customer={c} sellers={sellers} /></Card>}
@@ -85,10 +93,16 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           <Card>
             <CardHeader title="Contactos" />
             <ul className="divide-y divide-line text-sm">
+              {c.contacts.length === 0 && <li className="px-4 py-3 text-ink-soft">Sin contactos registrados.</li>}
               {c.contacts.map((ct) => (
-                <li key={ct.id} className="px-4 py-2">
-                  <p className="font-medium">{ct.name}</p>
-                  <p className="text-xs text-ink-soft">{[ct.position, ct.email, ct.phone].filter(Boolean).join(" · ")}</p>
+                <li key={ct.id} className="flex items-start justify-between gap-3 px-4 py-2">
+                  <div className="min-w-0">
+                    <p className="font-medium">{ct.name}</p>
+                    <p className="break-words text-xs text-ink-soft">{[ct.position, ct.email, ct.phone].filter(Boolean).join(" · ")}</p>
+                  </div>
+                  {writable && (
+                    <ActionForm action={removeContactAction.bind(null, c.id, ct.id)} submitLabel="Quitar" variant="secondary" size="sm" className="section-row-action" />
+                  )}
                 </li>
               ))}
             </ul>
@@ -106,8 +120,14 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           <Card>
             <CardHeader title="Direcciones" />
             <ul className="divide-y divide-line text-sm">
+              {c.addresses.length === 0 && <li className="px-4 py-3 text-ink-soft">Sin direcciones registradas.</li>}
               {c.addresses.map((a) => (
-                <li key={a.id} className="px-4 py-2">{[a.street, a.city, a.state, a.zip].filter(Boolean).join(", ")}</li>
+                <li key={a.id} className="flex items-start justify-between gap-3 px-4 py-2">
+                  <span className="min-w-0 break-words">{[a.street, a.city, a.state, a.zip].filter(Boolean).join(", ")}</span>
+                  {writable && (
+                    <ActionForm action={removeAddressAction.bind(null, c.id, a.id)} submitLabel="Quitar" variant="secondary" size="sm" className="section-row-action" />
+                  )}
+                </li>
               ))}
             </ul>
             {writable && (
@@ -121,6 +141,19 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
               </div>
             )}
           </Card>
+          {writable && (
+            <Card className="p-4">
+              <h2 className="mb-1 text-sm font-semibold">Estado del cliente</h2>
+              {c.active ? (
+                <ActionForm
+                  action={setCustomerActiveAction.bind(null, c.id, false)} submitLabel="Desactivar cliente" variant="secondary"
+                  confirmText="Ya no aparecerá para nuevas cotizaciones. Su historial, cotizaciones y ventas se conservan."
+                />
+              ) : (
+                <ActionForm action={setCustomerActiveAction.bind(null, c.id, true)} submitLabel="Reactivar cliente" variant="secondary" />
+              )}
+            </Card>
+          )}
         </div>
       </div>
     </>

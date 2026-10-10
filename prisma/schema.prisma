@@ -44,6 +44,8 @@ model User {
   roleId         String               @db.Uuid
   role           Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
   active         Boolean              @default(true)
+  /// Invitado que aún no elige su contraseña (su passwordHash es aleatorio e inutilizable).
+  invitePending  Boolean              @default(false)
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   sessions       Session[]
@@ -70,14 +72,22 @@ model Session {
   @@index([userId])
 }
 
-/// Token de un solo uso para restablecer la contraseña; el token en claro solo viaja en el correo.
+/// Para qué sirve un enlace de un solo uso enviado por correo.
+enum TokenPurpose {
+  RESET // «Olvidé mi contraseña»
+  INVITE // Invitación de usuario nuevo
+}
+
+/// Token de un solo uso (restablecer contraseña o activar invitación); el token en claro solo viaja en el correo.
+
 model PasswordResetToken {
-  id        String    @id // SHA-256 del token
-  userId    String    @db.Uuid
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String       @id // SHA-256 del token
+  purpose   TokenPurpose @default(RESET)
+  userId    String       @db.Uuid
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime     @default(now())
 
   @@index([userId])
 }

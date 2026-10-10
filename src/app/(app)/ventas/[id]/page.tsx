@@ -12,6 +12,9 @@ import { fmtMoney } from "@/lib/money";
 import { fmtDate, fmtDateTime } from "@/lib/utils";
 import { METHOD_LABEL, dueDate, listPayments, paidOf } from "@/modules/payments/service";
 import { registerPaymentAction, voidPaymentAction } from "@/modules/payments/actions";
+import { reminderDraftsFor } from "@/modules/payments/reminder";
+import { isMailConfigured } from "@/lib/mail";
+import { ReminderButton } from "@/components/payments/reminder-dialog";
 
 export default async function SalePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requirePagePermission("sales.read_all", "sales.read_own");
@@ -28,6 +31,10 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
   const overdue = s.status === "CONFIRMED" && balance.gt(0) && due < new Date();
   const canPay = can(user, "payments.write");
   const today = new Date().toISOString().slice(0, 10);
+  // Recordatorio de pago por correo (manual): mismo permiso que registrar pagos.
+  const reminder = canPay && s.status === "CONFIRMED" && balance.gt(0)
+    ? (await reminderDraftsFor([{ id: s.id, folio: s.folio, customer: s.customer.legalName, total: s.total, paid, balance, due }])).get(s.id)
+    : undefined;
 
   return (
     <>
@@ -77,7 +84,17 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
           </dl>
         </Card>
         <Card className="overflow-hidden lg:col-span-2">
-          <CardHeader title="Cobranza" description={`Vence el ${fmtDate(due)} (${s.customer.paymentTermsDays} días de crédito)`} />
+          <CardHeader
+            title="Cobranza"
+            description={`Vence el ${fmtDate(due)} (${s.customer.paymentTermsDays} días de crédito)${reminder?.lastSentAt ? ` · Último recordatorio: ${fmtDateTime(reminder.lastSentAt)}` : ""}`}
+            actions={reminder && (
+              <ReminderButton
+                variant="button" saleId={s.id} folio={s.folio} customer={s.customer.legalName} balance={fmtMoney(balance)}
+                due={fmtDate(due)} replyTo={reminder.replyTo} to={reminder.to} message={reminder.message}
+                lastSentAt={reminder.lastSentAt} nextAllowedAt={reminder.nextAllowedAt} mailConfigured={isMailConfigured()}
+              />
+            )}
+          />
           <dl className="grid grid-cols-1 gap-px bg-line text-sm sm:grid-cols-3">
             <div className="bg-panel p-4"><dt className="text-ink-soft">Total</dt><dd className="num kpi-value mt-1 text-left text-lg">{fmtMoney(s.total)}</dd></div>
             <div className="bg-panel p-4"><dt className="text-ink-soft">Pagado</dt><dd className="num kpi-value mt-1 text-left text-lg">{fmtMoney(paid)}</dd></div>

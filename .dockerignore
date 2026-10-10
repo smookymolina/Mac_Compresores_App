@@ -8,3 +8,5 @@ test-results
 playwright-report
 *.log
 backups
+backup_*.sql
+respaldo_*.sql.gz

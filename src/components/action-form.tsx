@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 /** Formulario ligado a una server action; muestra errores y resetea en éxito si se pide. */
 export function ActionForm<T>({
-  action, children, submitLabel = "Guardar", resetOnSuccess, className, confirmText, variant,
+  action, children, submitLabel = "Guardar", resetOnSuccess, className, confirmText, variant, size,
 }: {
   action: (prev: ActionResult<T> | null, fd: FormData) => Promise<ActionResult<T>>;
   children?: React.ReactNode;
@@ -18,6 +18,8 @@ export function ActionForm<T>({
   className?: string;
   confirmText?: string;
   variant?: "primary" | "secondary" | "danger";
+  /** "sm" para acciones dentro de filas o listas. */
+  size?: "md" | "sm";
 }) {
   const [state, formAction, pending] = useActionState<ActionResult<T> | null, FormData>(action, null);
   const [, startTransition] = useTransition();
@@ -45,7 +47,7 @@ export function ActionForm<T>({
         </label>
       )}
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={pending} aria-busy={pending || undefined} variant={variant}>
+        <Button type="submit" disabled={pending} aria-busy={pending || undefined} variant={variant} size={size}>
           {pending ? "Procesando…" : submitLabel}
         </Button>
         {state && !state.ok && <p role="status" className="text-sm text-danger">{state.error}</p>}

@@ -37,19 +37,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       />
       {denied && <p role="alert" className="mb-4 rounded-md border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger">No tienes permiso para esa sección.</p>}
       <StatGroup className="stagger">
-        {d.salesMonth && <Stat icon={Banknote} label="Venta neta del mes (sin IVA)" value={fmtMoney(d.salesMonth.net)} hint={`${d.salesMonth.count} ventas confirmadas`} />}
+        {d.salesMonth && <Stat icon={Banknote} label="Venta neta del mes (sin IVA)" value={fmtMoney(d.salesMonth.net)} hint={`${d.salesMonth.count} ventas confirmadas`} href="/ventas" />}
         {d.salesMonth && <Stat icon={Receipt} label="Ventas del mes (con IVA)" value={fmtMoney(d.salesMonth.total)} />}
-        {d.openQuotes && <Stat icon={FileText} label="Cotizaciones abiertas" value={d.openQuotes.count} hint={`${fmtMoney(d.openQuotes.total)} en proceso`} />}
+        {d.openQuotes && <Stat icon={FileText} label="Cotizaciones abiertas" value={d.openQuotes.count} hint={`${fmtMoney(d.openQuotes.total)} en proceso`} href="/cotizaciones" />}
         {d.receivables && (
           <Stat icon={HandCoins} label="Por cobrar" value={fmtMoney(d.receivables.pending)}
             tone={d.receivables.overdueCount > 0 ? "red" : undefined}
+            href={d.receivables.overdueCount > 0 ? "/cobranza?vencidas=1" : "/cobranza"}
             hint={d.receivables.overdueCount > 0 ? `${fmtMoney(d.receivables.overdue)} vencido (${d.receivables.overdueCount})` : "Sin saldos vencidos"} />
         )}
         {d.conversion && (
           <Stat icon={Target} label="Conversión (90 días)" value={d.conversion.rate === null ? "—" : `${Math.round(d.conversion.rate * 100)} %`}
             hint={d.conversion.decided > 0 ? `${d.conversion.won} de ${d.conversion.decided} cotizaciones resueltas` : "Aún sin cotizaciones resueltas"} />
         )}
-        {d.lowStock !== null && <Stat icon={AlertTriangle} label="Productos bajo mínimo" value={d.lowStock} tone={d.lowStock > 0 ? "red" : undefined} hint="Existencia ≤ stock mínimo" />}
+        {d.lowStock !== null && <Stat icon={AlertTriangle} label="Productos bajo mínimo" value={d.lowStock} tone={d.lowStock > 0 ? "red" : undefined} hint="Existencia ≤ stock mínimo" href="/inventario?low=1" />}
       </StatGroup>
 
       <div className="stagger mt-4 grid gap-4 lg:grid-cols-2">
@@ -82,7 +83,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
         {d.recentSales.length > 0 || d.salesMonth ? (
           <Card className="overflow-hidden">
-            <CardHeader title="Últimas ventas" />
+            <CardHeader title="Últimas ventas" actions={<Link href="/ventas" className="text-sm text-accent-fg hover:underline">Ver todas</Link>} />
             {d.recentSales.length === 0 ? (
               <EmptyState title="Sin ventas registradas">Las ventas confirmadas del mes aparecerán aquí.</EmptyState>
             ) : (
@@ -113,9 +114,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <CardHeader title="Cotizaciones por estado" />
             <ul className="divide-y divide-line text-sm">
               {d.quotesByStatus.map((q) => (
-                <li key={q.status} className="row-hover flex justify-between px-4 py-2">
-                  <span>{QUOTE_STATUS_LABEL[q.status]}</span>
-                  <span className="font-medium tabular-nums">{q.count}</span>
+                <li key={q.status}>
+                  <Link href={`/cotizaciones?status=${q.status}`} className="row-hover flex justify-between px-4 py-2 hover:text-accent-fg">
+                    <span>{QUOTE_STATUS_LABEL[q.status]}</span>
+                    <span className="font-medium tabular-nums">{q.count}</span>
+                  </Link>
                 </li>
               ))}
             </ul>

@@ -1,7 +1,7 @@
 import { requirePagePermission } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { listUsers } from "@/modules/users/service";
-import { createUserAction, updateUserAction } from "@/modules/users/actions";
+import { createUserAction, resendInvitationAction, updateUserAction } from "@/modules/users/actions";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, CardHeader, Field, PageHeader, SelectField } from "@/components/ui";
 
@@ -26,7 +26,16 @@ export default async function UsersPage() {
                     <b>{u.name}</b> <span className="text-ink-soft">{u.email}</span>
                     <Badge tone="blue">{u.role.name}</Badge>
                     {!u.active && <Badge tone="red">Inactivo</Badge>}
+                    {u.invitePending && <Badge tone="amber">Invitación pendiente</Badge>}
                   </summary>
+                  {u.invitePending && u.active && (
+                    <div className="mt-3 rounded-md border border-line bg-panel-2 p-3">
+                      <p className="mb-2 text-sm text-ink-soft">
+                        Aún no activa su cuenta. Reenviar genera un enlace nuevo (vigente 72 horas) y anula el anterior.
+                      </p>
+                      <ActionForm action={resendInvitationAction.bind(null, u.id)} submitLabel="Reenviar invitación" variant="secondary" />
+                    </div>
+                  )}
                   <ActionForm action={updateUserAction.bind(null, u.id)} className="mt-3">
                     <div className="grid gap-3 sm:grid-cols-3">
                       <Field label="Nombre" name="name" defaultValue={u.name} required />
@@ -41,13 +50,15 @@ export default async function UsersPage() {
           </ul>
         </Card>
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">Nuevo usuario</h2>
-          <ActionForm action={createUserAction} resetOnSuccess submitLabel="Crear usuario">
+          <h2 className="mb-1 text-sm font-semibold">Invitar usuario</h2>
+          <p className="mb-3 text-xs text-ink-soft">
+            Le enviaremos un correo con un enlace (vigente 72 horas) para que elija su contraseña y active su cuenta.
+          </p>
+          <ActionForm action={createUserAction} resetOnSuccess submitLabel="Enviar invitación">
               <>
                 <Field label="Nombre" name="name" required />
                 <Field label="Correo" name="email" type="email" required />
                 <SelectField label="Rol" name="roleId" options={roleOpts} />
-                <Field label="Contraseña inicial" name="password" type="password" autoComplete="new-password" required minLength={10} />
               </>
           </ActionForm>
         </Card>

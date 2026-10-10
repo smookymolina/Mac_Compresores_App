@@ -23,6 +23,9 @@
 - [x] Búsqueda global (Ctrl+K), avisos en la app, PWA instalable.
 - [x] Importación: resumen por tipo de error y descarga de errores en CSV para corregir la lista.
 
+## v1.2.0
+- [x] Usuarios por invitación: el admin captura nombre, correo y rol; la persona activa su cuenta y elige su contraseña en `/invitacion` (enlace de un solo uso, 72 h, reenviable; estado «Invitación pendiente»). Correos de acceso con la plantilla de marca (`renderEmail`): restablecer contraseña, aviso «Tu contraseña se cambió» e invitación. Migración `user_invitations`.
+
 ## Siguiente
 1. Confirmar con dirección los supuestos de comisiones (`architecture.md`) y activar la regla.
 2. Revisar ~2,500 filas de la lista con SKU repetido (mismo OEM + no. de parte) y ~330 con `Type` = `#N/A`.

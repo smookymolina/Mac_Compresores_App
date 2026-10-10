@@ -144,8 +144,11 @@ export async function markSellerPaid(user: CurrentUser, periodId: string, seller
 }
 
 export async function closePeriod(user: CurrentUser, periodId: string) {
-  const pending = await db.commissionEntry.count({ where: { periodId, status: "CALCULATED" } });
-  if (pending > 0) throw new AppError("Aprueba todas las comisiones antes de cerrar.", "CONFLICT");
-  await db.commissionPeriod.update({ where: { id: periodId }, data: { status: "CLOSED" } });
-  await audit({ userId: user.id, action: "commission.period.close", entity: "CommissionPeriod", entityId: periodId });
+  await db.$transaction(async (tx) => {
+    const pending = await tx.commissionEntry.count({ where: { periodId, status: "CALCULATED" } });
+    if (pending > 0) throw new AppError("Aprueba todas las comisiones antes de cerrar.", "CONFLICT");
+    const res = await tx.commissionPeriod.updateMany({ where: { id: periodId, status: "OPEN" }, data: { status: "CLOSED" } });
+    if (res.count === 0) throw new AppError("El periodo ya está cerrado o no existe.", "CONFLICT");
+    await audit({ userId: user.id, action: "commission.period.close", entity: "CommissionPeriod", entityId: periodId }, tx);
+  });
 }

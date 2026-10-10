@@ -1,21 +1,44 @@
 import "server-only";
 import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
+import { renderEmail } from "@/lib/email-layout";
+import { QUOTE_SHARE_TTL_MS, createShareLink, loadShareUser, readShareToken } from "@/lib/share";
 import { isMailConfigured, sendMail } from "@/lib/mail";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
-import type { CurrentUser } from "@/lib/auth/session";
+import { can, type CurrentUser } from "@/lib/auth/session";
 import { changeQuoteStatus, getQuote } from "./service";
 import { renderQuotePdf } from "./pdf";
 
-const SENDABLE = new Set(["DRAFT", "SENT", "ACCEPTED"]);
-
-const escapeHtml = (s: string) =>
-  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+export const SENDABLE = new Set(["DRAFT", "SENT", "ACCEPTED"]);
 
 /** Destinatario sugerido: correo del cliente o, si no tiene, el del primer contacto con correo. */
 export function suggestedRecipient(q: Awaited<ReturnType<typeof getQuote>>) {
   return q.customer.email ?? q.customer.contacts.find((c) => c.email)?.email ?? "";
+}
+
+/** Teléfono sugerido para WhatsApp: el del cliente o, si no tiene, el del primer contacto con teléfono. */
+export function suggestedPhone(q: Awaited<ReturnType<typeof getQuote>>) {
+  return q.customer.phone ?? q.customer.contacts.find((c) => c.phone)?.phone ?? "";
+}
+
+/** Correo de marca de la cotización (HTML + texto). El mensaje del vendedor va en párrafos. */
+export function quoteEmail(q: Awaited<ReturnType<typeof getQuote>>, message: string) {
+  const total = `${fmtMoney(q.total)} ${q.currency}`;
+  return renderEmail({
+    preheader: `Cotización C-${q.folio} por ${total}, vigente hasta ${fmtDate(q.validUntil)}.`,
+    eyebrow: "Cotización",
+    title: `Cotización C-${q.folio}`,
+    paragraphs: message.split(/\r?\n\s*\r?\n/).map((s) => s.trim()).filter(Boolean),
+    details: [
+      { label: "Cliente", value: q.customer.legalName },
+      { label: "Total", value: total },
+      { label: "Vigente hasta", value: fmtDate(q.validUntil) },
+      { label: "Vendedor", value: q.seller.name },
+    ],
+    notes: ["Adjuntamos la cotización en PDF. Para cualquier duda, responde a este correo y le llegará directamente a tu vendedor."],
+    signature: [q.seller.name, q.seller.email, "MAC Compresores"],
+  });
 }
 
 /**
@@ -29,18 +52,15 @@ export async function emailQuote(user: CurrentUser, id: string, input: { to: str
 
   const pdf = Buffer.from(await renderQuotePdf(q));
   const subject = `Cotización C-${q.folio} · MAC Compresores`;
-  const summary = `Total: ${fmtMoney(q.total)} ${q.currency} · Vigente hasta ${fmtDate(q.validUntil)}`;
+  const { html, text } = quoteEmail(q, input.message);
   try {
     await sendMail({
       to: input.to,
       cc: input.cc.length ? input.cc : undefined,
       replyTo: q.seller.email,
       subject,
-      text: `${input.message}\n\n${summary}\n\n${q.seller.name}\nMAC Compresores`,
-      html:
-        `<p>${escapeHtml(input.message).replace(/\n/g, "<br>")}</p>` +
-        `<p><b>${escapeHtml(summary)}</b></p>` +
-        `<p>${escapeHtml(q.seller.name)}<br>MAC Compresores</p>`,
+      text,
+      html,
       attachments: [{ filename: `cotizacion-C${q.folio}.pdf`, content: pdf, contentType: "application/pdf" }],
     });
   } catch (e) {
@@ -50,4 +70,36 @@ export async function emailQuote(user: CurrentUser, id: string, input: { to: str
 
   await audit({ userId: user.id, action: "quote.email", entity: "Quote", entityId: id, data: { to: input.to, cc: input.cc } });
   if (q.status === "DRAFT") await changeQuoteStatus(user, id, "SENT");
+}
+
+/** Enlace público firmado al PDF (15 días) para compartir por WhatsApp. Mismas reglas que el correo. */
+export async function shareQuoteLink(user: CurrentUser, id: string) {
+  const q = await getQuote(user, id);
+  if (!SENDABLE.has(q.status)) throw new AppError("Solo se pueden enviar cotizaciones en borrador, enviadas o aceptadas.", "CONFLICT");
+  return createShareLink(`/api/compartir/cotizacion/${q.id}`, { t: "quote", id: q.id, u: user.id }, QUOTE_SHARE_TTL_MS);
+}
+
+/**
+ * Registra el envío por WhatsApp (enlace o archivo compartido desde el dispositivo).
+ * Igual que con el correo, un borrador pasa a «Enviada».
+ */
+export async function logQuoteWhatsApp(user: CurrentUser, id: string, input: { phone: string | null; channel: "link" | "file" }) {
+  const q = await getQuote(user, id);
+  if (!SENDABLE.has(q.status)) throw new AppError("Solo se pueden enviar cotizaciones en borrador, enviadas o aceptadas.", "CONFLICT");
+  await audit({ userId: user.id, action: "quote.whatsapp", entity: "Quote", entityId: id, data: { phone: input.phone, channel: input.channel } });
+  if (q.status === "DRAFT") await changeQuoteStatus(user, id, "SENT");
+}
+
+/**
+ * Cotización de un enlace público: valida firma, vencimiento e id, y la carga con el alcance de quien la compartió.
+ * null = enlace inválido, vencido o cotización ya no disponible (cancelada o fuera de su alcance).
+ */
+export async function loadSharedQuote(token: string | null, id: string) {
+  const p = readShareToken(token);
+  if (!p || p.t !== "quote" || p.id !== id) return null;
+  const user = await loadShareUser(p.u);
+  if (!user || !(can(user, "quotes.read_all") || can(user, "quotes.read_own"))) return null;
+  const q = await getQuote(user, id).catch(() => null);
+  if (!q || q.status === "CANCELLED") return null;
+  return q;
 }

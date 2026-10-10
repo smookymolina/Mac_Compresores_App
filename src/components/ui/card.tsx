@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { PageDecor } from "./page-decor";
 
@@ -58,19 +59,22 @@ export function StatGroup({ children, className }: { children: React.ReactNode; 
 
 /** Indicador (KPI): etiqueta, cifra tabular y nota. Va dentro de `StatGroup`. */
 export function Stat({
-  label, value, hint, tone, icon: Icon,
+  label, value, hint, tone, icon: Icon, href,
 }: {
   label: string; value: React.ReactNode; hint?: string; tone?: "red";
   icon?: React.ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean; className?: string }>;
+  /** Si se indica, el indicador entero enlaza a la vista con el detalle. */
+  href?: string;
 }) {
-  return (
-    <div className="kpi">
+  const body = (
+    <>
       <div className="flex items-center gap-2 text-ink-soft">
         {Icon && <span className="kpi-icon"><Icon size={15} strokeWidth={1.75} aria-hidden className="shrink-0" /></span>}
         <p className="truncate text-sm">{label}</p>
       </div>
       <p className={cn("kpi-value mt-2", tone === "red" ? "text-danger" : "text-ink")}>{value}</p>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
-    </div>
+    </>
   );
+  return href ? <Link href={href} className="kpi kpi-link">{body}</Link> : <div className="kpi">{body}</div>;
 }

@@ -47,6 +47,7 @@ services:
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
       # Secreto del trabajo diario (lo usa el servicio scheduler) y datos bancarios del PDF (líneas separadas por "|").
       CRON_SECRET: ${CRON_SECRET:-}
+      SHARE_SECRET: ${SHARE_SECRET:-}
       BANK_INFO: ${BANK_INFO:-}
     ports:
       - "${APP_PORT:-3080}:3000"

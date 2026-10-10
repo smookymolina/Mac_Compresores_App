@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, optStr, uuid } from "@/lib/validation";
 import { registerPayment, voidPayment } from "./service";
+import { sendPaymentReminder } from "./reminder";
 
 export async function registerPaymentAction(saleId: string, _: ActionResult<unknown> | null, fd: FormData) {
   const res = await runAction(async () => {
@@ -29,5 +30,23 @@ export async function voidPaymentAction(paymentId: string, _: ActionResult<unkno
     saleId = await voidPayment(user, uuid.parse(paymentId), z.string().trim().min(5, "Indica el motivo").max(300).parse(fd.get("reason")));
   }, "Pago anulado.");
   if (res.ok && saleId) { revalidatePath(`/ventas/${saleId}`); revalidatePath("/ventas"); revalidatePath("/cobranza"); }
+  return res;
+}
+
+const emailList = z.string().trim().max(500).transform((v) => v.split(/[,;\s]+/).filter(Boolean))
+  .pipe(z.array(z.string().email("Correo inválido")).max(10, "Máximo 10 correos"));
+
+/** Recordatorio de pago al cliente: solo envío manual (nunca desde el trabajo diario). */
+export async function sendPaymentReminderAction(saleId: string, _: ActionResult<unknown> | null, fd: FormData) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("payments.write");
+    const d = z.object({
+      to: emailList.refine((v) => v.length > 0, "Indica al menos un correo"),
+      cc: emailList,
+      message: z.string().trim().min(1, "Escribe un mensaje").max(3000, "Máximo 3000 caracteres"),
+    }).parse({ to: fd.get("to") ?? "", cc: fd.get("cc") ?? "", message: fd.get("message") ?? "" });
+    await sendPaymentReminder(user, uuid.parse(saleId), d);
+  }, "Recordatorio enviado.");
+  if (res.ok) { revalidatePath(`/ventas/${saleId}`); revalidatePath("/cobranza"); }
   return res;
 }

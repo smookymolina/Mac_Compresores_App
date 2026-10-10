@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { can, requirePagePermission } from "@/lib/auth/session";
-import { db } from "@/lib/db";
-import { listBalances, listMovements } from "@/modules/inventory/service";
-import { createWarehouseAction, movementAction, reverseMovementAction } from "@/modules/inventory/actions";
+import { listBalances, listMovements, listWarehouses } from "@/modules/inventory/service";
+import {
+  createWarehouseAction, minStockAction, movementAction, reverseMovementAction, setWarehouseActiveAction,
+} from "@/modules/inventory/actions";
 import { ActionForm } from "@/components/action-form";
 import { Boxes } from "lucide-react";
 import { Badge, Card, CardHeader, DataTable, EmptyState, Field, PageHeader, SelectField, type DataColumn, FilteredEmpty, SearchInput } from "@/components/ui";
@@ -23,12 +25,14 @@ const TYPE_LABEL = { IN: "Entrada", OUT: "Salida", ADJUST: "Ajuste", SALE_OUT: "
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ q?: string; wh?: string; low?: string }> }) {
   const user = await requirePagePermission("inventory.read");
   const p = await searchParams;
-  const [warehouses, balances, movements] = await Promise.all([
-    db.warehouse.findMany({ where: { active: true }, orderBy: { code: "asc" } }),
+  const [allWarehouses, balances, movements] = await Promise.all([
+    listWarehouses(),
     listBalances({ warehouseId: sp(p.wh), search: sp(p.q), lowOnly: p.low === "1" }),
     listMovements({ take: 50 }),
   ]);
+  const warehouses = allWarehouses.filter((w) => w.active);
   const writable = can(user, "inventory.write");
+  const canProducts = can(user, "products.read");
   const reversed = new Set(movements.map((m) => m.reversesId).filter(Boolean));
 
   return (
@@ -55,7 +59,10 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               return {
                 id: `${b.productId}-${b.warehouseId}`,
                 cells: [
-                  b.product.sku, b.product.description, b.warehouse.code,
+                  canProducts
+                    ? <Link key="s" className="font-medium text-accent-fg hover:underline" href={`/productos/${b.productId}`}>{b.product.sku}</Link>
+                    : b.product.sku,
+                  b.product.description, b.warehouse.code,
                   `${b.quantity.toString()} ${b.product.unit}`, b.minStock.toString(),
                   low ? <Badge key="l" tone="red">Bajo mínimo</Badge> : <Badge key="l" tone="green">En stock</Badge>,
                 ],
@@ -83,11 +90,42 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               </ActionForm>
             </Card>
             <Card className="p-4">
-              <h2 className="mb-3 text-sm font-semibold">Nuevo almacén</h2>
-              <ActionForm action={createWarehouseAction} resetOnSuccess submitLabel="Crear" variant="secondary">
-                <Field label="Código" name="code" required />
-                <Field label="Nombre" name="name" required />
+              <h2 className="mb-1 text-sm font-semibold">Stock mínimo</h2>
+              <p className="mb-3 text-xs text-ink-soft">Define el mínimo sin registrar un movimiento. Con 0 se deja de vigilar.</p>
+              <ActionForm action={minStockAction} resetOnSuccess submitLabel="Guardar mínimo" variant="secondary">
+                <Field label="Producto (SKU)" name="minSku" required />
+                <SelectField label="Almacén" name="minWarehouseId" options={warehouses.map((w) => ({ value: w.id, label: w.name }))} />
+                <Field label="Stock mínimo" name="minQty" inputMode="decimal" required />
               </ActionForm>
+            </Card>
+            <Card className="overflow-hidden">
+              <CardHeader title="Almacenes" />
+              <ul className="divide-y divide-line text-sm">
+                {allWarehouses.length === 0 && <li className="px-4 py-3 text-ink-soft">Sin almacenes. Crea el primero abajo.</li>}
+                {allWarehouses.map((w) => (
+                  <li key={w.id} className="flex items-center justify-between gap-3 px-4 py-2">
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2 font-medium">
+                        <span className="break-words">{w.name}</span>
+                        {!w.active && <Badge>Inactivo</Badge>}
+                      </p>
+                      <p className="text-xs text-ink-soft"><span className="mono">{w.code}</span> · {w.productsInStock} productos con existencia</p>
+                    </div>
+                    {w.active ? (
+                      <ActionForm action={setWarehouseActiveAction.bind(null, w.id, false)} submitLabel="Desactivar" variant="secondary" size="sm" className="section-row-action" />
+                    ) : (
+                      <ActionForm action={setWarehouseActiveAction.bind(null, w.id, true)} submitLabel="Reactivar" variant="secondary" size="sm" className="section-row-action" />
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <div className="border-t border-line p-4">
+                <h3 className="mb-3 text-sm font-semibold">Nuevo almacén</h3>
+                <ActionForm action={createWarehouseAction} resetOnSuccess submitLabel="Crear" variant="secondary">
+                  <Field label="Código" name="code" required />
+                  <Field label="Nombre" name="name" required />
+                </ActionForm>
+              </div>
             </Card>
           </div>
         )}

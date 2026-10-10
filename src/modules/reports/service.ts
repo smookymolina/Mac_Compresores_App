@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { AppError } from "@/lib/errors";
 import { dec } from "@/lib/money";
 import { assertCan, type CurrentUser } from "@/lib/auth/session";
 import { toCsv, type CsvCell } from "@/lib/csv";
@@ -18,6 +19,27 @@ export const REPORTS = {
 export type ReportKind = keyof typeof REPORTS;
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Rango [desde, hasta] de los parámetros «YYYY-MM-DD» (vacío = mes en curso). Lanza AppError si es inválido.
+ * Compartido por la descarga, el correo y el enlace firmado para que los tres generen exactamente lo mismo.
+ */
+export function resolveRange(desde?: string | null, hasta?: string | null, now = new Date()): { from: Date; to: Date } {
+  const parse = (s: string) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    if (!ISO_DAY.test(s) || Number.isNaN(d.getTime())) throw new AppError("Fechas inválidas.");
+    return d;
+  };
+  const from = desde ? parse(desde) : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const to = hasta ? parse(hasta) : now;
+  if (to < from) throw new AppError("La fecha final es anterior a la inicial.");
+  if (to.getTime() - from.getTime() > 3 * 366 * 864e5) throw new AppError("El rango máximo es de 3 años.");
+  return { from, to };
+}
+
+export const isReportKind = (k: string): k is ReportKind => Object.prototype.hasOwnProperty.call(REPORTS, k);
 const money = (v: { toFixed(n: number): string } | null | undefined) => (v ? v.toFixed(2) : "0.00");
 
 /** Genera el CSV de un reporte. Rango [desde, hasta] inclusivo (fechas en UTC, como se guardan). */

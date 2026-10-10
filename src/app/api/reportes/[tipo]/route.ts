@@ -3,22 +3,16 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { REPORTS, buildReport, type ReportKind } from "@/modules/reports/service";
-
-const dateParam = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).transform((s) => new Date(`${s}T00:00:00Z`));
+import { buildReport, isReportKind, resolveRange } from "@/modules/reports/service";
 
 export async function GET(req: Request, { params }: { params: Promise<{ tipo: string }> }) {
   try {
     const user = await requirePermission("reports.export");
     const { tipo } = await params;
-    if (!(tipo in REPORTS)) throw new AppError("Reporte no encontrado", "NOT_FOUND");
+    if (!isReportKind(tipo)) throw new AppError("Reporte no encontrado", "NOT_FOUND");
     const url = new URL(req.url);
-    const now = new Date();
-    const from = url.searchParams.get("desde") ? dateParam.parse(url.searchParams.get("desde")) : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const to = url.searchParams.get("hasta") ? dateParam.parse(url.searchParams.get("hasta")) : now;
-    if (to < from) throw new AppError("La fecha final es anterior a la inicial.");
-    if (to.getTime() - from.getTime() > 3 * 366 * 864e5) throw new AppError("El rango máximo es de 3 años.");
-    const { filename, csv } = await buildReport(user, tipo as ReportKind, from, to);
+    const { from, to } = resolveRange(url.searchParams.get("desde"), url.searchParams.get("hasta"));
+    const { filename, csv } = await buildReport(user, tipo, from, to);
     await audit({ userId: user.id, action: "report.export", entity: "Report", data: { tipo, from: from.toISOString(), to: to.toISOString() } });
     return new NextResponse(csv, {
       headers: {

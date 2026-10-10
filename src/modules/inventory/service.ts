@@ -79,6 +79,9 @@ export async function reverseMovement(user: CurrentUser, movementId: string, rea
 }
 
 export async function setMinStock(user: CurrentUser, productId: string, warehouseId: string, minStock: string) {
+  const product = await db.product.findUnique({ where: { id: productId }, select: { kind: true, sku: true } });
+  if (!product) throw new AppError("Producto no encontrado.", "NOT_FOUND");
+  if (product.kind === "SERVICE") throw new AppError(`${product.sku} es un servicio; no maneja inventario.`);
   await db.stockBalance.upsert({
     where: { productId_warehouseId: { productId, warehouseId } },
     create: { productId, warehouseId, minStock: dec(minStock) },
@@ -89,9 +92,11 @@ export async function setMinStock(user: CurrentUser, productId: string, warehous
 }
 
 export async function listBalances(q: { warehouseId?: string; search?: string; lowOnly?: boolean }) {
-  const rows = await db.stockBalance.findMany({
+  return db.stockBalance.findMany({
     where: {
       ...(q.warehouseId && { warehouseId: q.warehouseId }),
+      // Filtro en BD (antes se aplicaba sobre las primeras 300 filas y podía omitir productos bajo mínimo).
+      ...(q.lowOnly && { minStock: { gt: 0 }, quantity: { lte: db.stockBalance.fields.minStock } }),
       ...(q.search && {
         product: { OR: [{ sku: { contains: q.search, mode: "insensitive" } }, { description: { contains: q.search, mode: "insensitive" } }] },
       }),
@@ -100,7 +105,28 @@ export async function listBalances(q: { warehouseId?: string; search?: string; l
     orderBy: [{ product: { sku: "asc" } }],
     take: 300,
   });
-  return q.lowOnly ? rows.filter((r) => r.quantity.lte(r.minStock) && r.minStock.gt(0)) : rows;
+}
+
+export async function listWarehouses() {
+  const [warehouses, stock] = await Promise.all([
+    db.warehouse.findMany({ orderBy: [{ active: "desc" }, { code: "asc" }] }),
+    db.stockBalance.groupBy({ by: ["warehouseId"], where: { quantity: { gt: 0 } }, _count: true }),
+  ]);
+  const withStock = new Map(stock.map((s) => [s.warehouseId, s._count]));
+  return warehouses.map((w) => ({ ...w, productsInStock: withStock.get(w.id) ?? 0 }));
+}
+
+/** Desactiva (solo sin existencias, para no ocultar inventario) o reactiva un almacén. */
+export async function setWarehouseActive(user: CurrentUser, id: string, active: boolean) {
+  await db.$transaction(async (tx) => {
+    if (!active) {
+      const inStock = await tx.stockBalance.count({ where: { warehouseId: id, quantity: { gt: 0 } } });
+      if (inStock > 0) throw new AppError(`El almacén tiene existencias en ${inStock} productos; transfiérelas o ajústalas antes de desactivarlo.`, "CONFLICT");
+    }
+    const res = await tx.warehouse.updateMany({ where: { id, active: !active }, data: { active } });
+    if (res.count === 0) throw new AppError(active ? "El almacén ya está activo." : "El almacén ya está inactivo.", "CONFLICT");
+    await audit({ userId: user.id, action: active ? "warehouse.activate" : "warehouse.deactivate", entity: "Warehouse", entityId: id }, tx);
+  });
 }
 
 export async function listMovements(q: { productId?: string; take?: number }) {

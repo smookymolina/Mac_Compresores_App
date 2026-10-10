@@ -5,8 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { runAction, type ActionResult } from "@/lib/errors";
-import { decimalStr, formObject, optStr } from "@/lib/validation";
-import { addAddress, addContact, saveCustomer } from "./service";
+import { decimalStr, formObject, optStr, uuid } from "@/lib/validation";
+import { addAddress, addContact, removeAddress, removeContact, saveCustomer, setCustomerActive } from "./service";
 
 // RFC persona moral (12) o física (13).
 const rfc = z
@@ -74,5 +74,35 @@ export async function addAddressAction(customerId: string, _: ActionResult<unkno
     await addAddress(user, customerId, addressSchema.parse(formObject(fd)));
   }, "Dirección agregada.");
   if (res.ok) revalidatePath(`/clientes/${customerId}`);
+  return res;
+}
+
+export async function removeContactAction(customerId: string, contactId: string, _: ActionResult<unknown> | null) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("customers.write");
+    await removeContact(user, uuid.parse(customerId), uuid.parse(contactId));
+  }, "Contacto eliminado.");
+  if (res.ok) revalidatePath(`/clientes/${customerId}`);
+  return res;
+}
+
+export async function removeAddressAction(customerId: string, addressId: string, _: ActionResult<unknown> | null) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("customers.write");
+    await removeAddress(user, uuid.parse(customerId), uuid.parse(addressId));
+  }, "Dirección eliminada.");
+  if (res.ok) revalidatePath(`/clientes/${customerId}`);
+  return res;
+}
+
+export async function setCustomerActiveAction(customerId: string, active: boolean, _: ActionResult<unknown> | null) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("customers.write");
+    await setCustomerActive(user, uuid.parse(customerId), active);
+  }, active ? "Cliente reactivado." : "Cliente desactivado.");
+  if (res.ok) {
+    revalidatePath("/clientes");
+    revalidatePath(`/clientes/${customerId}`);
+  }
   return res;
 }
