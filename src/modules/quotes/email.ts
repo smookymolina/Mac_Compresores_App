@@ -38,6 +38,7 @@ export function quoteEmail(q: Awaited<ReturnType<typeof getQuote>>, message: str
     ],
     notes: ["Adjuntamos la cotización en PDF. Para cualquier duda, responde a este correo y le llegará directamente a tu vendedor."],
     signature: [q.seller.name, q.seller.email, "MAC Compresores"],
+    signatureHtml: q.seller.signatureHtml,
   });
 }
 

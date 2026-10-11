@@ -1,7 +1,7 @@
 import { requirePagePermission } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { listUsers } from "@/modules/users/service";
-import { createUserAction, deleteUserAction, resendInvitationAction, updateUserAction } from "@/modules/users/actions";
+import { createUserAction, deleteUserAction, resendInvitationAction, updateUserAction, updateUserSignaturesAction } from "@/modules/users/actions";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, CardHeader, Field, PageHeader, SelectField } from "@/components/ui";
 
@@ -22,8 +22,8 @@ export default async function UsersPage() {
             {users.map((u) => (
               <li key={u.id} className="p-4">
                 <details>
-                  <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-sm">
-                    <b>{u.name}</b> <span className="text-ink-soft">{u.email}</span>
+                  <summary className="flex min-h-11 cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <b className="break-words">{u.name}</b> <span className="min-w-0 break-all text-ink-soft">{u.email}</span>
                     <Badge tone="blue">{u.role.name}</Badge>
                     {!u.active && <Badge tone="red">Inactivo</Badge>}
                     {u.invitePending && <Badge tone="amber">Invitación pendiente</Badge>}
@@ -42,8 +42,31 @@ export default async function UsersPage() {
                       <SelectField label="Rol" name="roleId" defaultValue={u.roleId} options={roleOpts} />
                       <Field label="Nueva contraseña (opcional)" name="password" type="password" autoComplete="new-password" />
                     </div>
-                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={u.active} /> Activo</label>
+                    <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm sm:min-h-0"><input type="checkbox" className="size-5 sm:size-4" name="active" defaultChecked={u.active} /> Activo</label>
                   </ActionForm>
+                  <div className="mt-4 rounded-md border border-line p-3">
+                    <p className="mb-2 text-sm font-semibold">Firmas</p>
+                    <p className="mb-3 text-sm text-ink-soft">
+                      Firma de correo: {u.signatureHtml ? "cargada" : "sin cargar"} · Bloque de cotización: {u.quoteBlock ? "cargado" : "sin cargar"}.
+                      Sube el HTML de la firma (100 KB máximo) y el PNG del bloque de asesor (1 MB máximo). Solo reemplaza lo que subas.
+                    </p>
+                    <ActionForm action={updateUserSignaturesAction.bind(null, u.id)} submitLabel="Guardar firmas" variant="secondary">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="flex flex-col gap-1 text-sm">
+                          Firma de correo (.html)
+                          <input type="file" name="signatureFile" accept=".html,text/html" className="text-sm" />
+                        </label>
+                        <label className="flex flex-col gap-1 text-sm">
+                          Bloque de asesor para cotizaciones (.png)
+                          <input type="file" name="blockFile" accept="image/png" className="text-sm" />
+                        </label>
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" name="clearHtml" className="size-5 sm:size-4" /> Quitar firma de correo</label>
+                        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" name="clearBlock" className="size-5 sm:size-4" /> Quitar bloque de cotización</label>
+                      </div>
+                    </ActionForm>
+                  </div>
                   {u.id !== me.id && (
                     <div className="mt-4 rounded-md border border-line p-3">
                       <p className="mb-2 text-sm text-ink-soft">
@@ -66,7 +89,7 @@ export default async function UsersPage() {
           <ActionForm action={createUserAction} resetOnSuccess submitLabel="Enviar invitación">
               <>
                 <Field label="Nombre" name="name" required />
-                <Field label="Correo" name="email" type="email" required />
+                <Field label="Correo" name="email" type="email" autoComplete="off" autoCapitalize="none" spellCheck={false} required />
                 <SelectField label="Rol" name="roleId" options={roleOpts} />
               </>
           </ActionForm>

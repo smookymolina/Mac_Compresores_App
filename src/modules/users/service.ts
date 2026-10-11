@@ -124,3 +124,19 @@ export async function deleteUser(actor: CurrentUser, id: string) {
     await audit({ userId: actor.id, action: "user.delete", entity: "User", entityId: id, data: { email: u.email, name: u.name } }, tx);
   });
 }
+
+/** Firma de correo (HTML) y bloque de asesor (PNG) de un usuario. `undefined` = no cambia; `null` = quitar. */
+export async function setUserSignatures(actor: CurrentUser, id: string, input: { signatureHtml?: string | null; quoteBlock?: Buffer | null }) {
+  const data = {
+    ...(input.signatureHtml !== undefined && { signatureHtml: input.signatureHtml }),
+    ...(input.quoteBlock !== undefined && { quoteBlock: input.quoteBlock ? new Uint8Array(input.quoteBlock) : null }),
+  };
+  await db.$transaction(async (tx) => {
+    const u = await tx.user.findUnique({ where: { id }, select: { id: true } });
+    if (!u) throw new AppError("El usuario no existe.", "NOT_FOUND");
+    await tx.user.update({ where: { id }, data });
+    await audit({ userId: actor.id, action: "user.signatures", entity: "User", entityId: id,
+      data: { html: input.signatureHtml !== undefined, block: input.quoteBlock !== undefined } }, tx);
+  });
+}
+

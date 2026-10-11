@@ -46,6 +46,10 @@ model User {
   active         Boolean              @default(true)
   /// Invitado que aún no elige su contraseña (su passwordHash es aleatorio e inutilizable).
   invitePending  Boolean              @default(false)
+  /// Firma para correos (HTML). La carga un administrador desde Usuarios.
+  signatureHtml  String?
+  /// Bloque de asesor (PNG) que aparece en las cotizaciones de este usuario.
+  quoteBlock     Bytes?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   sessions       Session[]

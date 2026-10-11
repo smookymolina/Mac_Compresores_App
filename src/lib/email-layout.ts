@@ -51,6 +51,8 @@ export interface EmailOptions {
   notes?: string[];
   /** Firma, una línea por elemento. */
   signature?: string[];
+  /** Firma en HTML de marca del remitente; sustituye a `signature` en el correo HTML. */
+  signatureHtml?: string | null;
 }
 
 /** Devuelve el HTML de marca y su versión en texto plano (multipart, mejor entregabilidad). */
@@ -82,9 +84,11 @@ export function renderEmail(o: EmailOptions): { html: string; text: string } {
     .map((n) => `<p style="margin:0 0 12px;font:400 13px/1.5 ${FONT};color:${C.muted};">${textToHtml(n)}</p>`)
     .join("");
 
-  const signature = o.signature?.length
-    ? `<p style="margin:24px 0 0;font:400 14px/1.6 ${FONT};color:${C.slate2};">${o.signature.map(escapeHtml).join("<br>")}</p>`
-    : "";
+  const signature = o.signatureHtml
+    ? `<div style="margin:24px 0 0;">${o.signatureHtml}</div>`
+    : o.signature?.length
+      ? `<p style="margin:24px 0 0;font:400 14px/1.6 ${FONT};color:${C.slate2};">${o.signature.map(escapeHtml).join("<br>")}</p>`
+      : "";
 
   const html = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><title>${escapeHtml(o.title)}</title></head>
