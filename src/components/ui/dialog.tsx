@@ -24,8 +24,9 @@ export function Dialog({
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
+    // Respaldo para navegadores sin <dialog> modal (Safari < 15.4): se muestra con el atributo open.
+    if (open && !d.open) { if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", ""); }
+    if (!open && d.open) { if (typeof d.close === "function") d.close(); else d.removeAttribute("open"); }
   }, [open]);
 
   return (

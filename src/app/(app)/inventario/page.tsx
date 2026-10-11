@@ -50,7 +50,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-ink-soft sm:min-h-0"><input type="checkbox" className="size-5 sm:size-4" name="low" value="1" defaultChecked={p.low === "1"} /> Solo bajo mínimo</label>
             <button className="btn btn-secondary">Filtrar</button>
           </form>
-          <DataTable
+          <DataTable mobileCards
             caption="Existencias"
             columns={BALANCE_COLUMNS}
             empty={p.q || p.wh || p.low ? <FilteredEmpty clearHref="/inventario" /> : <EmptyState icon={Boxes} title="Sin existencias registradas">Registra una entrada para empezar a llevar existencias.</EmptyState>}
@@ -133,7 +133,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
       <Card className="mt-4 overflow-hidden">
         <CardHeader title="Últimos movimientos (trazabilidad)" />
-        <DataTable
+        <DataTable mobileCards
           caption="Últimos movimientos de inventario"
           columns={[
             { id: "fecha", header: "Fecha", sortable: true, cellClass: "whitespace-nowrap" },

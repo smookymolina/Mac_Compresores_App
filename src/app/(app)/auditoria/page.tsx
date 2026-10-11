@@ -98,7 +98,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
           </label>
           <button className="btn btn-secondary">Filtrar</button>
         </form>
-        <DataTable
+        <DataTable mobileCards
           caption="Eventos de auditoría"
           columns={COLUMNS}
           empty={filtered ? <FilteredEmpty clearHref="/auditoria" /> : <EmptyState icon={ShieldCheck} title="Sin eventos">Cada operación crítica queda registrada aquí.</EmptyState>}
@@ -118,7 +118,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                     : <span className="mono text-muted">{short}</span>}
                 </span>,
                 detail.length ? (
-                  <details key="d" className="w-64 max-w-full text-xs text-ink-soft sm:w-auto sm:max-w-md">
+                  <details key="d" className="w-full max-w-full text-xs text-ink-soft sm:w-auto sm:max-w-md">
                     <summary className="cursor-pointer truncate py-1">{detail.map((x) => `${x.label}: ${x.value}`).join(" · ")}</summary>
                     <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
                       {detail.map((x) => <Fragment key={x.label}><dt className="font-medium text-ink">{x.label}</dt><dd className="break-words">{x.value}</dd></Fragment>)}

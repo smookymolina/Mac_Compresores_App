@@ -9,8 +9,26 @@ export function SearchInput(props: React.InputHTMLAttributes<HTMLInputElement>) 
   const router = useRouter();
   const pathname = usePathname();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const ref = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
-  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const schedule = (el: HTMLInputElement) => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      const qs = new URLSearchParams();
+      const entries = el.form ? [...new FormData(el.form)] : [[props.name ?? "q", el.value]];
+      for (const [k, v] of entries) if (typeof v === "string" && v.trim() && k !== "page") qs.set(k, v.trim());
+      startTransition(() => router.replace(qs.size ? `${pathname}?${qs}` : pathname, { scroll: false }));
+    }, 300);
+  };
+
+  useEffect(() => {
+    // Si se escribió antes de que la página terminara de cargar (hidratación), busca con lo ya escrito.
+    const el = ref.current;
+    if (el && el.value !== String(props.defaultValue ?? "")) schedule(el);
+    return () => clearTimeout(timer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <span className="search">
@@ -19,16 +37,10 @@ export function SearchInput(props: React.InputHTMLAttributes<HTMLInputElement>) 
         type="search"
         {...props}
         className="input"
+        ref={ref}
         onChange={(e) => {
           props.onChange?.(e);
-          const form = e.currentTarget.form;
-          clearTimeout(timer.current);
-          timer.current = setTimeout(() => {
-            const qs = new URLSearchParams();
-            const entries = form ? [...new FormData(form)] : [[props.name ?? "q", e.target.value]];
-            for (const [k, v] of entries) if (typeof v === "string" && v.trim() && k !== "page") qs.set(k, v.trim());
-            startTransition(() => router.replace(qs.size ? `${pathname}?${qs}` : pathname, { scroll: false }));
-          }, 300);
+          schedule(e.currentTarget);
         }}
       />
     </span>

@@ -42,6 +42,17 @@ export function CommandPalette() {
     return () => { clearTimeout(t); ctrl.abort(); };
   }, [q]);
 
+  // iOS solo abre el teclado si el foco ocurre dentro del toque: se enfoca un campo auxiliar y luego el real.
+  const openFromTap = () => {
+    const proxy = document.createElement("input");
+    proxy.setAttribute("aria-hidden", "true");
+    proxy.style.cssText = "position:fixed;top:0;left:0;opacity:0;height:0;font-size:16px";
+    document.body.appendChild(proxy);
+    proxy.focus();
+    setOpen(true);
+    setTimeout(() => { input.current?.focus(); proxy.remove(); }, 50);
+  };
+
   const go = (h: Hit) => { setOpen(false); router.push(h.href); };
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, hits.length - 1)); }
@@ -52,12 +63,12 @@ export function CommandPalette() {
   let lastGroup = "";
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-label="Buscar (Ctrl+K)" className="search-trigger">
+      <button type="button" onClick={openFromTap} aria-label="Buscar (Ctrl+K)" className="search-trigger">
         <Search size={16} strokeWidth={1.75} aria-hidden />
         <span className="hidden lg:inline">Buscar…</span>
         <kbd className="hidden lg:inline">Ctrl K</kbd>
       </button>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Buscar">
+      <Dialog open={open} onClose={() => setOpen(false)} title="Buscar" className="search-dialog">
         <div className="p-3">
           <input
             ref={input} type="search" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKeyDown}

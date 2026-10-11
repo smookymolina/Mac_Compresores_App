@@ -705,6 +705,13 @@ body { overflow-x: clip; padding-inline: env(safe-area-inset-left) env(safe-area
     }
     .dialog-center[open] { animation: sheet-up var(--dur) var(--ease); }
     .dialog-center > .dialog-frame { max-height: calc(90dvh - env(safe-area-inset-bottom)); }
+    /* Buscador: hoja superior para que el teclado virtual no tape el campo ni los resultados. */
+    .dialog-center.search-dialog {
+      margin: 0 0 auto; max-height: 85dvh; border-radius: 0 0 var(--r-lg) var(--r-lg);
+      border-top: 0; border-bottom: 1px solid var(--border); padding-top: env(safe-area-inset-top); padding-bottom: 0;
+    }
+    .dialog-center.search-dialog[open] { animation: fade var(--dur) var(--ease); }
+    .dialog-center.search-dialog > .dialog-frame { max-height: calc(85dvh - env(safe-area-inset-top)); }
   }
   .dialog-left { padding-left: env(safe-area-inset-left); padding-bottom: env(safe-area-inset-bottom); }
   .dialog-right { padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); }
