@@ -26,7 +26,11 @@ export function SearchInput(props: React.InputHTMLAttributes<HTMLInputElement>) 
     // Si se escribió antes de que la página terminara de cargar (hidratación), busca con lo ya escrito.
     const el = ref.current;
     if (el && el.value !== String(props.defaultValue ?? "")) schedule(el);
-    return () => clearTimeout(timer.current);
+    // Los demás filtros del formulario (listas, casillas, fechas) también se aplican al cambiar, sin "Filtrar".
+    const form = el?.form;
+    const onChange = (e: Event) => { if (el && e.target !== el) schedule(el); };
+    form?.addEventListener("change", onChange);
+    return () => { clearTimeout(timer.current); form?.removeEventListener("change", onChange); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -78,7 +78,7 @@ export default async function CommissionsPage() {
               actions={<Badge tone={RS_TONE[rs.status]}>{RS_LABEL[rs.status]}</Badge>}
             />
             <p className="px-4 pt-3 text-xs text-ink-soft">Base: {BASIS[rs.basis]}{rs.notes && ` · ${rs.notes}`}</p>
-            <DataTable
+            <DataTable mobileCards
               caption={`Tasas de ${rs.name} v${rs.version}`}
               columns={[
                 { id: "linea", header: "Línea" },

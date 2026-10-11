@@ -42,7 +42,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
         <div className="mb-4 grid gap-4 lg:grid-cols-3">
           <Card className="overflow-hidden lg:col-span-2">
             <CardHeader title="Metas por vendedor" />
-            <DataTable
+            <DataTable mobileCards
               caption="Metas por vendedor"
               columns={[{ id: "vend", header: "Vendedor", sortable: true }, { id: "meta", header: "Meta", align: "right", sortable: true }]}
               rows={period.targets.map((t) => ({ id: t.id, cells: [t.seller.name, fmtMoney(t.amount)], sort: [t.seller.name, t.amount.toNumber()] }))}

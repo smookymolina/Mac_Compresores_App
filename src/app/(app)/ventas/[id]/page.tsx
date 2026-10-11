@@ -149,7 +149,7 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
           )}
           {payments.length > 0 && (
             <div className="hidden md:block">
-            <DataTable
+            <DataTable mobileCards
               caption="Pagos de la venta"
               columns={[
                 { id: "fecha", header: "Fecha", cellClass: "whitespace-nowrap" },

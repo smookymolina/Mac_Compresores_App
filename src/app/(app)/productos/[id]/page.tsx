@@ -84,7 +84,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           {editable && (
             <Card className="overflow-hidden">
               <CardHeader title="Historial de precios" />
-              <DataTable
+              <DataTable mobileCards
                 caption="Historial de precios"
                 columns={[
                   { id: "fecha", header: "Fecha", cellClass: "whitespace-nowrap" },
@@ -101,7 +101,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       {canInventory && (
         <Card className="mt-4 overflow-hidden">
           <CardHeader title="Últimos movimientos" />
-          <DataTable
+          <DataTable mobileCards
             caption={`Últimos movimientos de ${product.sku}`}
             columns={[
               { id: "fecha", header: "Fecha", sortable: true, cellClass: "whitespace-nowrap" },

@@ -54,7 +54,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           {writable && <Card className="p-4"><CustomerForm customer={c} sellers={sellers} /></Card>}
           <Card className="overflow-hidden">
             <CardHeader title="Historial de cotizaciones" />
-            <DataTable
+            <DataTable mobileCards
               caption="Historial de cotizaciones"
               columns={HIST_COLS}
               rows={c.quotes.map((q) => ({
@@ -72,7 +72,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           </Card>
           <Card className="overflow-hidden">
             <CardHeader title="Historial de ventas" />
-            <DataTable
+            <DataTable mobileCards
               caption="Historial de ventas"
               columns={HIST_COLS}
               rows={c.sales.map((s) => ({

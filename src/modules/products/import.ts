@@ -81,8 +81,8 @@ export function parseProductCsv(text: string): ParseResult {
     const oemPart = get("oemPartNumber") || null;
     if ((!oemPart || oemPart === "-") && !get("sku")) return; // filas de relleno
 
-    // "-" en la hoja significa "sin dato": no debe quedar como prefijo del SKU.
-    const sku = (get("sku") || [oemName, oemPart].filter((v) => v && v !== "-").join("-")).replace(/^-+|-+$/g, "").toUpperCase().slice(0, 80);
+    // "-" en la hoja significa "sin dato"; el SKU no debe empezar ni terminar con símbolos (".-", "--").
+    const sku = (get("sku") || [oemName, oemPart].filter((v) => v && v !== "-").join("-")).replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, "").toUpperCase().slice(0, 80);
     const typed = lineFromExcelType(get("type") ?? "");
     if (!typed) return errors.push({ row: rowNo, message: `Tipo no reconocido: "${get("type")}"` });
     if (seen.has(sku)) return errors.push({ row: rowNo, message: `SKU duplicado en el archivo: ${sku}` });

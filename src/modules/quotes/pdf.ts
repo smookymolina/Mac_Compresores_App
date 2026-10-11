@@ -66,7 +66,8 @@ const safe = (s: string) => s.replace(/[^\x20-\x7E\xA0-\xFF–—‘’“”•
 
 function wrap(text: string, font: PDFFont, size: number, width: number): string[] {
   const lines: string[] = [];
-  for (const para of safe(text).split("\n")) {
+  // Saltos de línea y tabuladores (comunes en descripciones de Excel) antes de sanear: si no, salen como "?".
+  for (const para of text.replace(/\r\n?/g, "\n").replace(/\t/g, " ").split("\n").map(safe)) {
     let cur = "";
     for (const w of para.split(/\s+/).filter(Boolean)) {
       const next = cur ? `${cur} ${w}` : w;
