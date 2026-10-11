@@ -48,6 +48,8 @@ export interface ProductInput {
   cost: string;
   markup: string;
   shipping: string;
+  consumables?: string;
+  currency?: "MXN" | "USD";
   price?: string;
   taxRate: string;
   status: ProductStatus;
@@ -60,7 +62,7 @@ async function categoryId(name?: string) {
 }
 
 export async function saveProduct(user: CurrentUser, input: ProductInput, id?: string) {
-  const price = input.price ? dec(input.price) : listPrice(input.cost, input.markup, input.shipping);
+  const price = input.price ? dec(input.price) : listPrice(input.cost, input.markup, input.shipping, input.consumables ?? 0);
   const data = {
     sku: input.sku.toUpperCase(),
     description: input.description,
@@ -74,6 +76,9 @@ export async function saveProduct(user: CurrentUser, input: ProductInput, id?: s
     cost: dec(input.cost),
     markup: dec(input.markup),
     shipping: dec(input.shipping),
+    consumables: dec(input.consumables ?? 0),
+    // La tubería se maneja siempre en USD.
+    currency: input.line === "TUBERIA" ? ("USD" as const) : (input.currency ?? "MXN"),
     price,
     taxRate: dec(input.taxRate),
     status: input.status,
@@ -122,7 +127,7 @@ export async function importProducts(userId: string, csv: string) {
   const toData = (r: (typeof rows)[number]) => ({
     sku: r.sku, oemName: r.oemName, oemPartNumber: r.oemPartNumber, supplierCode: r.supplierCode,
     description: r.description, categoryId: r.category ? (cats.get(r.category) ?? null) : null,
-    line: r.line, kind: r.kind, unit: r.unit, cost: r.cost, markup: r.markup, shipping: r.shipping,
+    line: r.line, kind: r.kind, unit: r.unit, cost: r.cost, markup: r.markup, shipping: r.shipping, consumables: r.consumables, currency: r.currency,
     price: r.price, taxRate: r.taxRate,
   });
 
@@ -152,4 +157,15 @@ export async function importProducts(userId: string, csv: string) {
     data: { created: fresh.length, updated, unchanged, errors: errors.length },
   });
   return { created: fresh.length, updated, unchanged, errors };
+}
+
+/** Tipo de cambio USD→MXN vigente (el último capturado). */
+export async function currentExchangeRate() {
+  return db.exchangeRate.findFirst({ orderBy: { createdAt: "desc" } });
+}
+
+export async function setExchangeRate(user: CurrentUser, rate: string) {
+  const r = await db.exchangeRate.create({ data: { rate: dec(rate), createdById: user.id } });
+  await audit({ userId: user.id, action: "fx.update", entity: "ExchangeRate", entityId: r.id, data: { rate } });
+  return r;
 }

@@ -49,9 +49,15 @@ export function sumLines(lines: LineAmounts[]) {
 }
 
 /** Precio de lista según la hoja "Lista precios": costo + costo*utilidad + envío. */
-export function listPrice(cost: DecInput, markup: DecInput, shipping: DecInput): Dec {
+/** Precio al cliente (en la moneda del producto) = base (costo + utilidad) + traslado + consumibles. */
+export function listPrice(cost: DecInput, markup: DecInput, shipping: DecInput, consumables: DecInput = 0): Dec {
   const c = dec(cost);
-  return round2(c.add(c.mul(dec(markup))).add(dec(shipping)));
+  return round2(c.add(c.mul(dec(markup))).add(dec(shipping)).add(dec(consumables)));
+}
+
+/** Convierte a MXN un importe en la moneda indicada con el tipo de cambio USD→MXN. */
+export function toMxn(amount: DecInput, currency: "MXN" | "USD", fx: DecInput): Dec {
+  return currency === "USD" ? dec(amount).mul(dec(fx)) : dec(amount);
 }
 
 const mxn = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });

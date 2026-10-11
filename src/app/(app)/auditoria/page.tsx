@@ -12,8 +12,8 @@ export const metadata = { title: "Auditoría" };
 
 const COLUMNS: DataColumn[] = [
   { id: "date", header: "Fecha", sortable: true, cellClass: "whitespace-nowrap" },
-  { id: "user", header: "Usuario", sortable: true },
-  { id: "action", header: "Acción", sortable: true },
+  { id: "user", header: "Usuario", sortable: true, cellClass: "min-w-32" },
+  { id: "action", header: "Acción", sortable: true, cellClass: "whitespace-nowrap" },
   { id: "entity", header: "Entidad", sortable: true },
   { id: "data", header: "Detalle" },
 ];
@@ -73,7 +73,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             <option value="">Todos los usuarios</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
-          <input name="action" defaultValue={action} placeholder="Acción (quote., sale.…)" aria-label="Acción" className="input" />
+          <input name="action" defaultValue={action} autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="Acción (quote., sale.…)" aria-label="Acción" className="input" />
           <label className="audit-date">
             <span>Desde</span>
             <input type="date" name="desde" defaultValue={from} className="input" />
@@ -103,7 +103,12 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                     ? <Link className="mono text-accent-fg hover:underline" href={`${base}${r.entityId}`} aria-label={`Ver ${r.entity} ${short}`}>{short}</Link>
                     : <span className="mono text-muted">{short}</span>}
                 </span>,
-                <span key="d" className="block max-w-md truncate text-xs text-ink-soft" title={detail || undefined}>{detail}</span>,
+                detail ? (
+                  <details key="d" className="w-64 max-w-full text-xs text-ink-soft sm:w-auto sm:max-w-md">
+                    <summary className="cursor-pointer truncate py-1">{detail}</summary>
+                    <pre className="mt-1 whitespace-pre-wrap break-all font-mono">{JSON.stringify(r.data, null, 2)}</pre>
+                  </details>
+                ) : "",
               ],
               sort: [r.createdAt.getTime(), r.user?.name ?? null, r.action, r.entity, null],
             };

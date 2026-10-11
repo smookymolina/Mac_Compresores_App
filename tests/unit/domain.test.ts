@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { computeLine, listPrice, sumLines } from "@/lib/money";
 import { buildItemSnapshots, type CatalogProduct } from "@/modules/quotes/pricing";
 import { canTransition } from "@/modules/quotes/status";
-import { calculateCommissions, type RateRow } from "@/modules/commissions/calc";
+import { collectedAt, commissionForSale, metTarget, netProfitByLine, type RateRow } from "@/modules/commissions/calc";
 import { parseProductCsv } from "@/modules/products/import";
 import { ROLE_PERMISSIONS } from "@/lib/auth/permissions";
 
@@ -72,41 +72,39 @@ describe("transiciones de cotización", () => {
   });
 });
 
-describe("comisiones (tabla verde/rojo)", () => {
-  const rates: RateRow[] = [
-    { line: "EQUIPO_VENTA", rateMet: D("0.10"), rateNotMet: D("0.07") },
-    { line: "REFACCIONES", rateMet: D("0.07"), rateNotMet: D("0.035") },
-  ];
-  const lines = [
-    { sellerId: "a", line: "EQUIPO_VENTA" as const, quantity: D(1), subtotal: D(100000), discount: D(0), unitCost: D(70000) },
-    { sellerId: "a", line: "REFACCIONES" as const, quantity: D(10), subtotal: D(10000), discount: D(1000), unitCost: D(500) },
-    { sellerId: "b", line: "REFACCIONES" as const, quantity: D(1), subtotal: D(5000), discount: D(0), unitCost: D(3000) },
-  ];
+describe("comisiones (meta mensual, cobro y utilidad neta)", () => {
+  const rates: RateRow[] = [{ line: "SERVICIOS", rateMet: D("0.10"), rateNotMet: D("0.05") }, { line: "TUBERIA", rateMet: D("0.08"), rateNotMet: D("0.04") }];
+  const L = (line: "SERVICIOS" | "TUBERIA", qty: string, sub: string, disc: string, cost: string) =>
+    ({ line, quantity: D(qty), subtotal: D(sub), discount: D(disc), unitCost: D(cost) });
 
-  it("aplica tasa verde a todas las líneas si alcanza la meta", () => {
-    const r = calculateCommissions("NET_SALES", lines, rates, new Map([["a", D(100000)], ["b", D(10000)]]));
-    const a = r.filter((x) => x.sellerId === "a");
-    expect(a.every((x) => x.metTarget)).toBe(true);
-    expect(a.find((x) => x.line === "EQUIPO_VENTA")!.amount.toString()).toBe("10000");
-    expect(a.find((x) => x.line === "REFACCIONES")!.amount.toString()).toBe("630"); // 9000 × 7%
-    const b = r.find((x) => x.sellerId === "b")!;
-    expect(b.metTarget).toBe(false);
-    expect(b.amount.toString()).toBe("175"); // 5000 × 3.5%
+  it("la venta se considera cobrada cuando los pagos cubren el total", () => {
+    const pays = [{ amount: D(600), paidAt: new Date("2026-10-20") }, { amount: D(400), paidAt: new Date("2026-11-03") }];
+    expect(collectedAt(D(1000), pays)?.toISOString().slice(0, 10)).toBe("2026-11-03");
+    expect(collectedAt(D(1000), pays.slice(0, 1))).toBeNull();
   });
 
-  it("sin meta registrada aplica tasa roja", () => {
-    const r = calculateCommissions("NET_SALES", lines.slice(2), rates, new Map());
-    expect(r[0].metTarget).toBe(false);
+  it("meta mensual: cumplida solo con meta > 0 y venta total ≥ meta", () => {
+    expect(metTarget(D(100), D(100))).toBe(true);
+    expect(metTarget(D(99.99), D(100))).toBe(false);
+    expect(metTarget(D(500), D(0))).toBe(false);
   });
 
-  it("base margen descuenta costo", () => {
-    const r = calculateCommissions("MARGIN", lines.slice(2), rates, new Map([["b", D(1)]]));
-    expect(r[0].baseAmount.toString()).toBe("2000");
-    expect(r[0].amount.toString()).toBe("140");
+  it("comisión sobre utilidad neta después de gastos, prorrateados por línea", () => {
+    const lines = [L("SERVICIOS", "1", "1000", "0", "400"), L("TUBERIA", "2", "1000", "100", "300")];
+    const p = netProfitByLine(lines, D(190)); // neto 1000 y 900; utilidad 600 y 300; gastos 100 y 90
+    expect(p.get("SERVICIOS")!.toString()).toBe("500");
+    expect(p.get("TUBERIA")!.toString()).toBe("210");
   });
 
-  it("base cobranza no disponible", () => {
-    expect(() => calculateCommissions("COLLECTED", lines, rates, new Map())).toThrow();
+  it("aplica % alto o bajo según la meta del mes de la O.C.", () => {
+    const lines = [L("SERVICIOS", "1", "1000", "0", "400")];
+    expect(commissionForSale(lines, D(0), rates, true)[0].amount.toString()).toBe("60");
+    expect(commissionForSale(lines, D(0), rates, false)[0].amount.toString()).toBe("30");
+  });
+
+  it("utilidad negativa no genera comisión", () => {
+    const r = commissionForSale([L("SERVICIOS", "1", "100", "0", "150")], D(0), rates, true);
+    expect(r[0].amount.toString()).toBe("0");
   });
 });
 

@@ -16,6 +16,8 @@ export interface ImportRow {
   cost: Dec;
   markup: Dec;
   shipping: Dec;
+  consumables: Dec;
+  currency: "MXN" | "USD";
   price: Dec;
   taxRate: Dec;
 }
@@ -40,7 +42,9 @@ const ALIASES: Record<string, string[]> = {
   unit: ["unidad", "unit"],
   cost: ["costo", "cost"],
   markup: ["utilidad", "markup"],
-  shipping: ["envio", "shipping"],
+  shipping: ["envio", "shipping", "traslado", "transporte"],
+  consumables: ["consumibles", "consumables"],
+  currency: ["moneda", "currency"],
   price: ["precioventa", "precio", "price"],
   taxRate: ["iva", "impuesto", "taxrate"],
 };
@@ -85,7 +89,10 @@ export function parseProductCsv(text: string): ParseResult {
     const cost = num(get("cost")) ?? dec(0);
     const markup = num(get("markup")) ?? dec(0);
     const shipping = num(get("shipping")) ?? dec(0);
-    const price = num(get("price")) ?? listPrice(cost, markup, shipping);
+    const consumables = num(get("consumables")) ?? dec(0);
+    const cur = (get("currency") ?? "").toUpperCase();
+    const currency: "MXN" | "USD" = typed.line === "TUBERIA" || cur === "USD" || cur === "DLLS" ? "USD" : "MXN";
+    const price = num(get("price")) ?? listPrice(cost, markup, shipping, consumables);
     const taxRate = num(get("taxRate")) ?? dec("0.16");
     if (cost.lt(0) || price.lt(0)) return errors.push({ row: rowNo, message: "Costo o precio negativo." });
     if (taxRate.lt(0) || taxRate.gt(1)) return errors.push({ row: rowNo, message: "IVA debe ser fracción (0.16)." });
@@ -107,6 +114,8 @@ export function parseProductCsv(text: string): ParseResult {
       cost,
       markup,
       shipping,
+      consumables,
+      currency,
       price,
       taxRate,
     });

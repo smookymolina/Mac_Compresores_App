@@ -42,7 +42,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
           </select>
           <button className="btn btn-secondary">Filtrar</button>
         </form>
-        <DataTable
+        <DataTable mobileCards
           caption="Ventas"
           columns={COLUMNS}
           empty={p.q || status ? <FilteredEmpty clearHref="/ventas" /> : <EmptyState icon={Receipt} title="Sin ventas">Convierte una cotización aceptada para registrar la primera venta.</EmptyState>}

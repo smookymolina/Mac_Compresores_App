@@ -60,6 +60,8 @@ export async function voidPayment(user: CurrentUser, paymentId: string, reason: 
   if (!p) throw new AppError("Pago no encontrado.", "NOT_FOUND");
   const sale = await db.sale.findFirst({ where: { AND: [{ id: p.saleId }, saleScope(user)] }, select: { id: true } });
   if (!sale) throw new AppError("Pago no encontrado.", "NOT_FOUND");
+  const locked = await db.commissionEntry.count({ where: { saleId: p.saleId, status: { in: ["APPROVED", "PAID"] } } });
+  if (locked > 0) throw new AppError("La venta ya tiene comisión aprobada o pagada; no se puede anular el pago.", "CONFLICT");
   await db.$transaction(async (tx) => {
     const res = await tx.payment.updateMany({ where: { id: paymentId, voidedAt: null }, data: { voidedAt: new Date(), voidedById: user.id, voidReason: reason } });
     if (res.count === 0) throw new AppError("El pago ya estaba anulado.", "CONFLICT");

@@ -42,8 +42,8 @@ export function ActionForm<T>({
     <form ref={ref} onSubmit={onSubmit} className={cn("space-y-3", className)}>
       <FormErrorsContext.Provider value={fieldErrors}>{children}</FormErrorsContext.Provider>
       {confirmText && (
-        <label className="flex items-start gap-2 text-xs text-ink-soft">
-          <input type="checkbox" required className="mt-0.5 size-4 shrink-0" /> {confirmText}
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 text-xs text-ink-soft">
+          <input type="checkbox" required className="size-5 shrink-0" /> {confirmText}
         </label>
       )}
       <div className="flex flex-wrap items-center gap-3">

@@ -27,7 +27,7 @@ export async function createRuleSetAction(_: ActionResult<unknown> | null, fd: F
       }));
       const base = z.object({
         name: z.string().trim().min(3).max(100),
-        basis: z.enum(["NET_SALES", "MARGIN", "COLLECTED"]),
+        basis: z.enum(["NET_SALES", "MARGIN", "COLLECTED"]).default("MARGIN"),
         notes: z.string().trim().max(1000).optional(),
       }).parse(raw);
       await createRuleSetVersion(user, { ...base, rates });
@@ -49,11 +49,15 @@ export async function createPeriodAction(_: ActionResult<unknown> | null, fd: Fo
     await runAction(async () => {
       const user = await requirePermission("commissions.manage");
       const d = z.object({
-        name: z.string().trim().min(3).max(60),
-        startDate: z.coerce.date(),
-        endDate: z.coerce.date(),
+        month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Elige el mes"),
+        name: z.string().trim().max(60).optional(),
       }).parse(formObject(fd));
-      await createPeriod(user, d);
+      const [y, m] = d.month.split("-").map(Number);
+      await createPeriod(user, {
+        name: d.name || d.month,
+        startDate: new Date(Date.UTC(y, m - 1, 1)),
+        endDate: new Date(Date.UTC(y, m, 0)),
+      });
     }, "Periodo creado."),
   );
 }

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { uuid } from "@/lib/validation";
-import { Badge, Card, CardHeader, DataTable, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, Card, CardHeader, DataTable, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { fmtDateTime } from "@/lib/utils";
 import { LINE_LABEL } from "@/modules/products/lines";
@@ -33,6 +33,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <PageHeader
         title={product.sku}
         subtitle={product.description}
+        actions={can(user, "quotes.write") && product.status === "ACTIVE" && !product.price.isZero()
+          ? <LinkButton href={`/cotizaciones/nueva?producto=${product.id}`}>Cotizar</LinkButton> : undefined}
         meta={[
           { label: "Estado", value: product.status === "ACTIVE" ? "Activo" : "Inactivo" },
           { label: "Tipo", value: product.kind === "SERVICE" ? "Servicio" : "Producto" },
@@ -45,9 +47,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           ) : (
             <dl className="grid grid-cols-[minmax(0,10rem)_1fr] gap-x-4 gap-y-2 text-sm">
               <dt className="text-ink-soft">Línea</dt><dd>{LINE_LABEL[product.line]}</dd>
-              <dt className="text-ink-soft">Categoría</dt><dd>{product.category?.name ?? "—"}</dd>
+              <dt className="text-ink-soft">Categoría</dt><dd className="break-words">{product.category?.name ?? "—"}</dd>
               <dt className="text-ink-soft">Unidad</dt><dd>{product.unit}</dd>
-              <dt className="text-ink-soft">Marca OEM</dt><dd>{product.oemName ?? "—"}</dd>
+              <dt className="text-ink-soft">Marca OEM</dt><dd className="break-words">{product.oemName ?? "—"}</dd>
               <dt className="text-ink-soft">No. parte OEM</dt><dd className="mono break-all">{product.oemPartNumber ?? "—"}</dd>
               <dt className="text-ink-soft">Item # / proveedor</dt><dd className="mono break-all">{product.supplierCode ?? "—"}</dd>
               <dt className="text-ink-soft">Precio</dt>
@@ -66,13 +68,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 const low = b.minStock.gt(0) && b.quantity.lte(b.minStock);
                 return (
                   <li key={b.warehouseId} className="flex items-center justify-between gap-3 px-4 py-2">
-                    <span className="min-w-0">
+                    <span className="min-w-0 break-words">
                       {b.warehouse.name}
                       {b.minStock.gt(0) && <span className="block text-xs text-muted">Mínimo {b.minStock.toString()}</span>}
                     </span>
-                    <span className="flex items-center gap-2">
+                    <span className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                       {low && <Badge tone="red">Bajo mínimo</Badge>}
-                      <span className="tabular-nums">{b.quantity.toString()} {product.unit}</span>
+                      <span className="whitespace-nowrap tabular-nums">{b.quantity.toString()} {product.unit}</span>
                     </span>
                   </li>
                 );
@@ -106,7 +108,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               { id: "alm", header: "Almacén", sortable: true },
               { id: "tipo", header: "Tipo", sortable: true },
               { id: "cant", header: "Cantidad", align: "right", sortable: true },
-              { id: "motivo", header: "Motivo" },
+              { id: "motivo", header: "Motivo", cellClass: "min-w-48" },
               { id: "usuario", header: "Usuario", sortable: true },
             ]}
             rows={movements.map((m) => ({

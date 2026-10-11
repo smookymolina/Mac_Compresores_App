@@ -39,7 +39,7 @@ export default async function ReportsPage() {
                   </>
                 )}
                 <div className="col-span-2 flex flex-wrap gap-2">
-                  <button className="btn btn-secondary"><Download size={16} strokeWidth={1.75} aria-hidden /> Descargar CSV</button>
+                  <button className="btn btn-secondary flex-1 sm:flex-none"><Download size={16} strokeWidth={1.75} aria-hidden /> Descargar CSV</button>
                   <SendDialog
                     triggerLabel="Enviar"
                     title={`Enviar reporte: ${r.title}`}

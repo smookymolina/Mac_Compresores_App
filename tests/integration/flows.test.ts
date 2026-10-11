@@ -1,12 +1,12 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { dec } from "@/lib/money";
 import { ROLE_PERMISSIONS, type RoleCode } from "@/lib/auth/permissions";
 import type { CurrentUser } from "@/lib/auth/session";
 import { changeQuoteStatus, createQuote, getQuote, updateQuote } from "@/modules/quotes/service";
-import { convertQuoteToSale, cancelSale } from "@/modules/sales/service";
+import { convertQuoteToSale, cancelSale, setSaleExpenses } from "@/modules/sales/service";
 import { registerMovement, reverseMovement } from "@/modules/inventory/service";
-import { saveProduct } from "@/modules/products/service";
+import { saveProduct, setExchangeRate } from "@/modules/products/service";
+import { registerPayment, voidPayment } from "@/modules/payments/service";
 import {
   activateRuleSet, approveSeller, calculatePeriod, createPeriod, createRuleSetVersion, setTarget,
 } from "@/modules/commissions/service";
@@ -123,39 +123,88 @@ describe("ventas e inventario", () => {
   });
 });
 
-describe("comisiones versionadas", () => {
-  it("calcula con la regla activa, conserva la versión y bloquea recálculo tras aprobar", async () => {
+describe("lista de precios en USD", () => {
+  it("la tubería se guarda en USD y se cotiza en MXN con el TC vigente (+IVA)", async () => {
+    const tub = await saveProduct(admin, {
+      sku: "TUB-1", description: "Tubo aluminio", line: "TUBERIA", kind: "PRODUCT", unit: "M", cost: "10", markup: "0.5",
+      shipping: "1", consumables: "0.5", currency: "MXN", taxRate: "0.16", status: "ACTIVE",
+    });
+    expect(tub.currency).toBe("USD"); // forzado por ser tubería
+    expect(tub.price.toString()).toBe("16.5"); // 10 + 50% + 1 traslado + 0.5 consumibles
+    const item = { productId: tub.id, quantity: "2", discountPct: "0", details: "Instalación de 2 m" };
+    await expect(createQuote(sellerA, { customerId: customerA, validUntil: validUntil(), items: [item] })).rejects.toThrow(/tipo de cambio/);
+    await setExchangeRate(admin, "18.5");
+    const q = await getQuote(admin, (await createQuote(sellerA, { customerId: customerA, validUntil: validUntil(), items: [item] })).id);
+    const it0 = q.items[0];
+    expect(it0.unitPrice.toString()).toBe("305.25"); // 16.5 USD × 18.5
+    expect(it0.unitCost.toString()).toBe("212.75"); // (10 + 1 + 0.5) × 18.5
+    expect(it0.origCurrency).toBe("USD");
+    expect(it0.details).toBe("Instalación de 2 m");
+    expect(q.total.toString()).toBe("708.18"); // 610.50 + 16% IVA
+    await db.product.update({ where: { id: tub.id }, data: { status: "INACTIVE" } });
+  });
+});
+
+describe("comisiones: meta mensual, cobro y % del mes de la O.C.", () => {
+  it("solo comisiona lo cobrado; el cobro diferido conserva el % del mes de la O.C.", async () => {
     const lines = ["EQUIPO_VENTA", "RENTA", "REFACCIONES", "TUBERIA", "SERVICIOS", "KITS", "VALVULAS_OTROS"] as const;
     const v1 = await createRuleSetVersion(admin, {
-      name: "T", basis: "NET_SALES", rates: lines.map((line) => ({ line, rateMet: "0.07", rateNotMet: "0.035" })),
+      name: "T", basis: "MARGIN", rates: lines.map((line) => ({ line, rateMet: "0.07", rateNotMet: "0.035" })),
     });
     await activateRuleSet(admin, v1.id);
-    await acceptedQuote("1").then((q) => convertQuoteToSale(sellerA, q.id, whId));
 
-    const today = new Date();
-    const start = new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1));
-    const end = new Date(Date.UTC(today.getFullYear(), today.getMonth() + 1, 0));
-    const period = await createPeriod(admin, { name: "P-test", startDate: start, endDate: end });
-    await setTarget(admin, period.id, sellerA.id, "1"); // meta mínima → cumplida
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    const prev = await createPeriod(admin, { name: "P-prev", startDate: new Date(Date.UTC(y, m - 1, 1)), endDate: new Date(Date.UTC(y, m, 0)) });
+    const period = await createPeriod(admin, { name: "P-test", startDate: new Date(Date.UTC(y, m, 1)), endDate: new Date(Date.UTC(y, m + 1, 0)) });
+    await expect(createPeriod(admin, { name: "X", startDate: new Date(Date.UTC(y, m, 2)), endDate: new Date(Date.UTC(y, m + 1, 0)) })).rejects.toThrow(/mensual/);
+    await setTarget(admin, prev.id, sellerA.id, "1"); // mes N: meta cumplida
+    await setTarget(admin, period.id, sellerA.id, "999999999"); // mes N+1: no cumplida
+
+    // O.C. del mes N que se cobra en N+1, y O.C. del mes N+1 cobrada en N+1.
+    const oldSale = await acceptedQuote("1").then((q) => convertQuoteToSale(sellerA, q.id, whId));
+    await db.sale.update({ where: { id: oldSale.id }, data: { confirmedAt: new Date(Date.UTC(y, m - 1, 15, 18)) } });
+    const newSale = await acceptedQuote("1").then((q) => convertQuoteToSale(sellerA, q.id, whId));
 
     await calculatePeriod(admin, period.id);
-    const entries = await db.commissionEntry.findMany({ where: { periodId: period.id, sellerId: sellerA.id } });
-    expect(entries.length).toBeGreaterThan(0);
-    expect(entries.every((e) => e.ruleSetId === v1.id && e.metTarget)).toBe(true);
-    const refa = entries.find((e) => e.line === "REFACCIONES")!;
-    expect(refa.amount.toString()).toBe(refa.baseAmount.mul("0.07").toDecimalPlaces(2).toString());
+    expect(await db.commissionEntry.count({ where: { periodId: period.id } })).toBe(0); // sin cobro, sin comisión
+
+    const today = new Date(Date.UTC(y, m, now.getDate()));
+    for (const s of [oldSale, newSale]) await registerPayment(admin, s.id, { amount: s.total.toString(), paidAt: today, method: "TRANSFER" });
+
+    await calculatePeriod(admin, prev.id);
+    expect(await db.commissionEntry.count({ where: { periodId: prev.id } })).toBe(0); // cobrada en N+1: no se paga en N
+
+    await calculatePeriod(admin, period.id);
+    const entries = await db.commissionEntry.findMany({ where: { periodId: period.id } });
+    const oldE = entries.filter((e) => e.saleId === oldSale.id);
+    const newE = entries.filter((e) => e.saleId === newSale.id);
+    expect(oldE.length).toBeGreaterThan(0);
+    expect(oldE.every((e) => e.metTarget && e.rate.toString() === "0.07")).toBe(true); // % alto del mes N
+    expect(newE.every((e) => !e.metTarget && e.rate.toString() === "0.035")).toBe(true); // % bajo del mes N+1
+    const refa = newE.find((e) => e.line === "REFACCIONES")!;
+    expect(refa.baseAmount.toString()).toBe("500"); // utilidad neta: 1500 − 1000
+    expect(refa.amount.toString()).toBe("17.5");
+
+    // Gastos de la venta reducen la utilidad comisionable.
+    await setSaleExpenses(admin, newSale.id, "100");
+    await calculatePeriod(admin, period.id);
+    const refa2 = await db.commissionEntry.findFirstOrThrow({ where: { periodId: period.id, saleId: newSale.id, line: "REFACCIONES" } });
+    expect(refa2.baseAmount.lt(500)).toBe(true);
 
     const v2 = await createRuleSetVersion(admin, {
-      name: "T", basis: "NET_SALES", rates: lines.map((line) => ({ line, rateMet: "0.5", rateNotMet: "0.5" })),
+      name: "T", basis: "MARGIN", rates: lines.map((line) => ({ line, rateMet: "0.5", rateNotMet: "0.5" })),
     });
     expect(v2.version).toBe(2);
     await approveSeller(admin, period.id, sellerA.id);
     await activateRuleSet(admin, v2.id);
     await expect(calculatePeriod(admin, period.id)).rejects.toThrow(/aprobadas/);
-    const kept = await db.commissionEntry.findFirstOrThrow({ where: { id: refa.id } });
+    const kept = await db.commissionEntry.findFirstOrThrow({ where: { id: refa2.id } });
     expect(kept.ruleSetId).toBe(v1.id);
-    expect(kept.rate.toString()).toBe("0.07");
-    expect(dec(kept.amount).eq(refa.amount)).toBe(true);
+    expect(kept.rate.toString()).toBe("0.035");
+    const pay = await db.payment.findFirstOrThrow({ where: { saleId: newSale.id } });
+    await expect(voidPayment(admin, pay.id, "prueba")).rejects.toThrow(/comisión/);
+    await expect(setSaleExpenses(admin, newSale.id, "0")).rejects.toThrow(/aprobada/);
   });
 
   it("no se cancela una venta de un periodo con comisiones aprobadas", async () => {

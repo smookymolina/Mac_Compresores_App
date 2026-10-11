@@ -28,7 +28,7 @@ const collator = new Intl.Collator("es", { numeric: true, sensitivity: "base" })
  * de carga / error / vacío. No cambia consultas ni paginación: solo reordena lo recibido.
  */
 export function DataTable({
-  columns, rows, empty, error, loading, caption, foot,
+  columns, rows, empty, error, loading, caption, foot, mobileCards = false,
 }: {
   columns: DataColumn[];
   rows: DataRow[];
@@ -38,6 +38,8 @@ export function DataTable({
   caption?: string;
   /** Fila de totales (no se ordena); una celda por columna. */
   foot?: React.ReactNode[];
+  /** < 640 px: cada fila se muestra como tarjeta (etiqueta: valor) en lugar de scroll horizontal. */
+  mobileCards?: boolean;
 }) {
   const [sort, setSort] = useState<{ col: number; dir: "asc" | "desc" } | null>(null);
 
@@ -62,7 +64,7 @@ export function DataTable({
 
   return (
     <TableWrap>
-      <table className="table">
+      <table className={cn("table", mobileCards && "table-stack")}>
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
           <tr>
@@ -91,7 +93,7 @@ export function DataTable({
           {sorted.map((r) => (
             <tr key={r.id}>
               {r.cells.map((cell, i) => (
-                <td key={columns[i].id} className={cn(columns[i].align === "right" && "num", columns[i].cellClass)}>{cell}</td>
+                <td key={columns[i].id} data-label={mobileCards && i > 0 ? columns[i].header : undefined} className={cn(columns[i].align === "right" && "num", columns[i].cellClass)}>{cell}</td>
               ))}
             </tr>
           ))}
@@ -100,7 +102,7 @@ export function DataTable({
           <tfoot>
             <tr>
               {foot.map((cell, i) => (
-                <td key={columns[i].id} className={cn(columns[i].align === "right" && "num")}>{cell}</td>
+                <td key={columns[i].id} data-label={mobileCards && i > 0 && cell != null && cell !== "" ? columns[i].header : undefined} className={cn(columns[i].align === "right" && "num")}>{cell}</td>
               ))}
             </tr>
           </tfoot>

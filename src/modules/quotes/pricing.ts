@@ -1,6 +1,6 @@
-import type { ProductKind, ProductLine, ProductStatus } from "@prisma/client";
+import type { Currency, ProductKind, ProductLine, ProductStatus } from "@prisma/client";
 import { AppError } from "@/lib/errors";
-import { computeLine, dec, sumLines, type Dec, type LineAmounts } from "@/lib/money";
+import { computeLine, dec, round2, sumLines, toMxn, type Dec, type LineAmounts } from "@/lib/money";
 import { MAX_DISCOUNT_WITHOUT_OVERRIDE } from "@/lib/auth/permissions";
 
 export interface CatalogProduct {
@@ -11,6 +11,9 @@ export interface CatalogProduct {
   kind: ProductKind;
   unit: string;
   cost: Dec;
+  shipping?: Dec;
+  consumables?: Dec;
+  currency?: Currency;
   price: Dec;
   taxRate: Dec;
   status: ProductStatus;
@@ -20,7 +23,8 @@ export interface RequestedItem {
   productId: string;
   quantity: string;
   discountPct: string; // fracción
-  unitPrice?: string; // solo con permiso de sobrescritura
+  unitPrice?: string; // MXN; solo con permiso de sobrescritura
+  details?: string; // actividades/alcance del servicio
 }
 
 export interface ItemSnapshot extends LineAmounts {
@@ -36,6 +40,16 @@ export interface ItemSnapshot extends LineAmounts {
   unitCost: Dec;
   discountPct: Dec;
   taxRate: Dec;
+  details: string | null;
+  origCurrency: Currency;
+  origUnitPrice: Dec;
+  fxRate: Dec;
+}
+
+/** Precio de lista en MXN (convierte productos en USD, p. ej. tubería, con el TC dado). */
+export function catalogPriceMxn(p: Pick<CatalogProduct, "price" | "currency">, fx: Dec | null | undefined): Dec {
+  if (p.currency === "USD" && !fx) throw new AppError("Captura el tipo de cambio USD antes de cotizar productos en dólares.");
+  return round2(toMxn(p.price, p.currency ?? "MXN", fx ?? 1));
 }
 
 /**
@@ -45,7 +59,7 @@ export interface ItemSnapshot extends LineAmounts {
 export function buildItemSnapshots(
   requested: RequestedItem[],
   catalog: Map<string, CatalogProduct>,
-  opts: { canOverridePrice: boolean },
+  opts: { canOverridePrice: boolean; fx?: Dec | null },
 ): { items: ItemSnapshot[]; totals: ReturnType<typeof sumLines> } {
   if (requested.length === 0) throw new AppError("La cotización necesita al menos una partida.");
 
@@ -65,8 +79,11 @@ export function buildItemSnapshots(
       );
     }
 
-    let unitPrice = p.price;
-    if (r.unitPrice !== undefined && r.unitPrice !== "" && !dec(r.unitPrice).eq(p.price)) {
+    const currency = p.currency ?? "MXN";
+    const fx = currency === "USD" ? (opts.fx ?? null) : null;
+    const listMxn = catalogPriceMxn(p, fx);
+    let unitPrice = listMxn;
+    if (r.unitPrice !== undefined && r.unitPrice !== "" && !dec(r.unitPrice).eq(listMxn)) {
       if (!opts.canOverridePrice) throw new AppError(`Partida ${idx + 1}: no puedes modificar el precio de lista.`);
       unitPrice = dec(r.unitPrice);
     }
@@ -85,9 +102,14 @@ export function buildItemSnapshots(
       unit: p.unit,
       quantity,
       unitPrice,
-      unitCost: p.cost,
+      // Costo total por unidad (base + traslado + consumibles) en MXN: utilidad neta después de gastos.
+      unitCost: toMxn(p.cost.add(p.shipping ?? 0).add(p.consumables ?? 0), currency, fx ?? 1).toDecimalPlaces(4),
       discountPct,
       taxRate: p.taxRate,
+      details: r.details?.trim() || null,
+      origCurrency: currency,
+      origUnitPrice: p.price,
+      fxRate: fx ?? dec(1),
       ...amounts,
     };
   });

@@ -4,7 +4,7 @@ import { can, requirePagePermission } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
 import { uuid } from "@/lib/validation";
 import { getSale } from "@/modules/sales/service";
-import { cancelSaleAction } from "@/modules/sales/actions";
+import { cancelSaleAction, setSaleExpensesAction } from "@/modules/sales/actions";
 import { LINE_LABEL } from "@/modules/products/lines";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, CardHeader, DataTable, Field, PageHeader, SelectField } from "@/components/ui";
@@ -56,6 +56,27 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="overflow-hidden lg:col-span-2">
           <CardHeader title="Partidas" />
+          {/* Móvil: partidas como tarjetas; la tabla queda para md+ */}
+          <ul className="divide-y divide-line md:hidden" aria-label="Partidas de la venta">
+            {s.items.map((i) => (
+              <li key={i.id} className="space-y-1 px-4 py-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <b className="break-words">{i.sku}</b>
+                    <div className="break-words text-xs text-ink-soft">{i.description}</div>
+                    {i.origCurrency === "USD" && i.origUnitPrice && <div className="text-xs text-ink-soft">USD {i.origUnitPrice.toFixed(2)} × TC {i.fxRate.toFixed(4)}</div>}
+                    {i.details && <div className="mt-1 whitespace-pre-line break-words text-xs">{i.details}</div>}
+                  </div>
+                  <span className="num shrink-0 font-medium">{fmtMoney(i.subtotal.sub(i.discount))}</span>
+                </div>
+                <div className="flex flex-wrap gap-x-3 text-xs tabular-nums text-ink-soft">
+                  <span>{i.quantity.toString()} {i.unit} × {fmtMoney(i.unitPrice)}</span>
+                  <span>{LINE_LABEL[i.line].split(" (")[0]}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block">
           <DataTable
             caption="Partidas de la venta"
             columns={[
@@ -68,7 +89,9 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
             rows={s.items.map((i) => ({
               id: i.id,
               cells: [
-                <div key="c"><b>{i.sku}</b><div className="text-xs text-ink-soft">{i.description}</div></div>,
+                <div key="c"><b>{i.sku}</b><div className="text-xs text-ink-soft">{i.description}</div>
+                  {i.origCurrency === "USD" && i.origUnitPrice && <div className="text-xs text-ink-soft">USD {i.origUnitPrice.toFixed(2)} × TC {i.fxRate.toFixed(4)}</div>}
+                  {i.details && <div className="mt-1 whitespace-pre-line text-xs">{i.details}</div>}</div>,
                 <span key="l" className="text-ink-soft">{LINE_LABEL[i.line].split(" (")[0]}</span>,
                 `${i.quantity.toString()} ${i.unit}`,
                 fmtMoney(i.unitPrice),
@@ -76,7 +99,8 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
               ],
             }))}
           />
-          <dl className="ml-auto grid w-64 grid-cols-2 gap-1 p-4 text-sm">
+          </div>
+          <dl className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-1 border-t border-line p-4 text-sm md:ml-auto md:w-72 md:border-t-0">
             <dt className="text-ink-soft">Subtotal</dt><dd className="num">{fmtMoney(s.subtotal)}</dd>
             <dt className="text-ink-soft">Descuento</dt><dd className="num">-{fmtMoney(s.discountTotal)}</dd>
             <dt className="text-ink-soft">IVA</dt><dd className="num">{fmtMoney(s.taxTotal)}</dd>
@@ -95,12 +119,36 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
               />
             )}
           />
-          <dl className="grid grid-cols-1 gap-px bg-line text-sm sm:grid-cols-3">
-            <div className="bg-panel p-4"><dt className="text-ink-soft">Total</dt><dd className="num kpi-value mt-1 text-left text-lg">{fmtMoney(s.total)}</dd></div>
-            <div className="bg-panel p-4"><dt className="text-ink-soft">Pagado</dt><dd className="num kpi-value mt-1 text-left text-lg">{fmtMoney(paid)}</dd></div>
-            <div className="bg-panel p-4"><dt className="text-ink-soft">Saldo</dt><dd className={`num kpi-value mt-1 text-left text-lg ${overdue ? "text-danger" : ""}`}>{fmtMoney(balance)}</dd></div>
+          <dl className="grid grid-cols-3 gap-px bg-line text-sm">
+            <div className="min-w-0 bg-panel p-3 sm:p-4"><dt className="text-xs text-ink-soft sm:text-sm">Total</dt><dd className="num kpi-value mt-1 text-left text-sm [overflow-wrap:anywhere] sm:text-lg">{fmtMoney(s.total)}</dd></div>
+            <div className="min-w-0 bg-panel p-3 sm:p-4"><dt className="text-xs text-ink-soft sm:text-sm">Pagado</dt><dd className="num kpi-value mt-1 text-left text-sm [overflow-wrap:anywhere] sm:text-lg">{fmtMoney(paid)}</dd></div>
+            <div className="min-w-0 bg-panel p-3 sm:p-4"><dt className="text-xs text-ink-soft sm:text-sm">Saldo</dt><dd className={`num kpi-value mt-1 text-left text-sm [overflow-wrap:anywhere] sm:text-lg ${overdue ? "text-danger" : ""}`}>{fmtMoney(balance)}</dd></div>
           </dl>
           {payments.length > 0 && (
+            <ul className="divide-y divide-line border-t border-line md:hidden" aria-label="Pagos de la venta">
+              {payments.map((p) => (
+                <li key={p.id} className="space-y-1 px-4 py-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <span>{fmtDate(p.paidAt)} · {METHOD_LABEL[p.method]}</span>
+                    {p.voidedAt ? <s className="num shrink-0 text-muted">{fmtMoney(p.amount)}</s> : <span className="num shrink-0 font-medium">{fmtMoney(p.amount)}</span>}
+                  </div>
+                  <div className="break-words text-xs text-ink-soft">
+                    {p.voidedAt ? `Anulado: ${p.voidReason}` : (p.reference ?? "Sin referencia")} · Registró {p.createdBy.name}
+                  </div>
+                  {canPay && !p.voidedAt && (
+                    <details className="pt-1">
+                      <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm text-danger">Anular pago</summary>
+                      <ActionForm action={voidPaymentAction.bind(null, p.id)} submitLabel="Anular pago" variant="danger" className="mt-2">
+                        <Field label="Motivo" name="reason" required minLength={5} />
+                      </ActionForm>
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {payments.length > 0 && (
+            <div className="hidden md:block">
             <DataTable
               caption="Pagos de la venta"
               columns={[
@@ -130,6 +178,7 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
                 ],
               }))}
             />
+            </div>
           )}
           {canPay && s.status === "CONFIRMED" && balance.gt(0) && (
             <div className="border-t border-line p-4">
@@ -143,6 +192,15 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
             </div>
           )}
         </Card>
+        {s.status === "CONFIRMED" && can(user, "commissions.manage") && (
+          <Card className="p-4">
+            <h3 className="mb-2 text-sm font-semibold">Gastos de la venta</h3>
+            <p className="mb-3 text-xs text-ink-soft">Viáticos, maniobras u otros gastos no incluidos en el costo. Se restan a la utilidad neta sobre la que se calcula la comisión.</p>
+            <ActionForm action={setSaleExpensesAction.bind(null, s.id)} submitLabel="Guardar gastos" variant="secondary">
+              <Field label="Gastos (MXN, sin IVA)" name="expenses" inputMode="decimal" defaultValue={s.expenses.toString()} required />
+            </ActionForm>
+          </Card>
+        )}
         {s.status === "CONFIRMED" && can(user, "commissions.approve") && (
           <Card className="p-4">
             <h3 className="mb-2 text-sm font-semibold">Cancelar venta</h3>

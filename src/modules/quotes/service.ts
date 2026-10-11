@@ -6,6 +6,7 @@ import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
 import { customerScope } from "@/modules/customers/service";
 import { buildItemSnapshots, type RequestedItem } from "./pricing";
+import { currentExchangeRate } from "@/modules/products/service";
 import { notify } from "@/modules/notifications/service";
 import { QUOTE_STATUS_LABEL, canTransition } from "./status";
 
@@ -43,7 +44,7 @@ export async function getQuote(user: CurrentUser, id: string) {
     where: { AND: [{ id }, quoteScope(user)] },
     include: {
       customer: { include: { addresses: true, contacts: true } },
-      seller: { select: { id: true, name: true, email: true } },
+      seller: { select: { id: true, name: true, email: true, signatureHtml: true } },
       items: { orderBy: { position: "asc" } },
       sale: { select: { id: true, folio: true } },
     },
@@ -61,9 +62,13 @@ export interface QuoteInput {
 
 async function snapshots(user: CurrentUser, items: RequestedItem[]) {
   const products = await db.product.findMany({ where: { id: { in: items.map((i) => i.productId) } } });
-  return buildItemSnapshots(items, new Map(products.map((p) => [p.id, p])), {
+  const usesUsd = products.some((p) => p.currency === "USD");
+  const fx = usesUsd ? ((await currentExchangeRate())?.rate ?? null) : null;
+  const res = buildItemSnapshots(items, new Map(products.map((p) => [p.id, p])), {
     canOverridePrice: can(user, "quotes.override_price"),
+    fx,
   });
+  return { ...res, exchangeRate: fx };
 }
 
 function itemRows(items: Awaited<ReturnType<typeof snapshots>>["items"]) {
@@ -72,13 +77,14 @@ function itemRows(items: Awaited<ReturnType<typeof snapshots>>["items"]) {
     line: i.line, kind: i.kind, unit: i.unit, quantity: i.quantity, unitPrice: i.unitPrice,
     unitCost: i.unitCost, discountPct: i.discountPct, taxRate: i.taxRate,
     subtotal: i.subtotal, discount: i.discount, tax: i.tax, total: i.total,
+    details: i.details, origCurrency: i.origCurrency, origUnitPrice: i.origUnitPrice, fxRate: i.fxRate,
   }));
 }
 
 export async function createQuote(user: CurrentUser, input: QuoteInput) {
   const customer = await db.customer.findFirst({ where: { AND: [{ id: input.customerId }, customerScope(user)] } });
   if (!customer) throw new AppError("Cliente no encontrado.", "NOT_FOUND");
-  const { items, totals } = await snapshots(user, input.items);
+  const { items, totals, exchangeRate } = await snapshots(user, input.items);
 
   return db.$transaction(async (tx) => {
     const quote = await tx.quote.create({
@@ -87,6 +93,7 @@ export async function createQuote(user: CurrentUser, input: QuoteInput) {
         sellerId: user.id,
         validUntil: input.validUntil,
         notes: input.notes || null,
+        exchangeRate,
         ...totals,
         items: { create: itemRows(items) },
       },
@@ -103,12 +110,12 @@ export async function updateQuote(user: CurrentUser, id: string, input: QuoteInp
   if (current.status !== "DRAFT") throw new AppError("Solo se pueden editar cotizaciones en borrador.", "CONFLICT");
   const customer = await db.customer.findFirst({ where: { AND: [{ id: input.customerId }, customerScope(user)] } });
   if (!customer) throw new AppError("Cliente no encontrado.", "NOT_FOUND");
-  const { items, totals } = await snapshots(user, input.items);
+  const { items, totals, exchangeRate } = await snapshots(user, input.items);
 
   return db.$transaction(async (tx) => {
     const res = await tx.quote.updateMany({
       where: { id, status: "DRAFT", updatedAt: current.updatedAt }, // bloqueo optimista
-      data: { customerId: customer.id, validUntil: input.validUntil, notes: input.notes || null, ...totals },
+      data: { customerId: customer.id, validUntil: input.validUntil, notes: input.notes || null, exchangeRate, ...totals },
     });
     if (res.count === 0) throw new AppError("La cotización cambió mientras la editabas. Recarga.", "CONFLICT");
     await tx.quoteItem.deleteMany({ where: { quoteId: id } });
@@ -145,4 +152,19 @@ function startOfToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+/** Eliminación definitiva de una cotización. Solo el rol con `quotes.delete` (Administrador). */
+export async function deleteQuote(user: CurrentUser, id: string) {
+  if (!can(user, "quotes.delete")) throw new AppError("No tienes permiso para eliminar cotizaciones.", "FORBIDDEN");
+  const quote = await getQuote(user, id);
+  if (quote.status === "CONVERTED" || quote.sale) {
+    throw new AppError("Una cotización convertida en venta no se puede eliminar. Cancélala en su lugar.", "CONFLICT");
+  }
+  await db.$transaction(async (tx) => {
+    await tx.quoteItem.deleteMany({ where: { quoteId: id } });
+    await tx.quote.delete({ where: { id } });
+    await audit({ userId: user.id, action: "quote.delete", entity: "Quote", entityId: id,
+      data: { folio: quote.folio, status: quote.status, total: quote.total.toString() } }, tx);
+  });
 }

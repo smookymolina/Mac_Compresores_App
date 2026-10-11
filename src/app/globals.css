@@ -532,7 +532,7 @@ a, button, select, summary, label { touch-action: manipulation; }
 
 /* Fuera de @layer: debe ganar a las utilidades de padding de <main>. Deja espacio para la barra fija. */
 .app-main { overflow-x: clip; background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 22px 22px; }
-@media (max-width: 767px) { .app-main:has(.page-actions) { padding-bottom: 5.5rem; } }
+@media (max-width: 767px) { .app-main:has(.page-actions) { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); } }
 
 @keyframes enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
@@ -681,3 +681,53 @@ a, button, select, summary, label { touch-action: manipulation; }
 /* ---- Ajustes móvil v1.2.0: modales dentro de celdas de tabla y enlaces largos ---- */
 .dialog { text-align: start; white-space: normal; }
 .send-link-url { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ---- Ajustes móvil v1.3 (360–430 px): zoom iOS, bottom-sheet, safe-area, objetivos táctiles ---- */
+body { overflow-x: clip; padding-inline: env(safe-area-inset-left) env(safe-area-inset-right); }
+@layer components {
+  /* iOS hace zoom al enfocar campos < 16 px */
+  @media (max-width: 767px) { .input, textarea.input, select.input, .search .input { font-size: 1rem; line-height: 1.5rem; } }
+  @media (pointer: coarse) {
+    .search-trigger { min-height: var(--hit); }
+    .input-action { min-width: var(--hit); }
+    .tap { min-height: var(--hit); }
+  }
+  @media (pointer: coarse) and (max-width: 1023px) { .search-trigger { width: var(--hit); } }
+  /* Marco interno del <Dialog>: hereda el alto máximo del diálogo para que el cuerpo haga scroll y el header quede fijo */
+  .dialog-frame { max-height: inherit; }
+  .dialog-left > .dialog-frame, .dialog-right > .dialog-frame { max-height: none; }
+  /* Modales centrados → bottom-sheet en móvil, con scroll interno y safe-area */
+  @media (max-width: 639px) {
+    .dialog-center, .dialog-center.send-dialog, .dialog-center.reminder-dialog {
+      margin: auto 0 0; width: 100vw; max-width: 100vw; max-height: 90dvh;
+      border-radius: var(--r-lg) var(--r-lg) 0 0; border-inline: 0; border-bottom: 0;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .dialog-center[open] { animation: sheet-up var(--dur) var(--ease); }
+    .dialog-center > .dialog-frame { max-height: calc(90dvh - env(safe-area-inset-bottom)); }
+  }
+  .dialog-left { padding-left: env(safe-area-inset-left); padding-bottom: env(safe-area-inset-bottom); }
+  .dialog-right { padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); }
+  /* Pie de botones de diálogo reutilizable: apilado en móvil, a la derecha en ≥sm */
+  .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; padding-top: 0.25rem; }
+  @media (max-width: 639px) { .dialog-actions { flex-direction: column-reverse; align-items: stretch; } }
+  /* Títulos de página con SKU/razón social largos: cortan en móvil sin desbordar */
+  .page-head > .relative { max-width: 100%; }
+  .page-title > span { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
+  /* Tooltips de gráficas visibles al tocar en pantallas táctiles */
+  @media (hover: none) { .mb-col[data-tip]:focus::after { opacity: 1; transform: none; } }
+  /* Lista en tarjetas en móvil: <table class="table table-stack"> + data-label en cada <td> */
+  @media (max-width: 639px) {
+    .table.table-stack { width: 100%; min-width: 0; }
+    .table-stack thead { display: none; }
+    .table-stack tbody tr { display: block; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+    .table-stack tbody td { display: flex; justify-content: space-between; gap: 1rem; height: auto; max-width: none; padding: 0.25rem 0; border: 0; text-align: right; }
+    .table-stack tbody td:first-child { position: static; border: 0; justify-content: flex-start; text-align: left; font-weight: 500; }
+    .table-stack tfoot tr { display: block; padding: 0.5rem 0.75rem; background: var(--panel-2); }
+    .table-stack tfoot td { display: flex; justify-content: space-between; gap: 1rem; height: auto; padding: 0.25rem 0; border: 0; text-align: right; }
+    .table-stack tfoot td:empty { display: none; }
+    .table-stack td[data-label]::before { content: attr(data-label); flex: none; color: var(--muted); font-size: 0.75rem; text-align: left; }
+  }
+}
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@media (prefers-reduced-motion: reduce) { .dialog-center[open] { animation: none; } }

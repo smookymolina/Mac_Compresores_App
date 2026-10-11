@@ -43,10 +43,45 @@ export default async function ReceivablesPage({ searchParams }: { searchParams: 
         <Stat icon={AlarmClock} label="Vencido" value={fmtMoney(overdueAmt)} tone={overdue.length > 0 ? "red" : undefined} hint={`${overdue.length} ventas vencidas`} />
       </StatGroup>
       <Card className="overflow-hidden">
-        <div className="toolbar">
-          <Link href="/cobranza" className={`btn ${vencidas ? "btn-ghost" : "btn-secondary"}`}>Todas</Link>
-          <Link href="/cobranza?vencidas=1" className={`btn ${vencidas ? "btn-secondary" : "btn-ghost"}`}>Solo vencidas</Link>
-        </div>
+        <nav className="toolbar flex-nowrap" aria-label="Filtro de cobranza">
+          <Link href="/cobranza" aria-current={vencidas ? undefined : "page"} className={`btn max-md:!basis-0 ${vencidas ? "btn-ghost" : "btn-secondary"}`}>Todas</Link>
+          <Link href="/cobranza?vencidas=1" aria-current={vencidas ? "page" : undefined} className={`btn max-md:!basis-0 ${vencidas ? "btn-secondary" : "btn-ghost"}`}>Solo vencidas</Link>
+        </nav>
+        {/* Móvil: tarjetas con saldo y recordatorio a la vista; la tabla queda para md+ */}
+        {rows.length > 0 && (
+          <ul className="divide-y divide-line md:hidden" aria-label="Cuentas por cobrar">
+            {rows.map((r) => {
+              const d = drafts?.get(r.id);
+              return (
+                <li key={r.id} className="space-y-2 px-4 py-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <Link className="inline-flex min-h-11 items-center font-medium text-accent-fg hover:underline" href={`/ventas/${r.id}`}>V-{r.folio}</Link>
+                      <div className="break-words">{r.customer}</div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="num text-base font-semibold">{fmtMoney(r.balance)}</div>
+                      <div className="num text-xs text-ink-soft">de {fmtMoney(r.total)}</div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-soft">
+                    {r.overdue ? <Badge tone="red">Vencida</Badge> : <Badge tone="amber">Por cobrar</Badge>}
+                    <span>Vence {fmtDate(r.due)}</span>
+                    {d?.lastSentAt && <span>Recordatorio: {fmtDateTime(d.lastSentAt)}</span>}
+                  </div>
+                  {canRemind && d && (
+                    <ReminderButton
+                      saleId={r.id} folio={r.folio} customer={r.customer} balance={fmtMoney(r.balance)}
+                      due={fmtDate(r.due)} replyTo={d.replyTo} to={d.to} message={d.message} lastSentAt={d.lastSentAt}
+                      nextAllowedAt={d.nextAllowedAt} mailConfigured={mailOk} variant="button"
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div className={rows.length > 0 ? "hidden md:block" : undefined}>
         <DataTable
           caption="Cuentas por cobrar"
           columns={canRemind ? [...COLUMNS, ACTIONS_COL] : COLUMNS}
@@ -75,6 +110,7 @@ export default async function ReceivablesPage({ searchParams }: { searchParams: 
             };
           })}
         />
+        </div>
       </Card>
     </>
   );

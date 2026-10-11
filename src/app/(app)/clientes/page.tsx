@@ -8,8 +8,8 @@ import { sp } from "@/lib/utils";
 export const metadata = { title: "Clientes" };
 
 const COLUMNS: DataColumn[] = [
-  { id: "name", header: "Razón social", sortable: true },
-  { id: "rfc", header: "RFC", sortable: true, cellClass: "mono" },
+  { id: "name", header: "Razón social", sortable: true, cellClass: "min-w-48" },
+  { id: "rfc", header: "RFC", sortable: true, cellClass: "mono whitespace-nowrap" },
   { id: "owner", header: "Vendedor", sortable: true },
   { id: "terms", header: "Crédito (días)", align: "right", sortable: true },
   { id: "quotes", header: "Cotizaciones", align: "right", sortable: true },
@@ -39,7 +39,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
           </select>
           <button className="btn btn-secondary">Buscar</button>
         </form>
-        <DataTable
+        <DataTable mobileCards
           caption="Clientes"
           columns={COLUMNS}
           empty={filtered ? <FilteredEmpty clearHref="/clientes" /> : <EmptyState icon={Users} title="Sin clientes" action={canWrite && <LinkButton href="/clientes/nuevo" variant="secondary">Nuevo cliente</LinkButton>}>Registra un cliente para cotizarle y venderle.</EmptyState>}
@@ -47,7 +47,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
             id: c.id,
             cells: [
               <span key="n" className="inline-flex flex-wrap items-center gap-2">
-                <Link className="font-medium text-accent-fg hover:underline" href={`/clientes/${c.id}`}>{c.legalName}</Link>
+                <Link className="break-words font-medium text-accent-fg hover:underline" href={`/clientes/${c.id}`}>{c.legalName}</Link>
                 {!c.active && <Badge>Inactivo</Badge>}
               </span>,
               c.rfc ?? "—", c.owner?.name ?? "Sin asignar", c.paymentTermsDays, c._count.quotes, c._count.sales,

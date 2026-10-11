@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
@@ -19,7 +20,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
   const user = await requirePagePermission("commissions.read_all", "commissions.read_own");
   const { id } = await params;
   if (!uuid.safeParse(id).success) notFound();
-  const { period, entries } = await getPeriodDetail(user, id).catch((e) => {
+  const { period, entries, summary } = await getPeriodDetail(user, id).catch((e) => {
     if (e instanceof AppError) notFound();
     throw e;
   });
@@ -54,7 +55,7 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
                 <ActionForm action={setTargetAction.bind(null, period.id)} submitLabel="Guardar meta" variant="secondary">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <SelectField label="Vendedor" name="sellerId" options={sellers.map((s) => ({ value: s.id, label: s.name }))} />
-                    <Field label="Meta del periodo (misma base que la regla)" name="amount" inputMode="decimal" required />
+                    <Field label="Meta mensual de venta total (O.C., sin IVA)" name="amount" inputMode="decimal" required />
                   </div>
                 </ActionForm>
               )}
@@ -62,11 +63,32 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
           </Card>
           <Card className="space-y-3 p-4">
             <h3 className="text-sm font-semibold">Cálculo</h3>
-            <p className="text-xs text-ink-soft">Usa ventas confirmadas del periodo y la regla activa. Sin meta registrada se aplica la tasa de “meta no cumplida”. No recalcula si ya hay aprobaciones.</p>
+            <p className="text-xs text-ink-soft">Comisionan solo las ventas cobradas al 100% dentro del mes, sobre la utilidad neta después de gastos. El % alto/bajo es el del mes de la O.C. (si se cobra después, conserva el % de ese mes). Se recalcula solo cada día; no recalcula si ya hay aprobaciones.</p>
             <ActionForm action={calculatePeriodAction.bind(null, period.id)} submitLabel="Calcular / recalcular" />
             {approve && <ActionForm action={closePeriodAction.bind(null, period.id)} submitLabel="Cerrar periodo" variant="secondary" confirmText="Todas las comisiones están aprobadas." />}
           </Card>
         </div>
+      )}
+
+      {summary.length > 0 && (
+        <Card className="mb-4 overflow-hidden">
+          <CardHeader title="Meta del mes (venta total por O.C.)" />
+          <DataTable mobileCards
+            caption="Meta del mes por vendedor"
+            columns={[
+              { id: "v", header: "Vendedor" }, { id: "t", header: "Venta total", align: "right" },
+              { id: "m", header: "Meta", align: "right" }, { id: "e", header: "Estado" }, { id: "p", header: "O.C. sin cobrar (no comisionan este mes)" },
+            ]}
+            rows={summary.map((r) => ({
+              id: r.sellerId,
+              cells: [
+                r.name, fmtMoney(r.monthTotal), fmtMoney(r.target),
+                r.met ? <Badge key="b" tone="green">Meta cumplida · % alto</Badge> : <Badge key="b" tone="red">No cumplida · % bajo</Badge>,
+                r.pendingFolios.length ? r.pendingFolios.map((f) => `V-${f}`).join(", ") : "—",
+              ],
+            }))}
+          />
+        </Card>
       )}
 
       {bySeller.size === 0 ? (
@@ -83,17 +105,17 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
                   title={first.seller.name}
                   actions={
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                      {first.metTarget ? <Badge tone="green">Meta cumplida</Badge> : <Badge tone="red">Meta no cumplida</Badge>}
-                      <span>Base {fmtMoney(first.sellerTotal)} / meta {fmtMoney(first.targetAmount)}</span>
                       <span className="text-ink-soft">Regla v{first.ruleSet.version}</span>
                     </span>
                   }
                 />
-                <DataTable
+                <DataTable mobileCards
                   caption={`Comisiones de ${first.seller.name}`}
                   columns={[
+                    { id: "venta", header: "Venta" },
                     { id: "linea", header: "Línea" },
-                    { id: "base", header: "Base", align: "right" },
+                    { id: "meta", header: "Mes de la O.C." },
+                    { id: "base", header: "Utilidad neta", align: "right" },
                     { id: "tasa", header: "Tasa", align: "right" },
                     { id: "com", header: "Comisión", align: "right" },
                     { id: "estado", header: "Estado" },
@@ -101,17 +123,22 @@ export default async function PeriodPage({ params }: { params: Promise<{ id: str
                   rows={rows.map((r) => ({
                     id: r.id,
                     cells: [
+                      r.sale ? <Link key="v" className="text-accent-fg hover:underline" href={`/ventas/${r.sale.id}`}>V-{r.sale.folio}</Link> : "—",
                       LINE_LABEL[r.line],
+                      <span key="m" className="text-xs">
+                        {r.sale && fmtDate(r.sale.confirmedAt)}{r.collectedAt && ` · cobrada ${fmtDate(r.collectedAt)}`}
+                        <span className={r.metTarget ? "block text-ok" : "block text-danger"}>{r.metTarget ? "Meta cumplida" : "Meta no cumplida"} ({fmtMoney(r.sellerTotal)} / {fmtMoney(r.targetAmount)})</span>
+                      </span>,
                       fmtMoney(r.baseAmount),
                       <span key="t" className={r.metTarget ? "text-ok" : "text-danger"}>{fmtPct(r.rate)}</span>,
                       fmtMoney(r.amount),
                       <Badge key="e" tone={STATUS[r.status][1]}>{STATUS[r.status][0]}</Badge>,
                     ],
                   }))}
-                  foot={["Total", null, null, fmtMoney(total), null]}
+                  foot={["Total", null, null, null, null, fmtMoney(total), null]}
                 />
                 {approve && (states.has("CALCULATED") || states.has("APPROVED")) && (
-                  <div className="flex gap-2 border-t border-line p-3">
+                  <div className="flex flex-wrap gap-2 border-t border-line p-3 max-sm:[&>*]:flex-1">
                     {states.has("CALCULATED") && <ActionForm action={approveSellerAction.bind(null, period.id, sellerId)} submitLabel="Aprobar" />}
                     {states.has("APPROVED") && <ActionForm action={paySellerAction.bind(null, period.id, sellerId)} submitLabel="Marcar pagada" variant="secondary" confirmText="Pago realizado." />}
                   </div>

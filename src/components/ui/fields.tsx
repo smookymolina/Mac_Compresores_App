@@ -1,9 +1,15 @@
 "use client";
 
-import { useContext, useState } from "react";
+import { useContext, useId, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FormErrorsContext } from "./form-context";
+
+/** id único por instancia (dos formularios con el mismo `name` en una página no chocan); `name` no cambia. */
+function useFieldId(name: string, explicit?: string) {
+  const auto = useId();
+  return explicit ?? `${name}-${auto.replace(/[^\w-]/g, "")}`;
+}
 
 /** Error del servidor para `name`; se oculta en cuanto el usuario corrige el campo (vuelve con el siguiente envío). */
 function useFieldError(name: string, errorProp?: string[]) {
@@ -22,16 +28,17 @@ export function Field({
   label, name, error: errorProp, hint, className, icon, ...props
 }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string; error?: string[]; hint?: string; icon?: React.ReactNode }) {
   const [error, clear] = useFieldError(name, errorProp);
-  const errId = `${name}-error`;
+  const id = useFieldId(name, props.id);
+  const errId = `${id}-error`;
   const input = (
     <input
-      id={name} name={name} className="input" aria-invalid={!!error} aria-describedby={error ? errId : undefined}
+      id={id} name={name} className="input" aria-invalid={!!error} aria-describedby={error ? errId : undefined}
       {...props} onInput={(e) => { clear(); props.onInput?.(e); }}
     />
   );
   return (
     <div className={className}>
-      <label htmlFor={name} className="label">{label}</label>
+      <label htmlFor={id} className="label">{label}</label>
       {icon ? <div className="input-wrap has-icon">{input}<span aria-hidden className="input-icon">{icon}</span></div> : input}
       {hint && !error && <p className="mt-1 text-xs text-muted">{hint}</p>}
       <FieldError id={errId} error={error} />
@@ -46,15 +53,16 @@ export function PasswordField({
   const [error, clear] = useFieldError(name, errorProp);
   const [visible, setVisible] = useState(false);
   const [caps, setCaps] = useState(false);
-  const errId = `${name}-error`;
-  const capsId = `${name}-caps`;
+  const id = useFieldId(name, props.id);
+  const errId = `${id}-error`;
+  const capsId = `${id}-caps`;
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => setCaps(e.getModifierState?.("CapsLock") ?? false);
   return (
     <div className={className}>
-      <label htmlFor={name} className="label">{label}</label>
+      <label htmlFor={id} className="label">{label}</label>
       <div className={cn("input-wrap has-action", icon && "has-icon")}>
         <input
-          id={name} name={name} type={visible ? "text" : "password"} className="input" aria-invalid={!!error}
+          id={id} name={name} type={visible ? "text" : "password"} className="input" aria-invalid={!!error}
           aria-describedby={[error ? errId : "", caps ? capsId : ""].filter(Boolean).join(" ") || undefined}
           {...props} onInput={(e) => { clear(); props.onInput?.(e); }}
           onKeyDown={(e) => { onKey(e); props.onKeyDown?.(e); }} onKeyUp={onKey} onBlur={(e) => { setCaps(false); props.onBlur?.(e); }}
@@ -62,7 +70,7 @@ export function PasswordField({
         {icon && <span aria-hidden className="input-icon">{icon}</span>}
         {/* Etiqueta sin la palabra del campo: getByLabel("Contraseña") debe seguir siendo único. */}
         <button
-          type="button" className="input-action" aria-pressed={visible} aria-controls={name}
+          type="button" className="input-action" aria-pressed={visible} aria-controls={id}
           aria-label={visible ? "Ocultar lo escrito" : "Mostrar lo escrito"} onClick={() => setVisible((v) => !v)}
         >
           <span className={cn("eye", visible && "is-open")}>
@@ -81,12 +89,13 @@ export function SelectField({
   label, name, options, error: errorProp, className, ...props
 }: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; name: string; options: { value: string; label: string }[]; error?: string[] }) {
   const [error, clear] = useFieldError(name, errorProp);
-  const errId = `${name}-error`;
+  const id = useFieldId(name, props.id);
+  const errId = `${id}-error`;
   return (
     <div className={className}>
-      <label htmlFor={name} className="label">{label}</label>
+      <label htmlFor={id} className="label">{label}</label>
       <select
-        id={name} name={name} className="input" aria-invalid={!!error} aria-describedby={error ? errId : undefined}
+        id={id} name={name} className="input" aria-invalid={!!error} aria-describedby={error ? errId : undefined}
         {...props} onChange={(e) => { clear(); props.onChange?.(e); }}
       >
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

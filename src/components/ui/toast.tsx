@@ -31,14 +31,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 p-4 max-md:pb-24 md:items-end">
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] max-md:pb-[calc(6rem+env(safe-area-inset-bottom))] md:items-end">
         {items.map((t) => {
           const Icon = t.tone === "success" ? CheckCircle2 : CircleAlert;
           return (
             <div key={t.id} className="page-enter pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-lg border border-line bg-panel p-3 text-sm text-ink shadow-[var(--elev-pop)]">
               <Icon size={18} strokeWidth={1.75} aria-hidden className={cn("mt-px shrink-0", t.tone === "success" ? "text-ok" : "text-danger")} />
               <p className="min-w-0 flex-1">{t.message}</p>
-              <button type="button" aria-label="Cerrar aviso" onClick={() => dismiss(t.id)} className="btn btn-ghost icon-btn btn-sm -my-1.5 -mr-1.5 !w-8">
+              <button type="button" aria-label="Cerrar aviso" onClick={() => dismiss(t.id)} className="btn btn-ghost icon-btn btn-sm -my-1.5 -mr-1.5 pointer-fine:!w-8">
                 <X size={14} strokeWidth={1.75} aria-hidden />
               </button>
             </div>

@@ -4,13 +4,13 @@ import { listPeriods, listRuleSets } from "@/modules/commissions/service";
 import { activateRuleSetAction, createPeriodAction, createRuleSetAction } from "@/modules/commissions/actions";
 import { LINE_LABEL, LINES } from "@/modules/products/lines";
 import { ActionForm } from "@/components/action-form";
-import { Badge, Card, CardHeader, EmptyState, DataTable, Field, PageHeader, SelectField } from "@/components/ui";
+import { Badge, Card, CardHeader, EmptyState, DataTable, Field, PageHeader } from "@/components/ui";
 import { fmtPct } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 
 export const metadata = { title: "Comisiones" };
 
-const BASIS = { NET_SALES: "Venta neta (sin IVA)", MARGIN: "Margen", COLLECTED: "Cobranza (no disponible)" } as const;
+const BASIS = { NET_SALES: "Utilidad neta cobrada", MARGIN: "Utilidad neta cobrada", COLLECTED: "Utilidad neta cobrada" } as const;
 const RS_TONE = { DRAFT: "amber", ACTIVE: "green", ARCHIVED: "neutral" } as const;
 const RS_LABEL = { DRAFT: "Borrador", ACTIVE: "Activa", ARCHIVED: "Archivada" } as const;
 
@@ -30,7 +30,7 @@ export default async function CommissionsPage() {
         {periods.length === 0 ? (
           <EmptyState title="Sin periodos">Crea un periodo para fijar metas y calcular comisiones.</EmptyState>
         ) : (
-          <DataTable
+          <DataTable mobileCards
             caption="Periodos de comisión"
             columns={[
               { id: "nombre", header: "Periodo", sortable: true },
@@ -54,9 +54,8 @@ export default async function CommissionsPage() {
           <div className="border-t border-line p-4">
             <ActionForm action={createPeriodAction} submitLabel="Crear periodo" resetOnSuccess variant="secondary">
               <div className="grid gap-3 sm:grid-cols-3">
-                <Field label="Nombre (ej. 2026-10)" name="name" required />
-                <Field label="Inicio" name="startDate" type="date" required />
-                <Field label="Fin" name="endDate" type="date" required />
+                <Field label="Mes" name="month" type="month" required />
+                <Field label="Nombre (opcional, ej. Octubre 2026)" name="name" />
               </div>
             </ActionForm>
           </div>
@@ -98,7 +97,7 @@ export default async function CommissionsPage() {
                 };
               })}
             />
-            {approve && rs.status === "DRAFT" && rs.basis !== "COLLECTED" && (
+            {approve && rs.status === "DRAFT" && (
               <div className="border-t border-line p-4">
                 <ActionForm
                   action={activateRuleSetAction.bind(null, rs.id)}
@@ -117,17 +116,17 @@ export default async function CommissionsPage() {
           <ActionForm action={createRuleSetAction} submitLabel="Crear versión (borrador)">
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Nombre" name="name" defaultValue={latest?.name ?? "Tabla de comisiones MAC"} required />
-              <SelectField label="Base de cálculo" name="basis" defaultValue={latest?.basis} options={Object.entries(BASIS).map(([value, label]) => ({ value, label }))} />
+              <input type="hidden" name="basis" value="MARGIN" />
               <Field label="Notas" name="notes" />
             </div>
-            <div className="grid grid-cols-[1fr_4.5rem_4.5rem] gap-2 sm:grid-cols-[1fr_8rem_8rem]">
+            <div className="grid grid-cols-[minmax(0,1fr)_5rem_5rem] items-end gap-2 sm:grid-cols-[1fr_8rem_8rem]">
               <span className="label">Línea</span><span className="label">Meta cumplida %</span><span className="label">No cumplida %</span>
               {LINES.map((l) => {
                 const r = latest?.rates.find((x) => x.line === l);
                 return [
-                  <span key={`${l}-l`} className="self-center text-sm">{LINE_LABEL[l]}</span>,
-                  <input key={`${l}-m`} name={`met_${l}`} aria-label={`Meta cumplida ${l}`} className="input num" defaultValue={r ? r.rateMet.mul(100).toString() : "0"} />,
-                  <input key={`${l}-n`} name={`not_${l}`} aria-label={`Meta no cumplida ${l}`} className="input num" defaultValue={r ? r.rateNotMet.mul(100).toString() : "0"} />,
+                  <span key={`${l}-l`} className="self-center break-words text-sm">{LINE_LABEL[l]}</span>,
+                  <input key={`${l}-m`} name={`met_${l}`} aria-label={`Meta cumplida ${l}`} className="input num" inputMode="decimal" defaultValue={r ? r.rateMet.mul(100).toString() : "0"} />,
+                  <input key={`${l}-n`} name={`not_${l}`} aria-label={`Meta no cumplida ${l}`} className="input num" inputMode="decimal" defaultValue={r ? r.rateNotMet.mul(100).toString() : "0"} />,
                 ];
               })}
             </div>

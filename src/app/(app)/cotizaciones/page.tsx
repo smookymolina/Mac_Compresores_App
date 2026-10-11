@@ -41,7 +41,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
           </select>
           <button className="btn btn-secondary">Filtrar</button>
         </form>
-        <DataTable
+        <DataTable mobileCards
           caption="Cotizaciones"
           columns={COLUMNS}
           empty={p.q || status ? <FilteredEmpty clearHref="/cotizaciones" /> : <EmptyState icon={FileText} title="Sin cotizaciones" action={canWrite && <LinkButton href="/cotizaciones/nueva" variant="secondary">Nueva cotización</LinkButton>}>Crea una cotización con precios del catálogo y conviértela en venta.</EmptyState>}

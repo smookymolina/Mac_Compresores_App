@@ -8,7 +8,8 @@ import { runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, formObject, optStr } from "@/lib/validation";
 import { db } from "@/lib/db";
 import { LINES } from "./lines";
-import { saveProduct } from "./service";
+import { currentExchangeRate, saveProduct, setExchangeRate } from "./service";
+import { catalogPriceMxn } from "@/modules/quotes/pricing";
 
 const productSchema = z.object({
   sku: z.string().trim().min(1).max(80),
@@ -23,6 +24,8 @@ const productSchema = z.object({
   cost: decimalStr({ min: 0 }),
   markup: decimalStr({ min: 0, max: 100 }),
   shipping: decimalStr({ min: 0, scale: 2 }),
+  consumables: decimalStr({ min: 0, scale: 2 }).default("0"),
+  currency: z.enum(["MXN", "USD"]).default("MXN"),
   price: decimalStr({ min: 0, scale: 2 }).optional().or(z.literal("").transform(() => undefined)),
   taxRate: decimalStr({ min: 0, max: 1 }),
   status: z.enum(["ACTIVE", "INACTIVE"]),
@@ -57,9 +60,25 @@ export async function searchProductsAction(term: string) {
         { supplierCode: { contains: q, mode: "insensitive" } },
       ],
     },
-    select: { id: true, sku: true, description: true, unit: true, price: true, taxRate: true, kind: true },
+    select: { id: true, sku: true, description: true, unit: true, price: true, currency: true, taxRate: true, kind: true },
     orderBy: { sku: "asc" },
     take: 15,
   });
-  return rows.map((r) => ({ ...r, price: r.price.toString(), taxRate: r.taxRate.toString() }));
+  const fx = (await currentExchangeRate())?.rate ?? null;
+  // Precio en MXN (la tubería en USD se convierte con el TC vigente); null = falta TC.
+  return rows.map((r) => ({
+    ...r,
+    price: r.currency === "USD" && !fx ? "0" : catalogPriceMxn(r, fx).toString(),
+    priceUsd: r.currency === "USD" ? r.price.toString() : null,
+    taxRate: r.taxRate.toString(),
+  }));
+}
+
+export async function setExchangeRateAction(_: ActionResult<unknown> | null, fd: FormData) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("products.write");
+    await setExchangeRate(user, decimalStr({ min: 0.0001, scale: 4 }).parse(fd.get("rate")));
+  }, "Tipo de cambio actualizado.");
+  if (res.ok) revalidatePath("/productos");
+  return res;
 }

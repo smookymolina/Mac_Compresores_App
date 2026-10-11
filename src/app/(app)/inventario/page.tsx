@@ -13,9 +13,9 @@ export const metadata = { title: "Inventario" };
 
 const BALANCE_COLUMNS: DataColumn[] = [
   { id: "sku", header: "SKU", sortable: true, cellClass: "mono whitespace-nowrap" },
-  { id: "description", header: "Descripción", sortable: true },
+  { id: "description", header: "Descripción", sortable: true, cellClass: "min-w-56" },
   { id: "warehouse", header: "Almacén", sortable: true },
-  { id: "qty", header: "Existencia", align: "right", sortable: true },
+  { id: "qty", header: "Existencia", align: "right", sortable: true, cellClass: "whitespace-nowrap" },
   { id: "min", header: "Mínimo", align: "right", sortable: true },
   { id: "low", header: "Estado", sortable: true },
 ];
@@ -47,7 +47,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               <option value="">Todos los almacenes</option>
               {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
-            <label className="flex items-center gap-2 text-sm text-ink-soft"><input type="checkbox" name="low" value="1" defaultChecked={p.low === "1"} /> Solo bajo mínimo</label>
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-ink-soft sm:min-h-0"><input type="checkbox" className="size-5 sm:size-4" name="low" value="1" defaultChecked={p.low === "1"} /> Solo bajo mínimo</label>
             <button className="btn btn-secondary">Filtrar</button>
           </form>
           <DataTable
@@ -78,12 +78,12 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               <h2 className="mb-3 text-sm font-semibold">Registrar movimiento</h2>
               <ActionForm action={movementAction} resetOnSuccess submitLabel="Registrar">
                   <>
-                    <Field label="SKU" name="sku" required />
+                    <Field label="SKU" name="sku" required autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
                     <SelectField label="Almacén" name="warehouseId" options={warehouses.map((w) => ({ value: w.id, label: w.name }))} />
                     <SelectField label="Tipo" name="type" options={[
                       { value: "IN", label: "Entrada" }, { value: "OUT", label: "Salida" }, { value: "ADJUST", label: "Ajuste (+/-)" },
                     ]} />
-                    <Field label="Cantidad" name="quantity" inputMode="decimal" required />
+                    <Field label="Cantidad" name="quantity" inputMode="text" hint="En ajuste usa negativo para restar, ej. -2" required />
                     <Field label="Motivo / referencia" name="reason" required />
                     <Field label="Stock mínimo (opcional)" name="minStock" inputMode="decimal" />
                   </>
@@ -93,7 +93,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               <h2 className="mb-1 text-sm font-semibold">Stock mínimo</h2>
               <p className="mb-3 text-xs text-ink-soft">Define el mínimo sin registrar un movimiento. Con 0 se deja de vigilar.</p>
               <ActionForm action={minStockAction} resetOnSuccess submitLabel="Guardar mínimo" variant="secondary">
-                <Field label="Producto (SKU)" name="minSku" required />
+                <Field label="Producto (SKU)" name="minSku" required autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
                 <SelectField label="Almacén" name="minWarehouseId" options={warehouses.map((w) => ({ value: w.id, label: w.name }))} />
                 <Field label="Stock mínimo" name="minQty" inputMode="decimal" required />
               </ActionForm>
@@ -103,7 +103,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               <ul className="divide-y divide-line text-sm">
                 {allWarehouses.length === 0 && <li className="px-4 py-3 text-ink-soft">Sin almacenes. Crea el primero abajo.</li>}
                 {allWarehouses.map((w) => (
-                  <li key={w.id} className="flex items-center justify-between gap-3 px-4 py-2">
+                  <li key={w.id} className="flex items-start justify-between gap-3 px-4 py-2 sm:items-center">
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-center gap-2 font-medium">
                         <span className="break-words">{w.name}</span>
@@ -122,7 +122,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
               <div className="border-t border-line p-4">
                 <h3 className="mb-3 text-sm font-semibold">Nuevo almacén</h3>
                 <ActionForm action={createWarehouseAction} resetOnSuccess submitLabel="Crear" variant="secondary">
-                  <Field label="Código" name="code" required />
+                  <Field label="Código" name="code" required autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
                   <Field label="Nombre" name="name" required />
                 </ActionForm>
               </div>
@@ -141,7 +141,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             { id: "alm", header: "Almacén", sortable: true },
             { id: "tipo", header: "Tipo", sortable: true },
             { id: "cant", header: "Cantidad", align: "right", sortable: true },
-            { id: "motivo", header: "Motivo" },
+            { id: "motivo", header: "Motivo", cellClass: "min-w-48" },
             { id: "usuario", header: "Usuario", sortable: true },
             ...(writable ? [{ id: "acc", header: "Acción" }] : []),
           ]}

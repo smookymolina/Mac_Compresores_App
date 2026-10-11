@@ -37,7 +37,7 @@ export function Dialog({
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} // clic en el fondo
     >
       {open && (
-        <div className="flex h-full max-h-dvh flex-col">
+        <div className="dialog-frame flex h-full flex-col">
           <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
             <h2 id={titleId} className="text-sm font-semibold">{title}</h2>
             <button type="button" aria-label="Cerrar" data-tip="Cerrar" onClick={onClose} className="btn btn-ghost icon-btn">

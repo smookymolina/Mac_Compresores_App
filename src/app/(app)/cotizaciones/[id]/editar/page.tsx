@@ -1,6 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { can, requirePagePermission } from "@/lib/auth/session";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { currentExchangeRate } from "@/modules/products/service";
+import { catalogPriceMxn } from "@/modules/quotes/pricing";
 import { AppError } from "@/lib/errors";
 import { uuid } from "@/lib/validation";
 import { listCustomers } from "@/modules/customers/service";
@@ -26,10 +29,14 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     (
       await db.product.findMany({
         where: { id: { in: q.items.map((i) => i.productId).filter((x): x is string => !!x) } },
-        select: { id: true, price: true, taxRate: true },
+        select: { id: true, price: true, currency: true, taxRate: true },
       })
     ).map((p) => [p.id, p]),
   );
+
+  const fx = (await currentExchangeRate())?.rate ?? null;
+  const listMxn = (p: { price: Prisma.Decimal; currency: "MXN" | "USD" }) =>
+    p.currency === "USD" && !fx ? null : catalogPriceMxn(p, fx);
 
   return (
     <>
@@ -47,11 +54,12 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
               .filter((i) => i.productId)
               .map((i) => {
                 const cur = products.get(i.productId!);
-                const list = (cur?.price ?? i.unitPrice).toString();
+                const list = ((cur && listMxn(cur)) ?? i.unitPrice).toString();
                 return {
                   productId: i.productId!, sku: i.sku, description: i.description, unit: i.unit,
                   listPrice: list, taxRate: (cur?.taxRate ?? i.taxRate).toString(), quantity: i.quantity.toString(),
                   discountPct: i.discountPct.mul(100).toString(), unitPrice: overridden(list, i.unitPrice.toString()),
+                  details: i.details ?? "", priceUsd: cur?.currency === "USD" ? cur.price.toString() : null,
                 };
               }),
           }}

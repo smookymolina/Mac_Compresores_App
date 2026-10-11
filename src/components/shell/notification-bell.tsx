@@ -63,7 +63,7 @@ export function NotificationBell() {
         {data.unread > 0 && <span key={data.unread} aria-hidden className="bell-badge">{data.unread > 9 ? "9+" : data.unread}</span>}
       </button>
       {open && (
-        <div id={panelId} className="page-enter absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-lg border border-line bg-panel shadow-[var(--elev-pop)]">
+        <div id={panelId} className="page-enter absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] max-sm:fixed max-sm:inset-x-2 max-sm:top-[calc(var(--topbar-h)+0.25rem)] max-sm:mt-0 max-sm:w-auto rounded-lg border border-line bg-panel shadow-[var(--elev-pop)]">
           <div className="flex items-center justify-between border-b border-line px-3 py-2">
             <p className="text-sm font-semibold">Avisos</p>
             {data.unread > 0 && (
@@ -76,7 +76,7 @@ export function NotificationBell() {
             {data.items.length === 0 && <li className="px-3 py-8 text-center text-sm text-ink-soft">Sin avisos por ahora.</li>}
             {data.items.map((n) => (
               <li key={n.id} className="border-b border-line last:border-0">
-                <button type="button" onClick={() => openItem(n)} className={cn("flex w-full gap-2.5 px-3 py-2.5 text-left hover:bg-panel-2", !n.readAt && "bg-accent-soft/40")}>
+                <button type="button" onClick={() => openItem(n)} className={cn("tap flex w-full gap-2.5 px-3 py-2.5 text-left hover:bg-panel-2", !n.readAt && "bg-accent-soft/40")}>
                   <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.readAt ? "bg-transparent" : "bg-accent-fg")} />
                   <span className="min-w-0">
                     <span className="block text-sm font-medium text-ink">{n.title}</span>

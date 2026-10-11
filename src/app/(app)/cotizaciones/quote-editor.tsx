@@ -16,6 +16,8 @@ export interface EditorItem {
   quantity: string;
   discountPct: string; // 0-100
   unitPrice: string; // vacío = precio de lista
+  details?: string; // actividades/alcance del servicio
+  priceUsd?: string | null; // precio de lista original en USD (tubería)
 }
 
 type Found = Awaited<ReturnType<typeof searchProductsAction>>[number];
@@ -33,6 +35,12 @@ function preview(items: EditorItem[]) {
   }
   const f = (c: number) => (c / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
   return { sub: f(sub), disc: f(disc), tax: f(tax), total: f(sub - disc + tax) };
+}
+
+function lineAmount(i: EditorItem) {
+  const s = Math.round((Number(i.quantity) || 0) * (Number(i.unitPrice || i.listPrice) || 0) * 100);
+  const net = s - Math.round((s * (Number(i.discountPct) || 0)) / 100);
+  return (net / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 }
 
 export function QuoteEditor({
@@ -67,13 +75,20 @@ export function QuoteEditor({
   const add = (p: Found) => {
     setItems((xs) => [...xs, {
       productId: p.id, sku: p.sku, description: p.description, unit: p.unit, listPrice: p.price,
-      taxRate: p.taxRate, quantity: "1", discountPct: "0", unitPrice: "",
+      taxRate: p.taxRate, quantity: "1", discountPct: "0", unitPrice: "", details: "", priceUsd: p.priceUsd,
     }]);
     setTerm("");
     setFound([]);
   };
   const upd = (i: number, patch: Partial<EditorItem>) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const t = preview(items);
+  const [globalDisc, setGlobalDisc] = useState("");
+  const usd = (it: EditorItem) => (it.priceUsd ? ` (USD ${it.priceUsd})` : "");
+  const detailsField = (it: EditorItem, i: number) => (
+    <label className="block text-xs text-ink-soft">Actividades / alcance del trabajo (opcional)
+      <textarea className="input mt-1" rows={2} maxLength={4000} value={it.details ?? ""} onChange={(e) => upd(i, { details: e.target.value })} placeholder="Ej. Cambio de filtros, revisión de bandas, prueba de presión…" />
+    </label>
+  );
 
   return (
     <form
@@ -84,7 +99,7 @@ export function QuoteEditor({
         startSubmit(() => formAction(fd));
       }}
     >
-      <input type="hidden" name="items" value={JSON.stringify(items.map(({ productId, quantity, discountPct, unitPrice }) => ({ productId, quantity, discountPct, unitPrice })))} />
+      <input type="hidden" name="items" value={JSON.stringify(items.map(({ productId, quantity, discountPct, unitPrice, details }) => ({ productId, quantity, discountPct, unitPrice, details })))} />
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="sm:col-span-2">
           <label className="label" htmlFor="customerId">Cliente</label>
@@ -101,21 +116,31 @@ export function QuoteEditor({
 
       <div className="relative">
         <label className="label" htmlFor="search">Agregar producto o servicio</label>
-        <input id="search" className="input" value={term} onChange={(e) => search(e.target.value)} placeholder="Busca por SKU, descripción o no. de parte (mín. 2 caracteres)" autoComplete="off" />
+        <input id="search" className="input" value={term} onChange={(e) => search(e.target.value)} placeholder="SKU, descripción o no. de parte" autoComplete="off" enterKeyHint="search" aria-describedby="search-hint" />
+        <p id="search-hint" className="mt-1 text-xs text-ink-soft">Escribe al menos 2 caracteres.</p>
         {(found.length > 0 || searching) && (
-          <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-line bg-panel shadow-lg">
+          <ul className="absolute z-20 mt-1 max-h-[min(18rem,50dvh)] w-full overflow-auto overscroll-contain rounded-md border border-line bg-panel shadow-lg">
             {searching && <li className="px-3 py-2 text-sm text-ink-soft">Buscando…</li>}
             {found.map((p) => (
               <li key={p.id}>
-                <button type="button" onClick={() => add(p)} className="flex w-full justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-surface">
-                  <span><b>{p.sku}</b> — {p.description}</span>
-                  <span className="shrink-0 tabular-nums">{Number(p.price) > 0 ? `$${p.price}` : "sin precio"}</span>
+                <button type="button" onClick={() => add(p)} className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-surface focus-visible:bg-surface">
+                  <span className="min-w-0 break-words"><b>{p.sku}</b> — {p.description}</span>
+                  <span className="shrink-0 text-right tabular-nums">{Number(p.price) > 0 ? `$${p.price}` : p.priceUsd ? "falta TC" : "sin precio"}{p.priceUsd && <span className="block text-xs text-ink-soft">USD {p.priceUsd}</span>}</span>
                 </button>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {items.length > 1 && (
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-xs text-ink-soft">Descuento general %
+            <input className="input num mt-1 w-28" inputMode="decimal" value={globalDisc} max={canOverride ? 99 : MAX_DISCOUNT} onChange={(e) => setGlobalDisc(e.target.value)} />
+          </label>
+          <button type="button" className="btn btn-secondary" disabled={globalDisc === ""} onClick={() => setItems((xs) => xs.map((x) => ({ ...x, discountPct: globalDisc })))}>Aplicar a todas las partidas</button>
+        </div>
+      )}
 
       {/* Móvil: partidas como tarjetas (la tabla de abajo es solo para md+) */}
       <ul className="divide-y divide-line rounded-md border border-line md:hidden">
@@ -125,16 +150,18 @@ export function QuoteEditor({
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1 text-sm">
                 <b className="break-words">{i + 1}. {it.sku}</b>
-                <div className="text-xs text-ink-soft">{it.description}</div>
-                <div className="text-xs tabular-nums text-ink-soft">Lista ${it.listPrice}</div>
+                <div className="break-words text-xs text-ink-soft">{it.description}</div>
+                <div className="text-xs tabular-nums text-ink-soft">Lista ${it.listPrice}{usd(it)}{it.unit && ` / ${it.unit}`}</div>
               </div>
-              <button type="button" aria-label="Quitar" className="btn btn-ghost icon-btn text-danger" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))}><Trash2 size={16} /></button>
+              <button type="button" aria-label={`Quitar ${it.sku}`} className="btn btn-ghost icon-btn shrink-0 text-danger" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))}><Trash2 size={16} /></button>
             </div>
             <div className={canOverride ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
               <label className="text-xs text-ink-soft">Cant.<input className="input num mt-1" inputMode="decimal" value={it.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} /></label>
               {canOverride && <label className="text-xs text-ink-soft">P. especial<input className="input num mt-1" inputMode="decimal" placeholder="—" value={it.unitPrice} onChange={(e) => upd(i, { unitPrice: e.target.value })} /></label>}
               <label className="text-xs text-ink-soft">Desc. %<input className="input num mt-1" inputMode="decimal" value={it.discountPct} max={canOverride ? 99 : MAX_DISCOUNT} onChange={(e) => upd(i, { discountPct: e.target.value })} /></label>
             </div>
+            {detailsField(it, i)}
+            <div className="flex justify-between text-sm"><span className="text-ink-soft">Importe</span><span className="num font-medium">{lineAmount(it)}</span></div>
           </li>
         ))}
       </ul>
@@ -148,12 +175,12 @@ export function QuoteEditor({
             {items.map((it, i) => (
               <tr key={i}>
                 <td>{i + 1}</td>
-                <td><b>{it.sku}</b><div className="text-xs text-ink-soft">{it.description}</div></td>
+                <td className="min-w-64"><b>{it.sku}</b><div className="text-xs text-ink-soft">{it.description}</div><div className="mt-1">{detailsField(it, i)}</div></td>
                 <td className="w-24"><input aria-label="Cantidad" className="input num" inputMode="decimal" value={it.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} /></td>
-                <td className="num">${it.listPrice}</td>
+                <td className="num">${it.listPrice}{it.priceUsd && <div className="text-xs text-ink-soft">USD {it.priceUsd}</div>}</td>
                 {canOverride && <td className="w-32"><input aria-label="Precio especial" className="input num" inputMode="decimal" placeholder="—" value={it.unitPrice} onChange={(e) => upd(i, { unitPrice: e.target.value })} /></td>}
                 <td className="w-24"><input aria-label="Descuento" className="input num" inputMode="decimal" value={it.discountPct} max={canOverride ? 99 : MAX_DISCOUNT} onChange={(e) => upd(i, { discountPct: e.target.value })} /></td>
-                <td><button type="button" aria-label="Quitar" className="text-danger" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))}><Trash2 size={16} /></button></td>
+                <td><button type="button" aria-label={`Quitar ${it.sku}`} className="btn btn-ghost icon-btn text-danger" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))}><Trash2 size={16} /></button></td>
               </tr>
             ))}
           </tbody>
@@ -166,7 +193,7 @@ export function QuoteEditor({
           <label className="label" htmlFor="notes">Notas / condiciones</label>
           <textarea id="notes" name="notes" rows={3} className="input" defaultValue={initial?.notes} />
         </div>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-1 self-end text-sm">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm sm:min-w-64 sm:self-end">
           <dt className="text-ink-soft">Subtotal</dt><dd className="num">{t.sub}</dd>
           <dt className="text-ink-soft">Descuento</dt><dd className="num">-{t.disc}</dd>
           <dt className="text-ink-soft">IVA</dt><dd className="num">{t.tax}</dd>
@@ -174,8 +201,13 @@ export function QuoteEditor({
         </dl>
       </div>
 
-      <div className="flex items-center gap-3">
-        <Button disabled={pending || items.length === 0}>{pending ? "Guardando…" : "Guardar cotización"}</Button>
+      {/* Móvil: total y guardar siempre visibles (barra pegada al borde inferior del formulario) */}
+      <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t border-line bg-panel px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:static sm:mx-0 sm:mb-0 sm:flex-row sm:items-center sm:border-0 sm:bg-transparent sm:p-0">
+        <div className="flex items-baseline justify-between gap-3 sm:hidden">
+          <span className="text-sm text-ink-soft">Total ({items.length} {items.length === 1 ? "partida" : "partidas"})</span>
+          <span className="num text-lg font-semibold">{t.total}</span>
+        </div>
+        <Button className="w-full sm:w-auto" disabled={pending || items.length === 0}>{pending ? "Guardando…" : "Guardar cotización"}</Button>
         {state && !state.ok && <p role="alert" className="text-sm text-danger">{state.error}{state.fieldErrors && ` ${Object.values(state.fieldErrors).flat().join(" ")}`}</p>}
       </div>
     </form>

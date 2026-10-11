@@ -83,7 +83,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
         {d.recentSales.length > 0 || d.salesMonth ? (
           <Card className="overflow-hidden">
-            <CardHeader title="Últimas ventas" actions={<Link href="/ventas" className="text-sm text-accent-fg hover:underline">Ver todas</Link>} />
+            <CardHeader title="Últimas ventas" actions={<Link href="/ventas" className="inline-flex min-h-11 items-center text-sm text-accent-fg hover:underline sm:min-h-0">Ver todas</Link>} />
             {d.recentSales.length === 0 ? (
               <EmptyState title="Sin ventas registradas">Las ventas confirmadas del mes aparecerán aquí.</EmptyState>
             ) : (
@@ -91,7 +91,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 caption="Últimas ventas"
                 columns={[
                   { id: "folio", header: "Folio" },
-                  { id: "cliente", header: "Cliente" },
+                  { id: "cliente", header: "Cliente", cellClass: "min-w-40 break-words" },
                   { id: "fecha", header: "Fecha", cellClass: "whitespace-nowrap text-ink-soft" },
                   { id: "total", header: "Total", align: "right" },
                 ]}
@@ -115,7 +115,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <ul className="divide-y divide-line text-sm">
               {d.quotesByStatus.map((q) => (
                 <li key={q.status}>
-                  <Link href={`/cotizaciones?status=${q.status}`} className="row-hover flex justify-between px-4 py-2 hover:text-accent-fg">
+                  <Link href={`/cotizaciones?status=${q.status}`} className="row-hover flex min-h-11 items-center justify-between gap-3 px-4 py-2 hover:text-accent-fg sm:min-h-0">
                     <span>{QUOTE_STATUS_LABEL[q.status]}</span>
                     <span className="font-medium tabular-nums">{q.count}</span>
                   </Link>

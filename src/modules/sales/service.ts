@@ -2,6 +2,7 @@ import type { Prisma, SaleStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { pageArgs, paged } from "@/lib/pagination";
 import { audit } from "@/lib/audit";
+import { dec } from "@/lib/money";
 import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
 import { quoteScope } from "@/modules/quotes/service";
@@ -78,7 +79,8 @@ export async function convertQuoteToSale(user: CurrentUser, quoteId: string, war
               productId: i.productId, sku: i.sku, description: i.description, line: i.line, kind: i.kind,
               unit: i.unit, quantity: i.quantity, unitPrice: i.unitPrice, unitCost: i.unitCost,
               discountPct: i.discountPct, taxRate: i.taxRate, subtotal: i.subtotal, discount: i.discount,
-              tax: i.tax, total: i.total,
+              tax: i.tax, total: i.total, details: i.details, origCurrency: i.origCurrency,
+              origUnitPrice: i.origUnitPrice, fxRate: i.fxRate,
             })),
           },
         },
@@ -115,8 +117,12 @@ export async function cancelSale(user: CurrentUser, saleId: string, reason: stri
   const sale = await getSale(user, saleId);
   const locked = await db.commissionEntry.count({
     where: {
-      sellerId: sale.sellerId, status: { in: ["APPROVED", "PAID"] },
-      period: { startDate: { lte: sale.confirmedAt }, endDate: { gte: sale.confirmedAt } },
+      status: { in: ["APPROVED", "PAID"] },
+      OR: [
+        { saleId },
+        // Cambiaría la venta total (meta) de un mes con comisiones ya aprobadas.
+        { sellerId: sale.sellerId, period: { startDate: { lte: sale.confirmedAt }, endDate: { gte: sale.confirmedAt } } },
+      ],
     },
   });
   if (locked > 0) throw new AppError("La venta pertenece a un periodo con comisiones aprobadas.", "CONFLICT");
@@ -138,4 +144,13 @@ export async function cancelSale(user: CurrentUser, saleId: string, reason: stri
     }
     await audit({ userId: user.id, action: "sale.cancel", entity: "Sale", entityId: saleId, data: { reason } }, tx);
   });
+}
+
+/** Gastos adicionales de la venta (viáticos, maniobras…): restan a la utilidad comisionable. */
+export async function setSaleExpenses(user: CurrentUser, saleId: string, amount: string) {
+  await getSale(user, saleId);
+  const locked = await db.commissionEntry.count({ where: { saleId, status: { in: ["APPROVED", "PAID"] } } });
+  if (locked > 0) throw new AppError("La comisión de esta venta ya fue aprobada; no se pueden cambiar los gastos.", "CONFLICT");
+  await db.sale.update({ where: { id: saleId }, data: { expenses: dec(amount) } });
+  await audit({ userId: user.id, action: "sale.expenses", entity: "Sale", entityId: saleId, data: { amount } });
 }

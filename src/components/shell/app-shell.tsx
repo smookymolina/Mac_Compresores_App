@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
@@ -86,6 +87,8 @@ export function AppShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  const pathname = usePathname();
+  useEffect(() => { setDrawer(false); }, [pathname]); // también al volver con el botón Atrás
 
   useEffect(() => {
     try { if (localStorage.getItem(STORAGE_KEY) === "collapsed") setCollapsed(true); } catch { /* sin preferencia guardada */ }
@@ -130,8 +133,8 @@ export function AppShell({
       </aside>
 
       <div className={cn(collapsed ? "md:pl-16" : "md:pl-16 xl:pl-60")}>
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-panel px-4 md:px-6">
-          <button type="button" aria-label="Abrir menú" data-tip="Abrir menú" data-tip-start="" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)} className="btn btn-ghost icon-btn -ml-2 md:hidden">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-line bg-panel px-2 sm:gap-2 sm:px-4 md:px-6">
+          <button type="button" aria-label="Abrir menú" data-tip="Abrir menú" data-tip-start="" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)} className="btn btn-ghost icon-btn md:hidden">
             <Menu size={20} strokeWidth={1.75} aria-hidden />
           </button>
           <div className="min-w-0 flex-1"><Breadcrumb /></div>

@@ -7,6 +7,7 @@ import { fmtDate } from "@/lib/utils";
 import { purgeExpired } from "@/lib/rate-limit";
 import { notify, purgeOld, usersWithPermission } from "@/modules/notifications/service";
 import { listReceivables } from "@/modules/payments/service";
+import { calculatePeriod } from "@/modules/commissions/service";
 
 const TZ = "America/Mexico_City";
 const REMIND_DAYS = 3;
@@ -102,6 +103,21 @@ async function overdueAlerts(ymd: string, now: Date) {
   return overdue.length;
 }
 
+/** Las ventas y cobros pasan solos a Comisiones: recalcula periodos abiertos sin nada aprobado. */
+async function recalcOpenCommissions(today: Date) {
+  const open = await db.commissionPeriod.findMany({
+    where: { status: "OPEN", startDate: { lte: today }, entries: { none: { status: { not: "CALCULATED" } } } },
+    select: { id: true },
+  });
+  let n = 0;
+  for (const p of open) {
+    try { await calculatePeriod(null, p.id); n++; } catch (e) {
+      console.error("[job] comisiones:", e instanceof Error ? e.message : e);
+    }
+  }
+  return n;
+}
+
 export async function runDailyJob(now = new Date()) {
   const { ymd, date } = todayMx(now);
   const result = {
@@ -112,6 +128,7 @@ export async function runDailyJob(now = new Date()) {
     overdueSales: await overdueAlerts(ymd, now),
     purgedRateLimits: await purgeExpired(),
     purgedNotifications: await purgeOld(),
+    commissionPeriods: await recalcOpenCommissions(date),
   };
   await audit({ userId: null, action: "job.daily", entity: "System", data: result });
   return result;

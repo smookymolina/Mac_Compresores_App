@@ -69,7 +69,8 @@ export function NavLinks({
                     title={mode === "sidebar" ? i.label : undefined}
                     onClick={onNavigate}
                     className={cn(
-                      "relative flex h-9 items-center gap-3 rounded-md px-2.5 text-sm font-medium transition-colors",
+                      mode === "drawer" ? "h-11" : "h-9",
+                      "relative flex items-center gap-3 rounded-md px-2.5 text-sm font-medium transition-colors",
                       active ? "bg-accent-soft text-accent-fg" : "text-ink-soft hover:bg-panel-2 hover:text-ink",
                     )}
                   >

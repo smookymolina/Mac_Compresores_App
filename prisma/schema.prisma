@@ -110,6 +110,11 @@ enum ProductKind {
   SERVICE
 }
 
+enum Currency {
+  MXN
+  USD
+}
+
 enum ProductStatus {
   ACTIVE
   INACTIVE
@@ -135,7 +140,9 @@ model Product {
   unit          String        @default("PZA")
   cost          Decimal       @default(0) @db.Decimal(14, 4)
   markup        Decimal       @default(0) @db.Decimal(8, 4) // "Utilidad" (fracción)
-  shipping      Decimal       @default(0) @db.Decimal(14, 2) // "Envío"
+  shipping      Decimal       @default(0) @db.Decimal(14, 2) // "Envío" / traslado
+  consumables   Decimal       @default(0) @db.Decimal(14, 2) // Consumibles por unidad (según servicio)
+  currency      Currency      @default(MXN) // Moneda de costo y precio; TUBERIA siempre USD
   price         Decimal       @default(0) @db.Decimal(14, 2)
   taxRate       Decimal       @default(0.16) @db.Decimal(5, 4)
   status        ProductStatus @default(ACTIVE)
@@ -151,6 +158,16 @@ model Product {
   @@index([description])
   @@index([oemPartNumber])
   @@index([line])
+}
+
+/// Tipo de cambio USD→MXN capturado manualmente; se usa el más reciente.
+model ExchangeRate {
+  id          String   @id @default(uuid()) @db.Uuid
+  rate        Decimal  @db.Decimal(10, 4)
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model PriceHistory {
@@ -288,6 +305,7 @@ model Quote {
   status        QuoteStatus @default(DRAFT)
   validUntil    DateTime
   currency      String      @default("MXN")
+  exchangeRate  Decimal?    @db.Decimal(10, 4) // TC USD→MXN usado en partidas en USD
   notes         String?
   subtotal      Decimal     @default(0) @db.Decimal(14, 2)
   discountTotal Decimal     @default(0) @db.Decimal(14, 2)
@@ -304,26 +322,30 @@ model Quote {
 
 /// Instantánea: no depende del catálogo después de creada.
 model QuoteItem {
-  id          String      @id @default(uuid()) @db.Uuid
-  quoteId     String      @db.Uuid
-  quote       Quote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  productId   String?     @db.Uuid
-  product     Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
-  position    Int
-  sku         String
-  description String
-  line        ProductLine
-  kind        ProductKind
-  unit        String
-  quantity    Decimal     @db.Decimal(14, 3)
-  unitPrice   Decimal     @db.Decimal(14, 2)
-  unitCost    Decimal     @db.Decimal(14, 4)
-  discountPct Decimal     @default(0) @db.Decimal(5, 4)
-  taxRate     Decimal     @db.Decimal(5, 4)
-  subtotal    Decimal     @db.Decimal(14, 2)
-  discount    Decimal     @db.Decimal(14, 2)
-  tax         Decimal     @db.Decimal(14, 2)
-  total       Decimal     @db.Decimal(14, 2)
+  id            String      @id @default(uuid()) @db.Uuid
+  quoteId       String      @db.Uuid
+  quote         Quote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId     String?     @db.Uuid
+  product       Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  position      Int
+  sku           String
+  description   String
+  details       String? // Actividades/alcance del servicio
+  line          ProductLine
+  kind          ProductKind
+  unit          String
+  quantity      Decimal     @db.Decimal(14, 3)
+  unitPrice     Decimal     @db.Decimal(14, 2)
+  unitCost      Decimal     @db.Decimal(14, 4)
+  origCurrency  Currency    @default(MXN)
+  origUnitPrice Decimal?    @db.Decimal(14, 4) // precio de lista en moneda original
+  fxRate        Decimal     @default(1) @db.Decimal(10, 4)
+  discountPct   Decimal     @default(0) @db.Decimal(5, 4)
+  taxRate       Decimal     @db.Decimal(5, 4)
+  subtotal      Decimal     @db.Decimal(14, 2)
+  discount      Decimal     @db.Decimal(14, 2)
+  tax           Decimal     @db.Decimal(14, 2)
+  total         Decimal     @db.Decimal(14, 2)
 
   @@index([quoteId])
 }
@@ -334,25 +356,27 @@ enum SaleStatus {
 }
 
 model Sale {
-  id            String     @id @default(uuid()) @db.Uuid
-  folio         Int        @unique @default(autoincrement())
-  quoteId       String     @unique @db.Uuid // impide convertir dos veces la misma cotización
-  quote         Quote      @relation(fields: [quoteId], references: [id], onDelete: Restrict)
-  customerId    String     @db.Uuid
-  customer      Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  sellerId      String     @db.Uuid
-  seller        User       @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  warehouseId   String     @db.Uuid
-  warehouse     Warehouse  @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  status        SaleStatus @default(CONFIRMED)
-  subtotal      Decimal    @db.Decimal(14, 2)
-  discountTotal Decimal    @db.Decimal(14, 2)
-  taxTotal      Decimal    @db.Decimal(14, 2)
-  total         Decimal    @db.Decimal(14, 2)
-  confirmedAt   DateTime   @default(now())
-  createdById   String     @db.Uuid
+  id            String            @id @default(uuid()) @db.Uuid
+  folio         Int               @unique @default(autoincrement())
+  quoteId       String            @unique @db.Uuid // impide convertir dos veces la misma cotización
+  quote         Quote             @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  customerId    String            @db.Uuid
+  customer      Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  sellerId      String            @db.Uuid
+  seller        User              @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  warehouseId   String            @db.Uuid
+  warehouse     Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  status        SaleStatus        @default(CONFIRMED)
+  subtotal      Decimal           @db.Decimal(14, 2)
+  discountTotal Decimal           @db.Decimal(14, 2)
+  taxTotal      Decimal           @db.Decimal(14, 2)
+  total         Decimal           @db.Decimal(14, 2)
+  expenses      Decimal           @default(0) @db.Decimal(14, 2) // Gastos adicionales (restan a la utilidad comisionable)
+  confirmedAt   DateTime          @default(now())
+  createdById   String            @db.Uuid
   items         SaleItem[]
   payments      Payment[]
+  commissions   CommissionEntry[]
 
   @@index([sellerId, confirmedAt])
 }
@@ -388,25 +412,29 @@ model Payment {
 }
 
 model SaleItem {
-  id          String      @id @default(uuid()) @db.Uuid
-  saleId      String      @db.Uuid
-  sale        Sale        @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  productId   String?     @db.Uuid
-  product     Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
-  sku         String
-  description String
-  line        ProductLine
-  kind        ProductKind
-  unit        String
-  quantity    Decimal     @db.Decimal(14, 3)
-  unitPrice   Decimal     @db.Decimal(14, 2)
-  unitCost    Decimal     @db.Decimal(14, 4)
-  discountPct Decimal     @db.Decimal(5, 4)
-  taxRate     Decimal     @db.Decimal(5, 4)
-  subtotal    Decimal     @db.Decimal(14, 2)
-  discount    Decimal     @db.Decimal(14, 2)
-  tax         Decimal     @db.Decimal(14, 2)
-  total       Decimal     @db.Decimal(14, 2)
+  id            String      @id @default(uuid()) @db.Uuid
+  saleId        String      @db.Uuid
+  sale          Sale        @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId     String?     @db.Uuid
+  product       Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  sku           String
+  description   String
+  details       String? // Actividades/alcance del servicio
+  line          ProductLine
+  kind          ProductKind
+  unit          String
+  quantity      Decimal     @db.Decimal(14, 3)
+  unitPrice     Decimal     @db.Decimal(14, 2)
+  unitCost      Decimal     @db.Decimal(14, 4)
+  origCurrency  Currency    @default(MXN)
+  origUnitPrice Decimal?    @db.Decimal(14, 4) // precio de lista en moneda original
+  fxRate        Decimal     @default(1) @db.Decimal(10, 4)
+  discountPct   Decimal     @db.Decimal(5, 4)
+  taxRate       Decimal     @db.Decimal(5, 4)
+  subtotal      Decimal     @db.Decimal(14, 2)
+  discount      Decimal     @db.Decimal(14, 2)
+  tax           Decimal     @db.Decimal(14, 2)
+  total         Decimal     @db.Decimal(14, 2)
 
   @@index([saleId])
 }
@@ -496,11 +524,14 @@ model CommissionEntry {
   seller       User              @relation(fields: [sellerId], references: [id], onDelete: Restrict)
   ruleSetId    String            @db.Uuid
   ruleSet      CommissionRuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
+  saleId       String?           @db.Uuid
+  sale         Sale?             @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  collectedAt  DateTime?         @db.Date // fecha en que la venta quedó cobrada al 100%
   line         ProductLine
   baseAmount   Decimal           @db.Decimal(14, 2)
-  sellerTotal  Decimal           @db.Decimal(14, 2) // base total del vendedor en el periodo
-  targetAmount Decimal           @db.Decimal(14, 2)
-  metTarget    Boolean
+  sellerTotal  Decimal           @db.Decimal(14, 2) // venta total (O.C.) del vendedor en el mes de la O.C.
+  targetAmount Decimal           @db.Decimal(14, 2) // meta del mes de la O.C.
+  metTarget    Boolean // meta del mes de la O.C. (define % alto/bajo aunque se cobre después)
   rate         Decimal           @db.Decimal(6, 4)
   amount       Decimal           @db.Decimal(14, 2)
   status       CommissionStatus  @default(CALCULATED)
@@ -509,7 +540,8 @@ model CommissionEntry {
   paidAt       DateTime?
   createdAt    DateTime          @default(now())
 
-  @@unique([periodId, sellerId, line])
+  @@unique([periodId, saleId, line])
+  @@index([saleId])
 }
 
 // ───────── Notificaciones y límites ─────────

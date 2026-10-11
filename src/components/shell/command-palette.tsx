@@ -75,7 +75,7 @@ export function CommandPalette() {
                 <button
                   id={`${listId}-${i}`} type="button" role="option" aria-selected={i === active}
                   onMouseEnter={() => setActive(i)} onClick={() => go(h)}
-                  className={cn("flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left text-sm", i === active && "bg-accent-soft")}
+                  className={cn("tap flex w-full flex-col items-start justify-center rounded-md px-2 py-1.5 text-left text-sm", i === active && "bg-accent-soft")}
                 >
                   <span className="font-medium text-ink">{h.title}</span>
                   {h.detail && <span className="w-full truncate text-xs text-ink-soft">{h.detail}</span>}

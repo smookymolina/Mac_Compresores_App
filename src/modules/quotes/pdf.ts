@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import type { getQuote } from "./service";
+import { db } from "@/lib/db";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 
@@ -93,7 +94,10 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const brandDir = path.join(process.cwd(), "public/brand");
-  const logo = await pdf.embedPng(await readFile(path.join(brandDir, "logo.png")));
+  const headerImg = await pdf.embedPng(await readFile(path.join(brandDir, "quote-header.png")));
+  const footerImg = await pdf.embedPng(await readFile(path.join(brandDir, "quote-footer.png")));
+  const sellerBlockBytes = (await db.user.findUnique({ where: { id: q.seller.id }, select: { quoteBlock: true } }))?.quoteBlock;
+  const sellerBlock = sellerBlockBytes ? await pdf.embedPng(sellerBlockBytes) : null;
   const milwaukee: PDFImage = await pdf.embedJpg(await readFile(path.join(brandDir, "milwaukee.jpg")));
 
   const W = 612;
@@ -118,13 +122,13 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
     page.drawLine({ start: { x: x1, y: yy }, end: { x: x2, y: yy }, thickness: t, color });
 
   // ---- Encabezado ----
-  const logoH = 50;
-  page.drawImage(logo, { x: M, y: y - logoH, width: (logo.width / logo.height) * logoH, height: logoH });
-  text("COTIZACIÓN", R, y - 26, { size: 24, f: bold, align: "right" });
-  text(`Folio C-${q.folio}`, R, y - 42, { size: 10, color: SLATE5, align: "right" });
-  y -= logoH + 12;
-  page.drawRectangle({ x: M, y, width: R - M, height: 2.5, color: BRAND });
-  y -= 12;
+  const headerW = R - M;
+  const headerH = (headerImg.height / headerImg.width) * headerW;
+  page.drawImage(headerImg, { x: M, y: y - headerH, width: headerW, height: headerH });
+  y -= headerH + 14;
+  text("COTIZACIÓN", R, y - 4, { size: 20, f: bold, align: "right" });
+  text(`Folio C-${q.folio}`, R, y - 18, { size: 10, color: SLATE5, align: "right" });
+  y -= 26;
 
   // ---- Ficha: empresa / cliente / folio / fecha ----
   const contact = q.customer.contacts[0];
@@ -178,7 +182,14 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
   q.items.forEach((i, idx) => {
     const size = 9;
     const skuLines = wrap(i.sku, bold, 8.5, col.desc - col.sku - pad * 2);
-    const descLines = wrap(i.description, font, size, col.qty - 40 - col.desc - pad * 2);
+    const descW = col.qty - 40 - col.desc - pad * 2;
+    const descLines = [
+      ...wrap(i.description, font, size, descW),
+      ...(i.origCurrency === "USD" && i.origUnitPrice
+        ? [`USD ${i.origUnitPrice.toFixed(2)} × TC ${i.fxRate.toFixed(4)}`] : []),
+      // Actividades/alcance del servicio capturadas en la cotización.
+      ...(i.details ?? "").split(/\r?\n/).filter((l) => l.trim()).flatMap((l) => wrap(`• ${l.trim()}`, font, size, descW)),
+    ];
     const h = Math.max(skuLines.length, descLines.length) * 11 + 8;
     ensure(h, header);
     if (idx % 2 === 1) rect(M, y - h, R - M, h, ZEBRA);
@@ -248,6 +259,15 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
   page.drawImage(milwaukee, { x: M, y: y - 22 - mwH, width: (milwaukee.width / milwaukee.height) * mwH, height: mwH });
   y = ty - 24 - 12;
 
+  // ---- Bloque de asesor (firma de quien atiende la cotización) ----
+  if (sellerBlock) {
+    const bw = 230;
+    const bh = (sellerBlock.height / sellerBlock.width) * bw;
+    ensure(bh + 12);
+    page.drawImage(sellerBlock, { x: M, y: y - bh, width: bw, height: bh });
+    y -= bh + 12;
+  }
+
   // ---- Notas de la cotización ----
   if (q.notes) {
     const lines = wrap(q.notes, font, 8.5, R - M - pad * 2);
@@ -281,12 +301,13 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
     yy -= t.lines.length * 9 + 1.5;
   }
 
-  // ---- Pie ----
+  // ---- Pie: imagen de marca en cada página y numeración ----
+  const footerW = R - M;
+  const footerH = Math.min((footerImg.height / footerImg.width) * footerW, 26);
   pdf.getPages().forEach((p, idx, all) => {
-    p.drawLine({ start: { x: M, y: 30 }, end: { x: R, y: 30 }, thickness: 0.5, color: LINE });
-    p.drawText("MAC Compresores · maccompresores.com.mx", { x: M, y: 18, size: 7.5, font, color: SLATE5 });
+    p.drawImage(footerImg, { x: M, y: 8, width: footerW, height: footerH });
     const pg = safe(`Página ${idx + 1} de ${all.length}`);
-    p.drawText(pg, { x: R - font.widthOfTextAtSize(pg, 7.5), y: 18, size: 7.5, font, color: SLATE5 });
+    p.drawText(pg, { x: R - font.widthOfTextAtSize(pg, 7.5), y: 2, size: 7.5, font, color: SLATE5 });
   });
   return pdf.save();
 }

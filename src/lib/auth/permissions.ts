@@ -8,6 +8,7 @@ export const PERMISSIONS = [
   "quotes.read_all",
   "quotes.read_own",
   "quotes.write",
+  "quotes.delete",
   "quotes.override_price",
   "inventory.read",
   "inventory.write",

@@ -9,13 +9,14 @@ import { requirePermission } from "@/lib/auth/session";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, pctToFraction, uuid } from "@/lib/validation";
 import { convertQuoteToSale } from "@/modules/sales/service";
-import { changeQuoteStatus, createQuote, updateQuote } from "./service";
+import { changeQuoteStatus, createQuote, deleteQuote, updateQuote } from "./service";
 
 const itemSchema = z.object({
   productId: uuid,
   quantity: decimalStr({ min: 0.001, scale: 3 }),
   discountPct: pctToFraction,
   unitPrice: decimalStr({ min: 0, scale: 2 }).optional().or(z.literal("").transform(() => undefined)),
+  details: z.string().trim().max(4000).optional(),
 });
 
 const quoteSchema = z.object({
@@ -117,5 +118,17 @@ export async function logQuoteWhatsAppAction(id: string, fd: FormData) {
     await logQuoteWhatsApp(user, uuid.parse(id), d);
   });
   if (res.ok) revalidatePath(`/cotizaciones/${id}`);
+  return res;
+}
+
+export async function deleteQuoteAction(id: string, _: ActionResult<unknown> | null, _fd: FormData) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("quotes.delete");
+    await deleteQuote(user, uuid.parse(id));
+  }, "Cotización eliminada.");
+  if (res.ok) {
+    revalidatePath("/cotizaciones");
+    redirect("/cotizaciones");
+  }
   return res;
 }

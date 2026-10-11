@@ -14,10 +14,10 @@ export function CustomerForm({
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field className="sm:col-span-2" label="Razón social" name="legalName" defaultValue={customer?.legalName} required />
-            <Field label="RFC" name="rfc" defaultValue={customer?.rfc ?? ""} />
-            <Field label="Condiciones de pago (días)" name="paymentTermsDays" type="number" min={0} defaultValue={customer?.paymentTermsDays ?? 0} />
-            <Field label="Correo" name="email" type="email" defaultValue={customer?.email ?? ""} />
-            <Field label="Teléfono" name="phone" defaultValue={customer?.phone ?? ""} />
+            <Field label="RFC" name="rfc" autoCapitalize="characters" autoCorrect="off" spellCheck={false} maxLength={13} defaultValue={customer?.rfc ?? ""} />
+            <Field label="Condiciones de pago (días)" name="paymentTermsDays" type="number" inputMode="numeric" min={0} defaultValue={customer?.paymentTermsDays ?? 0} />
+            <Field label="Correo" name="email" type="email" autoComplete="email" defaultValue={customer?.email ?? ""} />
+            <Field label="Teléfono" name="phone" type="tel" autoComplete="tel" defaultValue={customer?.phone ?? ""} />
             <Field label="Límite de crédito" name="creditLimit" inputMode="decimal" defaultValue={customer?.creditLimit?.toString() ?? ""} />
             {sellers && (
               <SelectField label="Vendedor asignado" name="ownerId" defaultValue={customer?.ownerId ?? ""}
@@ -31,9 +31,9 @@ export function CustomerForm({
           {!customer && (
             <div className="grid gap-3 border-t border-line pt-3 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="Contacto principal" name="contactName" />
-              <Field label="Correo del contacto" name="contactEmail" type="email" />
-              <Field label="Teléfono del contacto" name="contactPhone" />
-              <span />
+              <Field label="Correo del contacto" name="contactEmail" type="email" autoComplete="off" />
+              <Field label="Teléfono del contacto" name="contactPhone" type="tel" />
+              <span className="hidden lg:block" />
               <Field className="sm:col-span-2" label="Dirección" name="street" />
               <Field label="Ciudad" name="city" />
               <Field label="Estado" name="state" />

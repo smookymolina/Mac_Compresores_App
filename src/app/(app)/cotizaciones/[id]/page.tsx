@@ -6,7 +6,7 @@ import { AppError } from "@/lib/errors";
 import { uuid } from "@/lib/validation";
 import { getQuote } from "@/modules/quotes/service";
 import { QUOTE_STATUS_LABEL, QUOTE_TRANSITIONS } from "@/modules/quotes/status";
-import { changeQuoteStatusAction, convertToSaleAction, emailQuoteAction, logQuoteWhatsAppAction, shareQuoteLinkAction } from "@/modules/quotes/actions";
+import { changeQuoteStatusAction, convertToSaleAction, deleteQuoteAction, emailQuoteAction, logQuoteWhatsAppAction, shareQuoteLinkAction } from "@/modules/quotes/actions";
 import { SENDABLE, suggestedPhone, suggestedRecipient } from "@/modules/quotes/email";
 import { isMailConfigured } from "@/lib/mail";
 import { shareUnavailableReason } from "@/lib/share";
@@ -89,6 +89,28 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
       <div className={aside ? "grid grid-cols-1 gap-4 lg:grid-cols-3" : undefined}>
         <Card className={aside ? "overflow-hidden lg:col-span-2" : "overflow-hidden"}>
           <CardHeader title="Partidas (precios congelados)" />
+          {/* Móvil: partidas como tarjetas; la tabla queda para md+ */}
+          <ul className="divide-y divide-line md:hidden" aria-label="Partidas de la cotización">
+            {q.items.map((i) => (
+              <li key={i.id} className="space-y-1 px-4 py-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <b className="break-words">{i.position}. {i.sku}</b>
+                    <div className="break-words text-xs text-ink-soft">{i.description}</div>
+                    {i.origCurrency === "USD" && i.origUnitPrice && <div className="text-xs text-ink-soft">USD {i.origUnitPrice.toFixed(2)} × TC {i.fxRate.toFixed(4)}</div>}
+                    {i.details && <div className="mt-1 whitespace-pre-line break-words text-xs">{i.details}</div>}
+                  </div>
+                  <span className="num shrink-0 font-medium">{fmtMoney(i.subtotal.sub(i.discount))}</span>
+                </div>
+                <div className="flex flex-wrap gap-x-3 text-xs tabular-nums text-ink-soft">
+                  <span>{i.quantity.toString()} {i.unit} × {fmtMoney(i.unitPrice)}</span>
+                  {!i.discountPct.isZero() && <span>Desc. {fmtPct(i.discountPct)}</span>}
+                  <span>IVA {fmtPct(i.taxRate)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block">
           <DataTable
             caption="Partidas de la cotización"
             columns={[
@@ -104,7 +126,9 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
               id: i.id,
               cells: [
                 i.position,
-                <div key="c"><b>{i.sku}</b><div className="text-xs text-ink-soft">{i.description}</div></div>,
+                <div key="c"><b>{i.sku}</b><div className="text-xs text-ink-soft">{i.description}</div>
+                  {i.origCurrency === "USD" && i.origUnitPrice && <div className="text-xs text-ink-soft">USD {i.origUnitPrice.toFixed(2)} × TC {i.fxRate.toFixed(4)}</div>}
+                  {i.details && <div className="mt-1 whitespace-pre-line text-xs">{i.details}</div>}</div>,
                 `${i.quantity.toString()} ${i.unit}`,
                 fmtMoney(i.unitPrice),
                 i.discountPct.isZero() ? "—" : fmtPct(i.discountPct),
@@ -113,13 +137,14 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
               ],
             }))}
           />
-          <dl className="ml-auto grid w-64 grid-cols-2 gap-1 p-4 text-sm">
+          </div>
+          <dl className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-1 border-t border-line p-4 text-sm md:ml-auto md:w-72 md:border-t-0">
             <dt className="text-ink-soft">Subtotal</dt><dd className="num">{fmtMoney(q.subtotal)}</dd>
             <dt className="text-ink-soft">Descuento</dt><dd className="num">-{fmtMoney(q.discountTotal)}</dd>
             <dt className="text-ink-soft">IVA</dt><dd className="num">{fmtMoney(q.taxTotal)}</dd>
             <dt className="font-semibold">Total</dt><dd className="num font-semibold">{fmtMoney(q.total)}</dd>
           </dl>
-          {q.notes && <p className="border-t border-line p-4 text-sm whitespace-pre-line">{q.notes}</p>}
+          {q.notes && <p className="border-t border-line p-4 text-sm break-words whitespace-pre-line">{q.notes}</p>}
         </Card>
 
         <div className="space-y-4">
@@ -128,6 +153,13 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
               <ActionForm action={changeQuoteStatusAction.bind(null, q.id)} submitLabel="Cambiar estado" variant="secondary">
                 <SelectField label="Nuevo estado" name="to" options={transitions.map((t) => ({ value: t, label: QUOTE_STATUS_LABEL[t] }))} />
               </ActionForm>
+            </Card>
+          )}
+          {can(user, "quotes.delete") && !q.sale && q.status !== "CONVERTED" && (
+            <Card className="p-4">
+              <p className="mb-2 text-sm text-ink-soft">Eliminar borra la cotización y sus partidas de forma permanente.</p>
+              <ActionForm action={deleteQuoteAction.bind(null, q.id)} submitLabel="Eliminar cotización" variant="danger"
+                confirmText={`Confirmo que quiero eliminar la cotización C-${q.folio}`} />
             </Card>
           )}
           {warehouses.length > 0 && (
