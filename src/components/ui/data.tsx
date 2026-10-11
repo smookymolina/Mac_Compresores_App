@@ -1,4 +1,4 @@
-import { AlertTriangle, Inbox, Search, SearchX } from "lucide-react";
+import { AlertTriangle, Inbox, SearchX } from "lucide-react";
 import { LinkButton } from "./button";
 import { cn } from "@/lib/utils";
 
@@ -35,14 +35,6 @@ export function FilteredEmpty({ clearHref }: { clearHref: string }) {
 }
 
 /** Campo de búsqueda de barra de filtros: lupa funcional + nombre accesible. */
-export function SearchInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <span className="search">
-      <Search size={16} strokeWidth={1.75} aria-hidden />
-      <input type="search" {...props} className="input" />
-    </span>
-  );
-}
 
 export function ErrorState({ title = "No se pudo cargar esta sección.", children, action }: { title?: string; children?: React.ReactNode; action?: React.ReactNode }) {
   return <EmptyState icon={AlertTriangle} title={title} action={action}>{children}</EmptyState>;

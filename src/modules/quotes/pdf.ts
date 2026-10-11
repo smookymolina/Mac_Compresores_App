@@ -154,13 +154,12 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
   y -= rows.length * rowH;
   // Tiempo de entrega: renglón a todo lo ancho (el texto puede ser largo).
   if (q.deliveryTime) {
-    const labelW = 100;
-    const lines = wrap(q.deliveryTime, font, 9.5, R - M - labelW - 16);
+    const lines = wrap(q.deliveryTime, font, 9.5, R - M - 80);
     const h = Math.max(rowH, lines.length * 12 + 4);
     rect(M, y - h, R - M, h, WHITE, LINE);
-    rect(M, y - h, labelW, h, TINT);
-    text("Tiempo de entrega", M + 8, y - 11.5, { f: bold, size: 8.5, color: SLATE7 });
-    lines.forEach((l, k) => text(l, M + labelW + 8, y - 11.5 - k * 12, { size: 9.5 }));
+    rect(M, y - h, 62, h, TINT); // mismo ancho de etiqueta que la ficha
+    text("Entrega", M + 8, y - 11.5, { f: bold, size: 8.5, color: SLATE7 });
+    lines.forEach((l, k) => text(l, M + 70, y - 11.5 - k * 12, { size: 9.5 }));
     y -= h;
   }
   y -= 14;
@@ -301,7 +300,9 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
   }
 
   // ---- Términos y condiciones (A–J) ----
-  const termLines = TERMS.map((t, i) => ({ k: String.fromCharCode(65 + i), lines: wrap(t, font, 7.5, R - M - 34) }));
+  // Si la cotización trae tiempo de entrega, sustituye la cláusula genérica de entrega.
+  const terms = q.deliveryTime ? TERMS.map((t) => (t.startsWith("Entrega:") ? `Entrega: ${q.deliveryTime}. Equipos para entrega inmediata: considerar el tiempo de envío por paquetería. Acreditando pago.` : t)) : TERMS;
+  const termLines = terms.map((t, i) => ({ k: String.fromCharCode(65 + i), lines: wrap(t, font, 7.5, R - M - 34) }));
   const termsH = termLines.reduce((a, t) => a + t.lines.length * 9 + 1.5, 0) + 26;
   ensure(termsH);
   rect(M, y - termsH, R - M, termsH, TINT);
