@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { AlertTriangle, Banknote, FileText, HandCoins, Receipt, Target } from "lucide-react";
-import { requirePagePermission } from "@/lib/auth/session";
-import { getDashboard } from "@/modules/dashboard/service";
+import { redirect } from "next/navigation";
+import { can, homePath, requireUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { uuid } from "@/lib/validation";
+import { asSeller, getDashboard } from "@/modules/dashboard/service";
 import { QUOTE_STATUS_LABEL } from "@/modules/quotes/status";
 import { Card, CardHeader, EmptyState, DataTable, MonthBars, PageHeader, Stat, StatGroup } from "@/components/ui";
 import { fmtMoney } from "@/lib/money";
@@ -20,10 +23,16 @@ const monthLabel = (now: Date) => {
   return m.charAt(0).toUpperCase() + m.slice(1);
 };
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ denied?: string }> }) {
-  const user = await requirePagePermission("dashboard.read");
-  const d = await getDashboard(user);
-  const { denied } = await searchParams;
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ denied?: string; vendedor?: string }> }) {
+  const user = await requireUser();
+  if (!can(user, "dashboard.read")) redirect(homePath(user));
+  const { denied, vendedor } = await searchParams;
+  // Quien ve todo (administración) puede consultar las métricas de un vendedor en particular.
+  const sellers = can(user, "sales.read_all")
+    ? await db.user.findMany({ where: { active: true, role: { code: { in: ["VENTAS", "GERENCIA", "ADMIN"] } } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+    : [];
+  const seller = vendedor && uuid.safeParse(vendedor).success ? sellers.find((s) => s.id === vendedor) : undefined;
+  const d = await getDashboard(seller ? asSeller(user, seller) : user);
   const now = new Date();
   const maxSeller = Math.max(1, ...d.bySeller.map((s) => s.net.toNumber()));
 
@@ -33,8 +42,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         gauge
         eyebrow={monthLabel(now)}
         title={`${greeting(now)}, ${user.name.split(" ")[0]}`}
-        subtitle="Resumen del mes en curso, calculado desde las operaciones registradas."
+        subtitle={seller ? `Métricas de ${seller.name} en el mes en curso.` : can(user, "sales.read_all") ? "Resumen del mes en curso de todo el equipo." : "Tus métricas del mes en curso."}
       />
+      {sellers.length > 0 && (
+        <form className="mb-4 flex flex-wrap items-end gap-2">
+          <label className="text-sm text-ink-soft">Ver métricas de
+            <select name="vendedor" defaultValue={seller?.id ?? ""} className="input mt-1 min-w-56">
+              <option value="">Todo el equipo</option>
+              {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </label>
+          <button className="btn btn-secondary">Ver</button>
+        </form>
+      )}
       {denied && <p role="alert" className="mb-4 rounded-md border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger">No tienes permiso para esa sección.</p>}
       <StatGroup className="stagger">
         {d.salesMonth && <Stat icon={Banknote} label="Venta neta del mes (sin IVA)" value={fmtMoney(d.salesMonth.net)} hint={`${d.salesMonth.count} ventas confirmadas`} href="/ventas" />}

@@ -67,6 +67,14 @@ async function targets(user: CurrentUser) {
   };
 }
 
+/**
+ * Vista del dashboard "como" un vendedor: mismo usuario sin permisos *.read_all, así todos los
+ * filtros por alcance (cotizaciones, ventas, cobranza, metas) se limitan a ese vendedor.
+ */
+export function asSeller(user: CurrentUser, seller: { id: string; name: string }): CurrentUser {
+  return { ...user, id: seller.id, name: seller.name, permissions: new Set([...user.permissions].filter((p) => !p.endsWith(".read_all"))) };
+}
+
 export async function getDashboard(user: CurrentUser) {
   const monthStart = new Date();
   monthStart.setDate(1);
@@ -80,7 +88,8 @@ export async function getDashboard(user: CurrentUser) {
     canSales ? db.sale.aggregate({ where: salesWhere, _sum: { subtotal: true, discountTotal: true, total: true }, _count: true }) : null,
     canQuotes ? db.quote.aggregate({ where: { AND: [quoteScope(user), { status: { in: ["DRAFT", "SENT", "ACCEPTED"] } }] }, _sum: { total: true }, _count: true }) : null,
     canQuotes ? db.quote.groupBy({ by: ["status"], where: quoteScope(user), _count: true }) : [],
-    can(user, "inventory.read") ? lowStockCount() : null,
+    // Existencias bajo mínimo es una métrica de almacén, no del vendedor.
+    can(user, "inventory.write") || can(user, "sales.read_all") ? lowStockCount() : null,
     canSales
       ? db.sale.findMany({ where: saleScope(user), include: { customer: { select: { legalName: true } } }, orderBy: { confirmedAt: "desc" }, take: 5 })
       : [],

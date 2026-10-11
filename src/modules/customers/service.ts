@@ -8,7 +8,8 @@ import { dec } from "@/lib/money";
 
 /** Ventas solo ve clientes propios o sin asignar; gerencia/admin ven todos. */
 export function customerScope(user: CurrentUser): Prisma.CustomerWhereInput {
-  return can(user, "quotes.read_all") ? {} : { OR: [{ ownerId: user.id }, { ownerId: null }] };
+  // Ventas solo ve sus propios clientes; gerencia y administración ven todos.
+  return can(user, "quotes.read_all") ? {} : { ownerId: user.id };
 }
 
 /** Listado paginado para la vista de clientes. */

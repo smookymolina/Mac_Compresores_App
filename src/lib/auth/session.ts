@@ -85,8 +85,14 @@ export async function requirePermission(...anyOf: Permission[]): Promise<Current
 }
 
 /** Para páginas: muestra 404/redirect si no tiene permiso. */
+/** Página de inicio según el rol: quien no ve el dashboard (almacén) entra a inventario. */
+export function homePath(user: CurrentUser) {
+  if (user.permissions.has("dashboard.read")) return "/dashboard";
+  return user.permissions.has("inventory.read") ? "/inventario" : "/productos";
+}
+
 export async function requirePagePermission(...anyOf: Permission[]): Promise<CurrentUser> {
   const user = await requireUser();
-  if (!anyOf.some((p) => user.permissions.has(p))) redirect("/dashboard?denied=1");
+  if (!anyOf.some((p) => user.permissions.has(p))) redirect(`${homePath(user)}?denied=1`);
   return user;
 }

@@ -37,8 +37,9 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {
     "quotes.read_all", "quotes.read_own", "quotes.write", "quotes.override_price",
     "inventory.read",
     "sales.read_all", "sales.read_own", "sales.create",
-    "commissions.read_all", "commissions.read_own", "commissions.manage", "commissions.approve",
-    "dashboard.read", "audit.read", "payments.write", "reports.export",
+    // Comisiones solo de consulta; sin auditoría.
+    "commissions.read_all", "commissions.read_own",
+    "dashboard.read", "payments.write", "reports.export",
   ],
   VENTAS: [
     "products.read",
@@ -49,7 +50,8 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {
     "commissions.read_own",
     "dashboard.read",
   ],
-  ALMACEN: ["products.read", "inventory.read", "inventory.write", "sales.read_all", "dashboard.read"],
+  // Solo catálogo y almacén.
+  ALMACEN: ["products.read", "inventory.read", "inventory.write"],
 };
 
 export const ROLE_NAMES: Record<RoleCode, string> = {
