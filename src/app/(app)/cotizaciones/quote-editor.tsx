@@ -60,8 +60,9 @@ const customCode = (xs: QuoteComplement[]) => {
   return n ? `PERSONALIZADO-${n + 1}` : "PERSONALIZADO";
 };
 
-function Complements({ options, selected, setSelected }: {
+function Complements({ options, selected, setSelected, canCustomize }: {
   options: ComplementOption[];
+  canCustomize: boolean;
   selected: QuoteComplement[];
   setSelected: (fn: (xs: QuoteComplement[]) => QuoteComplement[]) => void;
 }) {
@@ -84,7 +85,7 @@ function Complements({ options, selected, setSelected }: {
           }}>
           <option value="">+ Agregar paquete…</option>
           {available.map((o) => <option key={o.code} value={o.code}>{o.code} · {o.name}</option>)}
-          <option value={CUSTOM}>Personalizado (actividades a mano)</option>
+          {canCustomize && <option value={CUSTOM}>Personalizado (actividades a mano)</option>}
         </select>
       </div>
       {selected.length === 0 && <p className="rounded border border-dashed border-line p-3 text-sm text-ink-soft">Sin complementos.</p>}
@@ -115,12 +116,12 @@ function Complements({ options, selected, setSelected }: {
                 ))}
               </ul>
             )}
-            <div className="mt-2 flex gap-2">
+            {canCustomize && <div className="mt-2 flex gap-2">
               <input className="input min-w-0 flex-1" maxLength={300} value={draft[c.code] ?? ""} placeholder="Agregar actividad" aria-label={`Agregar actividad a ${c.code}`}
                 onChange={(e) => setDraft((d) => ({ ...d, [c.code]: e.target.value }))}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }} />
               <Button type="button" variant="secondary" onClick={addCustom}>Agregar</Button>
-            </div>
+            </div>}
           </div>
         );
       })}
@@ -129,7 +130,7 @@ function Complements({ options, selected, setSelected }: {
 }
 
 export function QuoteEditor({
-  action, customers, initial, canOverride, complementOptions,
+  action, customers, initial, canOverride, complementOptions, canCustomize = false,
 }: {
   action: (prev: ActionResult<unknown> | null, fd: FormData) => Promise<ActionResult<unknown>>;
   customers: { id: string; legalName: string }[];
@@ -139,6 +140,7 @@ export function QuoteEditor({
   };
   canOverride: boolean;
   complementOptions: ComplementOption[];
+  canCustomize?: boolean;
 }) {
   const [items, setItems] = useState<EditorItem[]>(initial?.items ?? []);
   const [complements, setComplementsRaw] = useState<QuoteComplement[]>(
@@ -309,7 +311,7 @@ export function QuoteEditor({
       </div>
       {!canOverride && <p className="text-xs text-ink-soft">Descuento máximo por partida: {MAX_DISCOUNT}%. Precios especiales requieren autorización de gerencia.</p>}
 
-      <Complements options={complementOptions} selected={complements} setSelected={setComplements} />
+      <Complements options={complementOptions} selected={complements} setSelected={setComplements} canCustomize={canCustomize} />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
         <div className="sm:w-1/2">

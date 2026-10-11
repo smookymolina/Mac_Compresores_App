@@ -22,7 +22,7 @@ const schema = z.object({
 
 export async function savePackageAction(id: string | undefined, _: ActionResult<unknown> | null, fd: FormData) {
   const res = await runAction(async () => {
-    const user = await requirePermission("products.write");
+    const user = await requirePermission("complements.manage");
     await savePackage(user, id, schema.parse(Object.fromEntries(fd)));
   });
   if (res.ok) {

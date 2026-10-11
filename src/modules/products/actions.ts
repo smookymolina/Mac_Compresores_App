@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requirePermission } from "@/lib/auth/session";
-import { runAction, type ActionResult } from "@/lib/errors";
+import { can, requirePermission } from "@/lib/auth/session";
+import { AppError, runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, formObject, optStr } from "@/lib/validation";
 import { db } from "@/lib/db";
 import { searchKey } from "@/lib/search-text";
@@ -36,7 +36,12 @@ export async function saveProductAction(id: string | undefined, _: ActionResult<
   let createdId: string | undefined;
   const res = await runAction(async () => {
     const user = await requirePermission("products.write");
-    const p = await saveProduct(user, productSchema.parse(formObject(fd)), id);
+    const data = productSchema.parse(formObject(fd));
+    // Los servicios (descripción y alcance) solo los registra o edita ADMIN.
+    const wasService = id ? (await db.product.findUnique({ where: { id }, select: { kind: true } }))?.kind === "SERVICE" : false;
+    if ((data.kind === "SERVICE" || wasService) && !can(user, "complements.manage"))
+      throw new AppError("Solo el administrador puede registrar o editar servicios.", "FORBIDDEN");
+    const p = await saveProduct(user, data, id);
     createdId = p.id;
   }, "Producto guardado.");
   if (res.ok) {

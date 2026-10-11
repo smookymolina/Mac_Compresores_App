@@ -23,6 +23,7 @@ export const PERMISSIONS = [
   "audit.read",
   "payments.write",
   "reports.export",
+  "complements.manage", // catálogo de complementos/condiciones y servicios: solo ADMIN
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

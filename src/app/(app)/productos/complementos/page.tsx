@@ -32,7 +32,7 @@ function PackageForm({ p }: { p?: ComplementPackage }) {
 }
 
 export default async function ComplementsPage() {
-  await requirePagePermission("products.write");
+  await requirePagePermission("complements.manage");
   const packages = await listPackages(true);
   return (
     <>

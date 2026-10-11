@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { emailQuote, logQuoteWhatsApp, shareQuoteLink } from "./email";
 import { normalizePhone } from "./phone";
-import { requirePermission } from "@/lib/auth/session";
+import { can, requirePermission } from "@/lib/auth/session";
+import { AppError } from "@/lib/errors";
+import { listPackages } from "@/modules/complements/service";
+import type { QuoteComplement } from "@/modules/complements/match";
+import { db } from "@/lib/db";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, pctToFraction, uuid } from "@/lib/validation";
 import { convertQuoteToSale } from "@/modules/sales/service";
@@ -66,6 +70,15 @@ export async function saveQuoteAction(id: string | undefined, _: ActionResult<un
       complements: fd.get("complements") ?? "[]",
       items: fd.get("items"),
     });
+    if (!can(user, "complements.manage")) {
+      // Solo ADMIN redacta complementos; los demás eligen paquetes y actividades del catálogo.
+      const catalog = new Map((await listPackages()).map((p) => [p.code, p.activities]));
+      // Lo que el administrador ya dejó en esta cotización también se conserva al editarla.
+      const prev = id ? ((await db.quote.findUnique({ where: { id }, select: { complements: true } }))?.complements as QuoteComplement[] | null) ?? [] : [];
+      for (const c of prev) catalog.set(c.code, [...(catalog.get(c.code) ?? []), ...c.activities]);
+      const ok = data.complements.every((c) => catalog.get(c.code)?.length !== undefined && c.activities.every((a) => catalog.get(c.code)!.includes(a)));
+      if (!ok) throw new AppError("Solo el administrador puede agregar complementos o actividades nuevas.", "FORBIDDEN");
+    }
     if (id) await updateQuote(user, id, data);
     else quoteId = (await createQuote(user, data)).id;
   });
