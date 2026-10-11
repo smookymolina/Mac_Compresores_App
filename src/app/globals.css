@@ -140,7 +140,8 @@ a, button, select, summary, label { touch-action: manipulation; }
     opacity: 0; transform: translateY(-2px); transition: opacity var(--dur-fast), transform var(--dur-fast) var(--ease);
   }
   [data-tip-start]::after { right: auto; left: 0; }
-  [data-tip]:focus-visible::after { opacity: 1; transform: none; }
+  /* Solo con puntero real: en iPhone el foco automático del diálogo dejaba el tooltip «Cerrar» encima. */
+  @media (hover: hover) { [data-tip]:focus-visible::after { opacity: 1; transform: none; } }
   @media (hover: hover) { [data-tip]:hover::after { opacity: 1; transform: none; transition-delay: 300ms; } }
 
   /* ---- Campos ---- */
@@ -227,7 +228,9 @@ a, button, select, summary, label { touch-action: manipulation; }
   .dialog-right { right: 0; left: auto; border-left: 1px solid var(--border); }
   .dialog-left[open] { animation: slide-left var(--dur) var(--ease); }
   .dialog-right[open] { animation: slide-right var(--dur) var(--ease); }
-  body:has(dialog[open]) { overflow: hidden; }
+  /* Bloqueo de scroll del fondo: no en iOS (-webkit-touch-callout solo existe ahí). En iOS, overflow:hidden en
+     <body> con la página desplazada desfasa el viewport: el diálogo queda fuera de vista y los toques no atinan. */
+  @supports not (-webkit-touch-callout: none) { body:has(dialog[open]) { overflow: hidden; } }
 
   /* ---- Entrada escalonada (≤ 300 ms en total; solo transform/opacity) ---- */
   .stagger > * { animation: enter var(--dur) var(--ease) backwards; }
@@ -746,3 +749,5 @@ body { overflow-x: clip; padding-inline: env(safe-area-inset-left) env(safe-area
 /* Hoja inferior también sin showModal (WebKit antiguo): anclada al borde inferior. */
 @media (max-width: 639px) { .dialog-center:not(.search-dialog)[open] { top: auto; bottom: 0; } }
 input[type="file"] { max-width: 100%; }
+/* v1.3.10 iOS: el marco del diálogo centrado no depende de alturas en % (WebKit las resolvía a 0 con height:fit-content). */
+.dialog-center > .dialog-frame { height: auto; }

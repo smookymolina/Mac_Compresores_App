@@ -51,7 +51,7 @@ export function Dialog({
               <X size={16} strokeWidth={1.75} aria-hidden />
             </button>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain">{children}</div>
         </div>
       )}
     </dialog>
