@@ -4,6 +4,7 @@ import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { dec, listPrice } from "@/lib/money";
 import type { CurrentUser } from "@/lib/auth/session";
+import { searchKey } from "@/lib/search-text";
 import { parseProductCsv } from "./import";
 
 export const PAGE_SIZE = 50;
@@ -12,14 +13,7 @@ export async function listProducts(q: { search?: string; line?: ProductLine; sta
   const where: Prisma.ProductWhereInput = {
     ...(q.line && { line: q.line }),
     ...(q.status && { status: q.status }),
-    ...(q.search && {
-      OR: [
-        { sku: { contains: q.search, mode: "insensitive" } },
-        { description: { contains: q.search, mode: "insensitive" } },
-        { oemPartNumber: { contains: q.search, mode: "insensitive" } },
-        { supplierCode: { contains: q.search, mode: "insensitive" } },
-      ],
-    }),
+    ...(q.search && { searchText: { contains: searchKey(q.search) } }),
   };
   const page = Math.max(1, q.page ?? 1);
   const [items, total] = await Promise.all([

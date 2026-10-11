@@ -1,5 +1,6 @@
 import type { MovementType } from "@prisma/client";
 import { db, type Tx } from "@/lib/db";
+import { searchKey } from "@/lib/search-text";
 import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { dec, type Dec } from "@/lib/money";
@@ -98,7 +99,7 @@ export async function listBalances(q: { warehouseId?: string; search?: string; l
       // Filtro en BD (antes se aplicaba sobre las primeras 300 filas y podía omitir productos bajo mínimo).
       ...(q.lowOnly && { minStock: { gt: 0 }, quantity: { lte: db.stockBalance.fields.minStock } }),
       ...(q.search && {
-        product: { OR: [{ sku: { contains: q.search, mode: "insensitive" } }, { description: { contains: q.search, mode: "insensitive" } }] },
+        product: { searchText: { contains: searchKey(q.search) } },
       }),
     },
     include: { product: { select: { sku: true, description: true, unit: true } }, warehouse: { select: { code: true } } },

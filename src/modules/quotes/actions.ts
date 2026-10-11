@@ -23,6 +23,7 @@ const quoteSchema = z.object({
   customerId: uuid,
   validUntil: z.coerce.date(),
   notes: z.string().trim().max(2000).optional(),
+  deliveryTime: z.string().trim().max(200).optional(),
   items: z
     .string()
     .transform((s, ctx) => {
@@ -44,6 +45,7 @@ export async function saveQuoteAction(id: string | undefined, _: ActionResult<un
       customerId: fd.get("customerId"),
       validUntil: fd.get("validUntil"),
       notes: fd.get("notes") ?? undefined,
+      deliveryTime: fd.get("deliveryTime") ?? undefined,
       items: fd.get("items"),
     });
     if (id) await updateQuote(user, id, data);

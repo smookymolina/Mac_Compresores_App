@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, formObject, optStr } from "@/lib/validation";
 import { db } from "@/lib/db";
+import { searchKey } from "@/lib/search-text";
 import { LINES } from "./lines";
 import { currentExchangeRate, saveProduct, setExchangeRate } from "./service";
 import { catalogPriceMxn } from "@/modules/quotes/pricing";
@@ -53,12 +54,7 @@ export async function searchProductsAction(term: string) {
   const rows = await db.product.findMany({
     where: {
       status: "ACTIVE",
-      OR: [
-        { sku: { contains: q, mode: "insensitive" } },
-        { description: { contains: q, mode: "insensitive" } },
-        { oemPartNumber: { contains: q, mode: "insensitive" } },
-        { supplierCode: { contains: q, mode: "insensitive" } },
-      ],
+      searchText: { contains: searchKey(q) },
     },
     select: { id: true, sku: true, description: true, unit: true, price: true, currency: true, taxRate: true, kind: true },
     orderBy: { sku: "asc" },

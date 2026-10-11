@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import type { Prisma } from "@prisma/client";
@@ -7,6 +8,7 @@ import { pageArgs, paged } from "@/lib/pagination";
 import { uuid } from "@/lib/validation";
 import { Card, DataTable, EmptyState, FilteredEmpty, PageHeader, Pager, type DataColumn } from "@/components/ui";
 import { fmtDateTime, sp } from "@/lib/utils";
+import { ACTION_LABEL, actionLabel, describeDetail, detailIds, entityLabel } from "@/modules/audit/labels";
 
 export const metadata = { title: "Auditoría" };
 
@@ -54,6 +56,15 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     db.user.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   const { pages } = paged(items, total, page);
+  // Nombres para los identificadores que aparecen en los detalles (usuarios, roles, almacenes).
+  const ids = [...new Set(items.flatMap((r) => detailIds(r.data)))];
+  const [roles, warehouses] = ids.length
+    ? await Promise.all([
+        db.role.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }),
+        db.warehouse.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }),
+      ])
+    : [[], []];
+  const names = new Map([...users, ...roles, ...warehouses].map((x) => [x.id, x.name]));
   const filters: Record<string, string> = {
     ...(entity && { entity }), ...(action && { action }), ...(userId && { user: userId }), ...(from && { desde: from }), ...(to && { hasta: to }),
   };
@@ -67,13 +78,16 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
         <form className="toolbar">
           <select name="entity" aria-label="Entidad" defaultValue={entity ?? ""} className="input">
             <option value="">Todas las entidades</option>
-            {entities.map((e) => <option key={e.entity} value={e.entity}>{e.entity}</option>)}
+            {entities.map((e) => <option key={e.entity} value={e.entity}>{entityLabel(e.entity)}</option>)}
           </select>
           <select name="user" aria-label="Usuario" defaultValue={userId ?? ""} className="input">
             <option value="">Todos los usuarios</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
-          <input name="action" defaultValue={action} autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="Acción (quote., sale.…)" aria-label="Acción" className="input" />
+          <select name="action" aria-label="Acción" defaultValue={action ?? ""} className="input">
+            <option value="">Todas las acciones</option>
+            {Object.entries(ACTION_LABEL).sort((a, b) => a[1].localeCompare(b[1], "es")).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
           <label className="audit-date">
             <span>Desde</span>
             <input type="date" name="desde" defaultValue={from} className="input" />
@@ -91,26 +105,28 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
           rows={items.map((r) => {
             const base = ENTITY_HREF[r.entity];
             const short = r.entityId?.slice(0, 8);
-            const detail = r.data ? JSON.stringify(r.data) : "";
+            const detail = describeDetail(r.action, r.data, names);
             return {
               id: r.id,
               cells: [
                 fmtDateTime(r.createdAt), r.user?.name ?? "—",
-                <code key="a" className="mono">{r.action}</code>,
+                <span key="a" title={r.action}>{actionLabel(r.action)}</span>,
                 <span key="e" className="text-xs">
-                  {r.entity}{" "}
+                  {entityLabel(r.entity)}{" "}
                   {base && r.entityId && uuid.safeParse(r.entityId).success
-                    ? <Link className="mono text-accent-fg hover:underline" href={`${base}${r.entityId}`} aria-label={`Ver ${r.entity} ${short}`}>{short}</Link>
+                    ? <Link className="mono text-accent-fg hover:underline" href={`${base}${r.entityId}`} aria-label={`Ver ${entityLabel(r.entity)} ${short}`}>{short}</Link>
                     : <span className="mono text-muted">{short}</span>}
                 </span>,
-                detail ? (
+                detail.length ? (
                   <details key="d" className="w-64 max-w-full text-xs text-ink-soft sm:w-auto sm:max-w-md">
-                    <summary className="cursor-pointer truncate py-1">{detail}</summary>
-                    <pre className="mt-1 whitespace-pre-wrap break-all font-mono">{JSON.stringify(r.data, null, 2)}</pre>
+                    <summary className="cursor-pointer truncate py-1">{detail.map((x) => `${x.label}: ${x.value}`).join(" · ")}</summary>
+                    <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                      {detail.map((x) => <Fragment key={x.label}><dt className="font-medium text-ink">{x.label}</dt><dd className="break-words">{x.value}</dd></Fragment>)}
+                    </dl>
                   </details>
                 ) : "",
               ],
-              sort: [r.createdAt.getTime(), r.user?.name ?? null, r.action, r.entity, null],
+              sort: [r.createdAt.getTime(), r.user?.name ?? null, actionLabel(r.action), entityLabel(r.entity), null],
             };
           })}
         />

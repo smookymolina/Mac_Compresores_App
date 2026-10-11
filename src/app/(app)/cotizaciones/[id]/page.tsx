@@ -49,6 +49,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
           { label: "Cliente", value: q.customer.legalName },
           { label: "Vendedor", value: q.seller.name },
           { label: "Vigente hasta", value: fmtDate(q.validUntil) },
+          ...(q.deliveryTime ? [{ label: "Tiempo de entrega", value: q.deliveryTime }] : []),
         ]}
         actions={
           <>

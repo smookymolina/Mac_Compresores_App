@@ -57,6 +57,7 @@ export interface QuoteInput {
   customerId: string;
   validUntil: Date;
   notes?: string;
+  deliveryTime?: string;
   items: RequestedItem[];
 }
 
@@ -93,6 +94,7 @@ export async function createQuote(user: CurrentUser, input: QuoteInput) {
         sellerId: user.id,
         validUntil: input.validUntil,
         notes: input.notes || null,
+        deliveryTime: input.deliveryTime || null,
         exchangeRate,
         ...totals,
         items: { create: itemRows(items) },
@@ -115,7 +117,7 @@ export async function updateQuote(user: CurrentUser, id: string, input: QuoteInp
   return db.$transaction(async (tx) => {
     const res = await tx.quote.updateMany({
       where: { id, status: "DRAFT", updatedAt: current.updatedAt }, // bloqueo optimista
-      data: { customerId: customer.id, validUntil: input.validUntil, notes: input.notes || null, exchangeRate, ...totals },
+      data: { customerId: customer.id, validUntil: input.validUntil, notes: input.notes || null, deliveryTime: input.deliveryTime || null, exchangeRate, ...totals },
     });
     if (res.count === 0) throw new AppError("La cotización cambió mientras la editabas. Recarga.", "CONFLICT");
     await tx.quoteItem.deleteMany({ where: { quoteId: id } });

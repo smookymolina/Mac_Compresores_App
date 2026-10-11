@@ -34,6 +34,7 @@ export function quoteEmail(q: Awaited<ReturnType<typeof getQuote>>, message: str
       { label: "Cliente", value: q.customer.legalName },
       { label: "Total", value: total },
       { label: "Vigente hasta", value: fmtDate(q.validUntil) },
+      ...(q.deliveryTime ? [{ label: "Tiempo de entrega", value: q.deliveryTime }] : []),
       { label: "Vendedor", value: q.seller.name },
     ],
     notes: ["Adjuntamos la cotización en PDF. Para cualquier duda, responde a este correo y le llegará directamente a tu vendedor."],

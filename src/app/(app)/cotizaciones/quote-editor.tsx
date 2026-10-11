@@ -48,7 +48,7 @@ export function QuoteEditor({
 }: {
   action: (prev: ActionResult<unknown> | null, fd: FormData) => Promise<ActionResult<unknown>>;
   customers: { id: string; legalName: string }[];
-  initial?: { customerId: string; validUntil: string; notes: string; items: EditorItem[] };
+  initial?: { customerId: string; validUntil: string; notes: string; deliveryTime?: string; items: EditorItem[] };
   canOverride: boolean;
 }) {
   const [items, setItems] = useState<EditorItem[]>(initial?.items ?? []);
@@ -100,7 +100,7 @@ export function QuoteEditor({
       }}
     >
       <input type="hidden" name="items" value={JSON.stringify(items.map(({ productId, quantity, discountPct, unitPrice, details }) => ({ productId, quantity, discountPct, unitPrice, details })))} />
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         <div className="sm:col-span-2">
           <label className="label" htmlFor="customerId">Cliente</label>
           <select id="customerId" name="customerId" className="input" defaultValue={initial?.customerId} required>
@@ -111,6 +111,15 @@ export function QuoteEditor({
         <div>
           <label className="label" htmlFor="validUntil">Vigencia</label>
           <input id="validUntil" name="validUntil" type="date" className="input" defaultValue={initial?.validUntil || defaultValid} required />
+        </div>
+        <div>
+          <label className="label" htmlFor="deliveryTime">Tiempo de entrega</label>
+          <input id="deliveryTime" name="deliveryTime" className="input" maxLength={200} list="delivery-options" defaultValue={initial?.deliveryTime} placeholder="Ej. 5 días hábiles" />
+          <datalist id="delivery-options">
+            <option value="Inmediata, sujeto a existencia" />
+            <option value="Por confirmar según disponibilidad" />
+            <option value="Programado de común acuerdo con el cliente" />
+          </datalist>
         </div>
       </div>
 

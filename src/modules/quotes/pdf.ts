@@ -151,7 +151,19 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
     text(k2, M + leftW + 8, by, { f: bold, size: 8.5, color: SLATE7 });
     text(v2, M + leftW + 70, by, { size: 9.5, f: k2 === "Folio" ? bold : font });
   });
-  y -= rows.length * rowH + 14;
+  y -= rows.length * rowH;
+  // Tiempo de entrega: renglón a todo lo ancho (el texto puede ser largo).
+  if (q.deliveryTime) {
+    const labelW = 100;
+    const lines = wrap(q.deliveryTime, font, 9.5, R - M - labelW - 16);
+    const h = Math.max(rowH, lines.length * 12 + 4);
+    rect(M, y - h, R - M, h, WHITE, LINE);
+    rect(M, y - h, labelW, h, TINT);
+    text("Tiempo de entrega", M + 8, y - 11.5, { f: bold, size: 8.5, color: SLATE7 });
+    lines.forEach((l, k) => text(l, M + labelW + 8, y - 11.5 - k * 12, { size: 9.5 }));
+    y -= h;
+  }
+  y -= 14;
 
   // ---- Partidas ----
   const col = { sku: M, desc: M + 104, qty: 392, price: 462, disc: 512, total: R };

@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { searchKey } from "@/lib/search-text";
 import { can, type CurrentUser } from "@/lib/auth/session";
 import { customerScope } from "@/modules/customers/service";
 import { quoteScope } from "@/modules/quotes/service";
@@ -21,7 +22,7 @@ export async function globalSearch(user: CurrentUser, raw: string): Promise<Sear
       ? db.customer.findMany({ where: { AND: [customerScope(user), { OR: [{ legalName: text }, { rfc: text }] }] }, select: { id: true, legalName: true, rfc: true }, take: TAKE, orderBy: { legalName: "asc" } })
       : [],
     can(user, "products.read")
-      ? db.product.findMany({ where: { status: "ACTIVE", OR: [{ sku: text }, { description: text }, { oemPartNumber: text }] }, select: { id: true, sku: true, description: true }, take: TAKE, orderBy: { sku: "asc" } })
+      ? db.product.findMany({ where: { status: "ACTIVE", searchText: { contains: searchKey(q) } }, select: { id: true, sku: true, description: true }, take: TAKE, orderBy: { sku: "asc" } })
       : [],
     can(user, "quotes.read_all") || can(user, "quotes.read_own")
       ? db.quote.findMany({

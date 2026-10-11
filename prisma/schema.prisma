@@ -150,6 +150,8 @@ model Product {
   price         Decimal       @default(0) @db.Decimal(14, 2)
   taxRate       Decimal       @default(0.16) @db.Decimal(5, 4)
   status        ProductStatus @default(ACTIVE)
+  /// Texto normalizado (minúsculas, sin acentos) para búsqueda; lo mantiene un trigger en la BD.
+  searchText    String        @default("")
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -311,6 +313,7 @@ model Quote {
   currency      String      @default("MXN")
   exchangeRate  Decimal?    @db.Decimal(10, 4) // TC USD→MXN usado en partidas en USD
   notes         String?
+  deliveryTime  String? // Tiempo de entrega o de ejecución del servicio
   subtotal      Decimal     @default(0) @db.Decimal(14, 2)
   discountTotal Decimal     @default(0) @db.Decimal(14, 2)
   taxTotal      Decimal     @default(0) @db.Decimal(14, 2)

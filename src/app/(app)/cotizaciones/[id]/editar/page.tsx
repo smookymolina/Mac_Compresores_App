@@ -50,6 +50,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
             customerId: q.customerId,
             validUntil: q.validUntil.toISOString().slice(0, 10),
             notes: q.notes ?? "",
+            deliveryTime: q.deliveryTime ?? "",
             items: q.items
               .filter((i) => i.productId)
               .map((i) => {
