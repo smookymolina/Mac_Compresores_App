@@ -8,7 +8,9 @@ import { asSeller, getDashboard } from "@/modules/dashboard/service";
 import { QUOTE_STATUS_LABEL } from "@/modules/quotes/status";
 import { Card, CardHeader, EmptyState, DataTable, MonthBars, PageHeader, Stat, StatGroup } from "@/components/ui";
 import { fmtMoney } from "@/lib/money";
-import { fmtDate } from "@/lib/utils";
+import { fmtDate, fmtDateTime } from "@/lib/utils";
+import { getUsage } from "@/modules/dashboard/usage";
+import { actionLabel } from "@/modules/audit/labels";
 
 export const metadata = { title: "Dashboard" };
 
@@ -162,6 +164,57 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </Card>
         )}
       </div>
+      {can(user, "users.manage") && <UsageSection />}
     </>
+  );
+}
+
+/** Solo admin: actividad de cada usuario en los últimos 30 días. */
+async function UsageSection() {
+  const rows = await getUsage(30);
+  const ago = (d: Date | null) => {
+    if (!d) return "Nunca";
+    const m = Math.round((Date.now() - d.getTime()) / 60_000);
+    return m < 60 ? `Hace ${Math.max(m, 1)} min` : m < 1440 ? `Hace ${Math.round(m / 60)} h` : `Hace ${Math.round(m / 1440)} d`;
+  };
+  return (
+    <Card className="mt-4 p-0">
+      <details>
+        <summary className="tap flex cursor-pointer flex-wrap items-baseline justify-between gap-2 p-4">
+          <span className="font-semibold">Uso de la app por usuario</span>
+          <span className="text-xs text-ink-soft">Últimos 30 días · {rows.filter((r) => r.activeDays > 0).length} de {rows.length} usuarios activos</span>
+        </summary>
+        <div className="border-t border-line">
+          <DataTable
+            mobileCards
+            caption="Uso de la app por usuario, últimos 30 días"
+            columns={[
+              { id: "user", header: "Usuario", sortable: true },
+              { id: "last", header: "Última actividad", sortable: true },
+              { id: "days", header: "Días activos", align: "right", sortable: true },
+              { id: "logins", header: "Inicios de sesión", align: "right", sortable: true },
+              { id: "actions", header: "Acciones", align: "right", sortable: true },
+              { id: "quotes", header: "Cotizaciones", align: "right", sortable: true },
+              { id: "sales", header: "Ventas", align: "right", sortable: true },
+              { id: "top", header: "Lo que más hace" },
+            ]}
+            rows={rows.map((u) => ({
+              id: u.id,
+              sort: [u.name, u.lastSeenAt?.getTime() ?? 0, u.activeDays, u.logins, u.actions, u.quotes, u.sales, null],
+              cells: [
+                <span key="u" className="break-words"><b>{u.name}</b><span className="block text-xs text-ink-soft">{u.role}{!u.active && " · inactivo"}</span></span>,
+                <span key="l" title={u.lastSeenAt ? fmtDateTime(u.lastSeenAt) : undefined}>{ago(u.lastSeenAt)}</span>,
+                <span key="d" className="num">{u.activeDays}</span>,
+                <span key="g" className="num">{u.logins}</span>,
+                <span key="a" className="num">{u.actions}</span>,
+                <span key="q" className="num">{u.quotes}</span>,
+                <span key="s" className="num">{u.sales}</span>,
+                <span key="t" className="text-xs">{u.topAction ? actionLabel(u.topAction) : "—"}</span>,
+              ],
+            }))}
+          />
+        </div>
+      </details>
+    </Card>
   );
 }

@@ -51,6 +51,9 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   });
   if (!session || session.expiresAt < new Date() || !session.user.active) return null;
   const u = session.user;
+  // Uso de la app: marca de actividad con escritura limitada (como mucho una cada 5 min por usuario).
+  if (!u.lastSeenAt || Date.now() - u.lastSeenAt.getTime() > 5 * 60_000)
+    void db.user.update({ where: { id: u.id }, data: { lastSeenAt: new Date() } }).catch(() => {});
   return {
     id: u.id,
     name: u.name,

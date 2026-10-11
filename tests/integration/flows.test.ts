@@ -258,3 +258,15 @@ describe("paquetes compartidos", () => {
     expect(await savePackageFromQuote(admin, { name: "Instalación línea nave 3", activities: [] }, true, 3)).toBe(`${code}-2`);
   });
 });
+
+describe("uso de la app", () => {
+  it("resume actividad por usuario", async () => {
+    const { getUsage } = await import("@/modules/dashboard/usage");
+    await db.auditLog.create({ data: { userId: sellerA.id, action: "auth.login", entity: "User", entityId: sellerA.id } });
+    const u = (await getUsage(30)).find((r) => r.id === sellerA.id)!;
+    expect(u.logins).toBeGreaterThanOrEqual(1);
+    expect(u.quotes).toBeGreaterThan(0);
+    expect(u.activeDays).toBeGreaterThanOrEqual(1);
+    expect(u.lastSeenAt).not.toBeNull();
+  });
+});
