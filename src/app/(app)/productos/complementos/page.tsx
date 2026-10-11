@@ -1,5 +1,5 @@
 import type { ComplementPackage } from "@prisma/client";
-import { requirePagePermission } from "@/lib/auth/session";
+import { can, requirePagePermission } from "@/lib/auth/session";
 import { listPackages } from "@/modules/complements/service";
 import { savePackageAction } from "@/modules/complements/actions";
 import { warrantyText } from "@/modules/complements/match";
@@ -25,18 +25,20 @@ function PackageForm({ p }: { p?: ComplementPackage }) {
           <span className="text-xs text-ink-soft">Uno por renglón; * = cualquier texto.</span>
         </label>
         <Field label="Orden" name="position" type="number" min={0} max={999} defaultValue={p?.position ?? 0} />
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={p?.active ?? true} /> Activo</label>
+        <label className="tap flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={p?.active ?? true} /> Activo</label>
+        <label className="tap flex items-center gap-2 text-sm"><input type="checkbox" name="shared" defaultChecked={p?.shared ?? true} /> Habilitado para los demás usuarios</label>
       </div>
     </ActionForm>
   );
 }
 
 export default async function ComplementsPage() {
-  await requirePagePermission("complements.manage");
-  const packages = await listPackages(true);
+  const user = await requirePagePermission("complements.manage", "quotes.write");
+  const admin = can(user, "complements.manage");
+  const packages = await listPackages(admin, !admin);
   return (
     <>
-      <PageHeader title="Complementos" subtitle="Paquetes de actividades incluidas que se agregan a las cotizaciones. Los cambios no alteran cotizaciones ya guardadas." />
+      <PageHeader title="Paquetes de complementos" subtitle={admin ? "Paquetes de actividades y condiciones para las cotizaciones. «Habilitado para los demás usuarios» decide quién puede usarlos; los cambios no alteran cotizaciones ya guardadas." : "Paquetes disponibles al cotizar. Solo el administrador puede crearlos o editarlos."} />
       <div className="space-y-3">
         {packages.map((p) => (
           <Card key={p.id} className="p-0">
@@ -45,17 +47,22 @@ export default async function ComplementsPage() {
                 <b>{p.code}</b><span>{p.name}</span>
                 <span className="text-xs text-ink-soft">{p.activities.length} actividades · garantía {warrantyText(p.warrantyMonths)}{p.skuPatterns.length > 0 && ` · sugerir: ${p.skuPatterns.join(", ")}`}</span>
                 {!p.active && <Badge>Inactivo</Badge>}
+                {p.active && !p.shared && <Badge tone="amber">Solo admin</Badge>}
               </summary>
-              <div className="border-t border-line p-4"><PackageForm p={p} /></div>
+              <div className="border-t border-line p-4">
+                {admin ? <PackageForm p={p} /> : p.activities.length > 0
+                  ? <ol className="list-decimal space-y-0.5 pl-5 text-sm sm:columns-2">{p.activities.map((a) => <li key={a} className="break-words">{a}</li>)}</ol>
+                  : <p className="text-sm text-ink-soft">Sin actividades; aplica la garantía de {warrantyText(p.warrantyMonths)}.</p>}
+              </div>
             </details>
           </Card>
         ))}
-        <Card className="p-0">
+        {admin && <Card className="p-0">
           <details open={packages.length === 0}>
             <summary className="tap cursor-pointer p-4 font-medium">+ Nuevo paquete</summary>
             <div className="border-t border-line p-4"><PackageForm /></div>
           </details>
-        </Card>
+        </Card>}
       </div>
     </>
   );

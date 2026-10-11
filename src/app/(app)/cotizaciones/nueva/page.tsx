@@ -32,7 +32,7 @@ export default async function NewQuotePage({ searchParams }: { searchParams: Pro
           customers={customers.map((c) => ({ id: c.id, legalName: c.legalName }))}
           initial={cliente || items.length ? { customerId: cliente ?? "", validUntil: "", notes: "", complements: null, items } : undefined}
           canOverride={can(user, "quotes.override_price")}
-          complementOptions={await packageOptions()}
+          complementOptions={await packageOptions(user)}
           canCustomize={can(user, "complements.manage")}
         />
       </Card>

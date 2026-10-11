@@ -7,7 +7,7 @@ import { emailQuote, logQuoteWhatsApp, shareQuoteLink } from "./email";
 import { normalizePhone } from "./phone";
 import { can, requirePermission } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
-import { listPackages } from "@/modules/complements/service";
+import { listPackages, savePackageFromQuote } from "@/modules/complements/service";
 import type { QuoteComplement } from "@/modules/complements/match";
 import { db } from "@/lib/db";
 import { runAction, type ActionResult } from "@/lib/errors";
@@ -43,6 +43,7 @@ const quoteSchema = z.object({
       code: z.string().trim().min(1).max(40),
       name: z.string().trim().max(120),
       activities: z.array(z.string().trim().min(1).max(300)).max(60),
+      saveAs: z.object({ shared: z.boolean() }).optional(),
     })).max(10)),
   items: z
     .string()
@@ -72,12 +73,19 @@ export async function saveQuoteAction(id: string | undefined, _: ActionResult<un
     });
     if (!can(user, "complements.manage")) {
       // Solo ADMIN redacta complementos; los demás eligen paquetes y actividades del catálogo.
-      const catalog = new Map((await listPackages()).map((p) => [p.code, p.activities]));
+      const catalog = new Map((await listPackages(false, true)).map((p) => [p.code, p.activities]));
       // Lo que el administrador ya dejó en esta cotización también se conserva al editarla.
       const prev = id ? ((await db.quote.findUnique({ where: { id }, select: { complements: true } }))?.complements as QuoteComplement[] | null) ?? [] : [];
       for (const c of prev) catalog.set(c.code, [...(catalog.get(c.code) ?? []), ...c.activities]);
       const ok = data.complements.every((c) => catalog.get(c.code)?.length !== undefined && c.activities.every((a) => catalog.get(c.code)!.includes(a)));
       if (!ok) throw new AppError("Solo el administrador puede agregar complementos o actividades nuevas.", "FORBIDDEN");
+      data.complements = data.complements.map(({ saveAs: _, ...c }) => c);
+    } else {
+      // Personalizados marcados «Guardar en paquetes»: se registran en el catálogo y la cotización usa su clave.
+      data.complements = await Promise.all(data.complements.map(async ({ saveAs, ...c }) =>
+        saveAs && c.code.startsWith("PERSONALIZADO")
+          ? { ...c, code: await savePackageFromQuote(user, c, saveAs.shared, data.warrantyMonths ?? 3) }
+          : c));
     }
     if (id) await updateQuote(user, id, data);
     else quoteId = (await createQuote(user, data)).id;

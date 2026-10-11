@@ -48,7 +48,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
           action={saveQuoteAction.bind(null, q.id)}
           customers={customers.map((c) => ({ id: c.id, legalName: c.legalName }))}
           canOverride={can(user, "quotes.override_price")}
-          complementOptions={await packageOptions()}
+          complementOptions={await packageOptions(user)}
           canCustomize={can(user, "complements.manage")}
           initial={{
             customerId: q.customerId,

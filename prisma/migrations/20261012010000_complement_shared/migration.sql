@@ -1,0 +1,1 @@
+ALTER TABLE "ComplementPackage" ADD COLUMN "shared" BOOLEAN NOT NULL DEFAULT true;

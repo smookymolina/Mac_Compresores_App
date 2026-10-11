@@ -745,3 +745,4 @@ body { overflow-x: clip; padding-inline: env(safe-area-inset-left) env(safe-area
 @media (prefers-reduced-motion: reduce) { .dialog-center[open] { animation: none; } }
 /* Hoja inferior también sin showModal (WebKit antiguo): anclada al borde inferior. */
 @media (max-width: 639px) { .dialog-center:not(.search-dialog)[open] { top: auto; bottom: 0; } }
+input[type="file"] { max-width: 100%; }

@@ -40,7 +40,7 @@ Usa comillas **simples** en valores con `$`, `#`, `!` o `%` (Compose no interpol
 docker compose up -d --build        # db → migrate (migraciones + seed) → app; reinicio automático
 docker compose ps && docker compose logs migrate --tail 30
 ```
-Actualizar a una versión nueva: `git pull` y de nuevo `docker compose up -d --build`. Nunca `down -v` (borra la BD).
+Actualizar a una versión nueva: `git pull` y `sh scripts/deploy.sh` (respaldo, build, espera a *healthy* y limpia el caché de Docker, que si no crece decenas de GB). Nunca `down -v` (borra la BD).
 
 Servicios que levanta Compose: `db`, `migrate` (migraciones + seed, una vez), `app`, `backup` (respaldo diario
 03:00 de México en `./backups`, conserva `BACKUP_KEEP_DAYS` días) y `scheduler` (trabajo diario 07:00 de México:

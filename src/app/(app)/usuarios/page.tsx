@@ -52,13 +52,13 @@ export default async function UsersPage() {
                     </p>
                     <ActionForm action={updateUserSignaturesAction.bind(null, u.id)} submitLabel="Guardar firmas" variant="secondary">
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="flex flex-col gap-1 text-sm">
+                        <label className="flex min-w-0 flex-col gap-1 text-sm">
                           Firma de correo (.html)
-                          <input type="file" name="signatureFile" accept=".html,text/html" className="text-sm" />
+                          <input type="file" name="signatureFile" accept=".html,text/html" className="w-full max-w-full min-w-0 text-sm" />
                         </label>
-                        <label className="flex flex-col gap-1 text-sm">
+                        <label className="flex min-w-0 flex-col gap-1 text-sm">
                           Bloque de asesor para cotizaciones (.png)
-                          <input type="file" name="blockFile" accept="image/png" className="text-sm" />
+                          <input type="file" name="blockFile" accept="image/png" className="w-full max-w-full min-w-0 text-sm" />
                         </label>
                       </div>
                       <div className="flex flex-wrap gap-4 text-sm">

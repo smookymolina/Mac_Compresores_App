@@ -615,6 +615,7 @@ model ComplementPackage {
   warrantyMonths Int      @default(3)
   skuPatterns    String[] // comodines sobre SKU o descripción ("8000-*", "Renta *"); sugieren el paquete al cotizar
   active         Boolean  @default(true)
+  shared         Boolean  @default(true) // false = solo lo ve y usa el administrador
   position       Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

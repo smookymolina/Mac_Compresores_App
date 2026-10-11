@@ -3,6 +3,8 @@ export interface QuoteComplement {
   code: string;
   name: string;
   activities: string[];
+  /** Solo admin, en un Personalizado: guardarlo en el catálogo (shared = visible para los demás). */
+  saveAs?: { shared: boolean };
 }
 
 export interface ComplementOption extends QuoteComplement {

@@ -18,6 +18,7 @@ const schema = z.object({
   skuPatterns: lines(20, 60),
   position: z.coerce.number().int().min(0).max(999),
   active: z.literal("on").optional().transform((v) => v === "on"),
+  shared: z.literal("on").optional().transform((v) => v === "on"),
 });
 
 export async function savePackageAction(id: string | undefined, _: ActionResult<unknown> | null, fd: FormData) {

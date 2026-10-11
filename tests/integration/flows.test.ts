@@ -245,3 +245,16 @@ describe("complementos y garantía", () => {
     expect((await getQuote(sellerA, q.id)).complements).toEqual([]);
   });
 });
+
+describe("paquetes compartidos", () => {
+  it("un personalizado guardado sin compartir solo lo ve el admin", async () => {
+    const { savePackageFromQuote, packageOptions } = await import("@/modules/complements/service");
+    const code = await savePackageFromQuote(admin, { name: "Instalación línea nave 3", activities: ["Trazado"] }, false, 6);
+    expect(code).toBe("P-INSTALACION-LINEA-NAVE-3");
+    expect((await packageOptions(admin)).some((o) => o.code === code)).toBe(true);
+    expect((await packageOptions(sellerA)).some((o) => o.code === code)).toBe(false);
+    await db.complementPackage.update({ where: { code }, data: { shared: true } });
+    expect((await packageOptions(sellerA)).some((o) => o.code === code)).toBe(true);
+    expect(await savePackageFromQuote(admin, { name: "Instalación línea nave 3", activities: [] }, true, 3)).toBe(`${code}-2`);
+  });
+});

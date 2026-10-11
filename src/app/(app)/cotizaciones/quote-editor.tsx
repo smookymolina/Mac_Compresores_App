@@ -109,6 +109,16 @@ function Complements({ options, selected, setSelected, canCustomize }: {
               )}
               <button type="button" className="tap -m-2 p-2 text-ink-soft hover:text-danger" aria-label={`Quitar ${c.code}`} onClick={() => setSelected((xs) => xs.filter((x) => x.code !== c.code))}><X size={16} /></button>
             </div>
+            {isCustom(c.code) && canCustomize && (
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                <label className="tap flex items-center gap-2"><input type="checkbox" checked={!!c.saveAs}
+                  onChange={(e) => setSelected((xs) => xs.map((x) => (x.code === c.code ? { ...x, saveAs: e.target.checked ? { shared: true } : undefined } : x)))} />
+                  Guardar en paquetes</label>
+                {c.saveAs && <label className="tap flex items-center gap-2"><input type="checkbox" checked={c.saveAs.shared}
+                  onChange={(e) => setSelected((xs) => xs.map((x) => (x.code === c.code ? { ...x, saveAs: { shared: e.target.checked } } : x)))} />
+                  Habilitado para los demás usuarios</label>}
+              </div>
+            )}
             {all.length > 0 && (
               <ul className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
                 {all.map((a) => (
