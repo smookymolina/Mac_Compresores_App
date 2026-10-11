@@ -33,6 +33,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Mac Compresores}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
       CRON_SECRET: ${CRON_SECRET:-}
       SHARE_SECRET: ${SHARE_SECRET:-}
       BANK_INFO: ${BANK_INFO:-}

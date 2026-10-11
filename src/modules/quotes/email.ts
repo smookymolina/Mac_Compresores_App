@@ -3,7 +3,7 @@ import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { renderEmail } from "@/lib/email-layout";
 import { QUOTE_SHARE_TTL_MS, createShareLink, loadShareUser, readShareToken } from "@/lib/share";
-import { isMailConfigured, sendMail } from "@/lib/mail";
+import { companyReplyTo, isMailConfigured, sendMail } from "@/lib/mail";
 import { warrantyText } from "@/modules/complements/match";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
@@ -39,7 +39,7 @@ export function quoteEmail(q: Awaited<ReturnType<typeof getQuote>>, message: str
       ...(q.warrantyMonths != null ? [{ label: "Garantía", value: warrantyText(q.warrantyMonths) }] : []),
       { label: "Vendedor", value: q.seller.name },
     ],
-    notes: ["Adjuntamos la cotización en PDF. Para cualquier duda, responde a este correo y le llegará directamente a tu vendedor."],
+    notes: ["Adjuntamos la cotización en PDF. Para cualquier duda, responde a este correo y con gusto te atenderemos."],
     signature: [q.seller.name, q.seller.email, "MAC Compresores"],
     signatureHtml: q.seller.signatureHtml,
   });
@@ -61,7 +61,7 @@ export async function emailQuote(user: CurrentUser, id: string, input: { to: str
     await sendMail({
       to: input.to,
       cc: input.cc.length ? input.cc : undefined,
-      replyTo: q.seller.email,
+      replyTo: companyReplyTo(),
       subject,
       text,
       html,

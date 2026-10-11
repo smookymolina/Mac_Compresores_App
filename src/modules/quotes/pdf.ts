@@ -239,8 +239,9 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
     const left = listLines(0, half);
     const right = listLines(half, pk.activities.length);
     const colH = (xs: typeof left) => xs.reduce((a, x) => a + x.lines.length * LH + 1.5, 0);
-    const label = wrap(pk.code, bold, 8.5, 80);
-    const nameLines = pk.name ? wrap(pk.name, font, 7.5, 80) : [];
+    const custom = pk.code.startsWith("PERSONALIZADO");
+    const label = wrap(custom ? pk.name || "Personalizado" : pk.code, bold, 8.5, 80);
+    const nameLines = pk.name && !custom ? wrap(pk.name, font, 7.5, 80) : [];
     const bodyH = Math.max(colH(left), colH(right), label.length * 10 + nameLines.length * 9) + 12;
     ensure(bodyH);
     rect(M, y - bodyH, R - M, bodyH, WHITE, LINE);

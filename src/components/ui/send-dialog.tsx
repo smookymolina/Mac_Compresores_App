@@ -3,7 +3,7 @@
 import { useActionState, useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Check, Copy, ExternalLink, Link2, Mail, MessageCircle, Send, Share2, TriangleAlert } from "lucide-react";
+import { Check, Copy, ExternalLink, Link2, Mail, MessageCircle, QrCode, Send, Share2, TriangleAlert } from "lucide-react";
 import type { ActionResult } from "@/lib/errors";
 import { formatPhone, normalizePhone, whatsappUrl } from "@/modules/quotes/phone";
 import { cn, fmtDate } from "@/lib/utils";
@@ -73,6 +73,35 @@ function toFormData(params: Params, extra: Params = {}) {
 function withQuery(url: string, params: Params) {
   const qs = new URLSearchParams(params).toString();
   return qs ? `${url}${url.includes("?") ? "&" : "?"}${qs}` : url;
+}
+
+/**
+ * QR con el enlace de WhatsApp: el vendedor lo escanea con la cámara de su teléfono y el chat se abre
+ * en SU WhatsApp con el mensaje listo, así la cotización sale de su propio número. Solo en pantallas
+ * grandes (en el teléfono basta «Abrir WhatsApp»).
+ */
+function WhatsAppQr({ url, onSent }: { url: string; onSent: () => void }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    import("qrcode")
+      .then((q) => q.toDataURL(url, { margin: 1, width: 200, errorCorrectionLevel: "M" }))
+      .then((d) => { if (alive) setSrc(d); })
+      .catch(() => { if (alive) setSrc(null); });
+    return () => { alive = false; };
+  }, [url]);
+  if (!src) return null;
+  return (
+    <div className="send-qr max-sm:hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element -- data URL generada en el cliente */}
+      <img src={src} width={132} height={132} alt="Código QR para abrir el chat de WhatsApp en tu teléfono" className="shrink-0 rounded border border-line bg-white p-1" />
+      <div className="min-w-0 space-y-2 text-sm">
+        <p className="flex items-center gap-1.5 font-medium"><QrCode size={16} strokeWidth={1.75} aria-hidden /> Enviar desde tu teléfono</p>
+        <p className="text-xs text-muted">Escanéalo con la cámara de tu celular: se abre tu WhatsApp con el chat del cliente y el mensaje listo. Solo toca enviar.</p>
+        <Button type="button" variant="secondary" size="sm" onClick={onSent}>Ya lo envié</Button>
+      </div>
+    </div>
+  );
 }
 
 /** ¿El navegador puede compartir archivos (Web Share API nivel 2)? Solo en cliente. */
@@ -399,6 +428,7 @@ function WhatsAppPanel(p: SendDialogProps & { params: Params; onDone: () => void
           </div>
         </>
       )}
+      {canOpen && <WhatsAppQr url={whatsappUrl(intl, text)} onSent={() => { void log("link"); onDone(); }} />}
       {shareable && fileError && <p role="status" className="send-error">{fileError}</p>}
       <div className="send-actions">
         <Button type="button" variant="ghost" onClick={onDone}>Cancelar</Button>

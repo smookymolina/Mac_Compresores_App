@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
-import { isMailConfigured, sendMail } from "@/lib/mail";
+import { companyReplyTo, isMailConfigured, sendMail } from "@/lib/mail";
 import { renderEmail, type EmailDetail } from "@/lib/email-layout";
 import { fmtMoney, type Dec } from "@/lib/money";
 import { fmtDate, fmtDateTime } from "@/lib/utils";
@@ -178,7 +178,7 @@ export async function sendPaymentReminder(
     }
     try {
       await withTimeout(sendMail({
-        to: input.to, cc: input.cc.length ? input.cc : undefined, replyTo: sale.seller.email,
+        to: input.to, cc: input.cc.length ? input.cc : undefined, replyTo: companyReplyTo(),
         subject: mail.subject, html: mail.html, text: mail.text,
       }), 40_000);
     } catch (e) {
@@ -220,7 +220,7 @@ export async function reminderDraftsFor(
     if (!s) continue;
     out.set(r.id, {
       ...reminderDraft({ ...r, today, customerContact: s.customer, lastSentAt: last.get(r.id) ?? null }),
-      replyTo: s.seller.email,
+      replyTo: companyReplyTo(),
     });
   }
   return out;

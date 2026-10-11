@@ -53,6 +53,13 @@ function withSuggestions(current: QuoteComplement[], options: ComplementOption[]
   return next;
 }
 
+const CUSTOM = "__custom__";
+const isCustom = (code: string) => code.startsWith("PERSONALIZADO");
+const customCode = (xs: QuoteComplement[]) => {
+  const n = xs.filter((c) => isCustom(c.code)).length;
+  return n ? `PERSONALIZADO-${n + 1}` : "PERSONALIZADO";
+};
+
 function Complements({ options, selected, setSelected }: {
   options: ComplementOption[];
   selected: QuoteComplement[];
@@ -68,13 +75,17 @@ function Complements({ options, selected, setSelected }: {
           <h2 id="complements-title" className="label mb-0">Complementos</h2>
           <p className="text-xs text-ink-soft">Alcance incluido que se imprime en el PDF. Se sugieren según el SKU o la descripción de las partidas.</p>
         </div>
-        {available.length > 0 && (
-          <select className="input w-auto" value="" aria-label="Agregar paquete de complementos"
-            onChange={(e) => { const o = options.find((x) => x.code === e.target.value); if (o) setSelected((xs) => [...xs, copy(o)]); }}>
-            <option value="">+ Agregar paquete…</option>
-            {available.map((o) => <option key={o.code} value={o.code}>{o.code} · {o.name}</option>)}
-          </select>
-        )}
+        <select className="input w-full min-w-0 sm:w-auto sm:max-w-xs" value="" aria-label="Agregar paquete de complementos"
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === CUSTOM) return setSelected((xs) => [...xs, { code: customCode(xs), name: "Personalizado", activities: [] }]);
+            const o = options.find((x) => x.code === v);
+            if (o) setSelected((xs) => [...xs, copy(o)]);
+          }}>
+          <option value="">+ Agregar paquete…</option>
+          {available.map((o) => <option key={o.code} value={o.code}>{o.code} · {o.name}</option>)}
+          <option value={CUSTOM}>Personalizado (actividades a mano)</option>
+        </select>
       </div>
       {selected.length === 0 && <p className="rounded border border-dashed border-line p-3 text-sm text-ink-soft">Sin complementos.</p>}
       {selected.map((c) => {
@@ -89,18 +100,23 @@ function Complements({ options, selected, setSelected }: {
         return (
           <div key={c.code} className="rounded border border-line p-3">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm"><b>{c.code}</b> · {c.name} <span className="text-xs text-ink-soft">({c.activities.length}/{all.length})</span></p>
+              {isCustom(c.code) ? (
+                <input className="input min-w-0 flex-1" maxLength={120} value={c.name} aria-label="Nombre del paquete personalizado"
+                  onChange={(e) => setSelected((xs) => xs.map((x) => (x.code === c.code ? { ...x, name: e.target.value } : x)))} />
+              ) : (
+                <p className="min-w-0 text-sm break-words"><b>{c.code}</b> · {c.name} <span className="text-xs text-ink-soft">({c.activities.length}/{all.length})</span></p>
+              )}
               <button type="button" className="tap -m-2 p-2 text-ink-soft hover:text-danger" aria-label={`Quitar ${c.code}`} onClick={() => setSelected((xs) => xs.filter((x) => x.code !== c.code))}><X size={16} /></button>
             </div>
             {all.length > 0 && (
               <ul className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
                 {all.map((a) => (
-                  <li key={a}><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={c.activities.includes(a)} onChange={(e) => toggle(a, e.target.checked)} />{a}</label></li>
+                  <li key={a} className="min-w-0"><label className="flex items-start gap-2 text-sm break-words"><input type="checkbox" className="mt-1" checked={c.activities.includes(a)} onChange={(e) => toggle(a, e.target.checked)} />{a}</label></li>
                 ))}
               </ul>
             )}
             <div className="mt-2 flex gap-2">
-              <input className="input" maxLength={300} value={draft[c.code] ?? ""} placeholder="Agregar actividad" aria-label={`Agregar actividad a ${c.code}`}
+              <input className="input min-w-0 flex-1" maxLength={300} value={draft[c.code] ?? ""} placeholder="Agregar actividad" aria-label={`Agregar actividad a ${c.code}`}
                 onChange={(e) => setDraft((d) => ({ ...d, [c.code]: e.target.value }))}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }} />
               <Button type="button" variant="secondary" onClick={addCustom}>Agregar</Button>

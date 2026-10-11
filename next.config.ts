@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],
       },
+      {
+        // Logotipo BIMI: URL estable, pública y cacheable (los proveedores la descargan sin sesión).
+        source: "/email-branding/:file*.svg",
+        headers: [
+          { key: "Content-Type", value: "image/svg+xml" },
+          { key: "Cache-Control", value: "public, max-age=86400" },
+        ],
+      },
     ];
   },
 };

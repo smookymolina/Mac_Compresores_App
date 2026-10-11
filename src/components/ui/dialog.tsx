@@ -25,8 +25,14 @@ export function Dialog({
     const d = ref.current;
     if (!d) return;
     // Respaldo para navegadores sin <dialog> modal (Safari < 15.4): se muestra con el atributo open.
-    if (open && !d.open) { if (typeof d.showModal === "function") d.showModal(); else d.setAttribute("open", ""); }
-    if (!open && d.open) { if (typeof d.close === "function") d.close(); else d.removeAttribute("open"); }
+    // También si showModal() falla (WebViews antiguos): .dialog-fallback lo fija en pantalla con fondo propio.
+    if (open && !d.open) {
+      try { d.showModal(); } catch { d.classList.add("dialog-fallback"); d.setAttribute("open", ""); }
+    }
+    if (!open && d.open) {
+      try { d.close(); } catch { d.removeAttribute("open"); }
+      d.classList.remove("dialog-fallback");
+    }
   }, [open]);
 
   return (

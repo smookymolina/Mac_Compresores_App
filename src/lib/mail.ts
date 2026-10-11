@@ -35,6 +35,9 @@ function getTransporter() {
   return transporter;
 }
 
+/** Buzón que recibe las respuestas de los clientes (no la cuenta personal del vendedor). */
+export const companyReplyTo = () => process.env.MAIL_REPLY_TO?.trim() || process.env.SMTP_FROM_EMAIL?.trim() || "ventas@maccompresores.com.mx";
+
 export function isMailConfigured() {
   return ["SMTP_HOST", "SMTP_USER", "SMTP_PASS", "SMTP_FROM_EMAIL"].every((k) => !!process.env[k]?.trim());
 }

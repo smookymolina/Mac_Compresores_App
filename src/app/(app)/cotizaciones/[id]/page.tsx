@@ -8,7 +8,7 @@ import { getQuote } from "@/modules/quotes/service";
 import { QUOTE_STATUS_LABEL, QUOTE_TRANSITIONS } from "@/modules/quotes/status";
 import { changeQuoteStatusAction, convertToSaleAction, deleteQuoteAction, emailQuoteAction, logQuoteWhatsAppAction, shareQuoteLinkAction } from "@/modules/quotes/actions";
 import { SENDABLE, suggestedPhone, suggestedRecipient } from "@/modules/quotes/email";
-import { isMailConfigured } from "@/lib/mail";
+import { companyReplyTo, isMailConfigured } from "@/lib/mail";
 import { shareUnavailableReason } from "@/lib/share";
 import { ActionForm } from "@/components/action-form";
 import { Card, CardHeader, LinkButton, DataTable, PageHeader, SelectField, btnClass } from "@/components/ui";
@@ -73,7 +73,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
                   unavailable: isMailConfigured() ? null : "El envío de correos no está configurado. Contacta al administrador.",
                   defaultTo: suggestedRecipient(q),
                   defaultMessage: `Estimado cliente:\n\nAdjuntamos la cotización C-${q.folio} solicitada. Quedamos atentos a cualquier duda.\n\nSaludos cordiales.`,
-                  note: `Se adjunta el PDF; las respuestas llegan a ${q.seller.email}.${draftNote}`,
+                  note: `Se adjunta el PDF; las respuestas llegan a ${companyReplyTo()}.${draftNote}`,
                 }}
                 whatsapp={{
                   linkAction: shareQuoteLinkAction.bind(null, q.id),
@@ -149,7 +149,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
           </dl>
           {Array.isArray(q.complements) && (q.complements as unknown as QuoteComplement[]).map((c) => (
             <div key={c.code} className="border-t border-line p-4 text-sm">
-              <p><b>Complementos {c.code}</b> · {c.name}</p>
+              <p className="break-words">{c.code.startsWith("PERSONALIZADO") ? <b>Complementos · {c.name || "Personalizado"}</b> : <><b>Complementos {c.code}</b> · {c.name}</>}</p>
               {c.activities.length > 0 && <ol className="mt-1 list-decimal gap-x-6 pl-5 text-ink-soft sm:columns-2">{c.activities.map((a) => <li key={a}>{a}</li>)}</ol>}
             </div>
           ))}

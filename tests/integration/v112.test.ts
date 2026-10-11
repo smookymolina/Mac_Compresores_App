@@ -6,6 +6,7 @@ import type { CurrentUser } from "@/lib/auth/session";
 const sent: { to: unknown; subject: string; attachments?: { filename: string }[]; replyTo?: string }[] = [];
 vi.mock("@/lib/mail", () => ({
   isMailConfigured: () => true,
+  companyReplyTo: () => "ventas@maccompresores.com.mx",
   sendMail: async (m: (typeof sent)[number]) => { sent.push(m); },
 }));
 
@@ -126,12 +127,12 @@ describe("trabajo diario", () => {
 });
 
 describe("correo de cotización", () => {
-  it("adjunta el PDF, responde al vendedor y pasa el borrador a «Enviada»", async () => {
+  it("adjunta el PDF, responde al buzón de la empresa y pasa el borrador a «Enviada»", async () => {
     const q = await createQuote(seller, { customerId, validUntil: new Date(Date.now() + 7 * 864e5), items: [{ productId, quantity: "1", discountPct: "0" }] });
     sent.length = 0;
     await emailQuote(seller, q.id, { to: [`cliente-${tag}@t`], cc: [], message: "Adjunto" });
     expect(sent[0]!.attachments![0]!.filename).toBe(`cotizacion-C${q.folio}.pdf`);
-    expect(sent[0]!.replyTo).toBe(seller.email);
+    expect(sent[0]!.replyTo).toBe("ventas@maccompresores.com.mx");
     expect((await getQuote(seller, q.id)).status).toBe("SENT");
     await expect(emailQuote(other, q.id, { to: ["x@t"], cc: [], message: "x" })).rejects.toThrow(/no encontrada/);
   });
