@@ -314,6 +314,8 @@ model Quote {
   exchangeRate  Decimal?    @db.Decimal(10, 4) // TC USD→MXN usado en partidas en USD
   notes         String?
   deliveryTime  String? // Tiempo de entrega o de ejecución del servicio
+  complements   Json? // Copia de los paquetes de complementos elegidos: [{code,name,activities[]}]
+  warrantyMonths Int? // Garantía (cláusula D); null = texto genérico de 3 meses
   subtotal      Decimal     @default(0) @db.Decimal(14, 2)
   discountTotal Decimal     @default(0) @db.Decimal(14, 2)
   taxTotal      Decimal     @default(0) @db.Decimal(14, 2)
@@ -602,4 +604,18 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@index([createdAt])
+}
+
+/// Paquetes de complementos (alcance incluido) que se adjuntan a las cotizaciones.
+model ComplementPackage {
+  id             String   @id @default(uuid()) @db.Uuid
+  code           String   @unique
+  name           String
+  activities     String[]
+  warrantyMonths Int      @default(3)
+  skuPatterns    String[] // comodines sobre SKU o descripción ("8000-*", "Renta *"); sugieren el paquete al cotizar
+  active         Boolean  @default(true)
+  position       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

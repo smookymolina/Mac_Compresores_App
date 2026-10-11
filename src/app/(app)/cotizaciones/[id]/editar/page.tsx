@@ -8,6 +8,8 @@ import { AppError } from "@/lib/errors";
 import { uuid } from "@/lib/validation";
 import { listCustomers } from "@/modules/customers/service";
 import { getQuote } from "@/modules/quotes/service";
+import { packageOptions } from "@/modules/complements/service";
+import type { QuoteComplement } from "@/modules/complements/match";
 import { saveQuoteAction } from "@/modules/quotes/actions";
 import { Card, PageHeader } from "@/components/ui";
 import { QuoteEditor } from "../../quote-editor";
@@ -46,11 +48,14 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
           action={saveQuoteAction.bind(null, q.id)}
           customers={customers.map((c) => ({ id: c.id, legalName: c.legalName }))}
           canOverride={can(user, "quotes.override_price")}
+          complementOptions={await packageOptions()}
           initial={{
             customerId: q.customerId,
             validUntil: q.validUntil.toISOString().slice(0, 10),
             notes: q.notes ?? "",
             deliveryTime: q.deliveryTime ?? "",
+            warrantyMonths: q.warrantyMonths,
+            complements: q.complements as QuoteComplement[] | null, // null = cotización previa: se sugieren por SKU
             items: q.items
               .filter((i) => i.productId)
               .map((i) => {

@@ -47,6 +47,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: SP 
         actions={
           <>
             {can(user, "products.import") && <LinkButton variant="secondary" href="/productos/importar">Importar CSV</LinkButton>}
+            {can(user, "products.write") && <LinkButton variant="secondary" href="/productos/complementos">Complementos</LinkButton>}
             {can(user, "products.write") && <LinkButton href="/productos/nuevo">Nuevo producto</LinkButton>}
           </>
         }

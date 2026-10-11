@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useRef, useState, useTransition } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import type { ActionResult } from "@/lib/errors";
 import { Button } from "@/components/ui";
 import { searchProductsAction } from "@/modules/products/actions";
+import { suggestFor, warrantyText, type ComplementOption, type QuoteComplement } from "@/modules/complements/match";
 
 export interface EditorItem {
   productId: string;
@@ -43,15 +44,102 @@ function lineAmount(i: EditorItem) {
   return (net / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 }
 
+const copy = (o: ComplementOption): QuoteComplement => ({ code: o.code, name: o.name, activities: [...o.activities] });
+
+/** Agrega los paquetes sugeridos por SKU que aún no estén elegidos. */
+function withSuggestions(current: QuoteComplement[], options: ComplementOption[], items: { sku: string; description: string }[]) {
+  const next = [...current];
+  for (const it of items) for (const o of suggestFor(options, it.sku, it.description)) if (!next.some((c) => c.code === o.code)) next.push(copy(o));
+  return next;
+}
+
+function Complements({ options, selected, setSelected }: {
+  options: ComplementOption[];
+  selected: QuoteComplement[];
+  setSelected: (fn: (xs: QuoteComplement[]) => QuoteComplement[]) => void;
+}) {
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const available = options.filter((o) => !selected.some((c) => c.code === o.code));
+  const patch = (code: string, activities: string[]) => setSelected((xs) => xs.map((c) => (c.code === code ? { ...c, activities } : c)));
+  return (
+    <section aria-labelledby="complements-title" className="space-y-2">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 id="complements-title" className="label mb-0">Complementos</h2>
+          <p className="text-xs text-ink-soft">Alcance incluido que se imprime en el PDF. Se sugieren según el SKU o la descripción de las partidas.</p>
+        </div>
+        {available.length > 0 && (
+          <select className="input w-auto" value="" aria-label="Agregar paquete de complementos"
+            onChange={(e) => { const o = options.find((x) => x.code === e.target.value); if (o) setSelected((xs) => [...xs, copy(o)]); }}>
+            <option value="">+ Agregar paquete…</option>
+            {available.map((o) => <option key={o.code} value={o.code}>{o.code} · {o.name}</option>)}
+          </select>
+        )}
+      </div>
+      {selected.length === 0 && <p className="rounded border border-dashed border-line p-3 text-sm text-ink-soft">Sin complementos.</p>}
+      {selected.map((c) => {
+        const base = options.find((o) => o.code === c.code)?.activities ?? [];
+        const all = [...base, ...c.activities.filter((a) => !base.includes(a))];
+        const toggle = (a: string, on: boolean) => patch(c.code, all.filter((x) => (x === a ? on : c.activities.includes(x))));
+        const addCustom = () => {
+          const v = (draft[c.code] ?? "").trim();
+          if (v && !c.activities.includes(v)) patch(c.code, [...c.activities, v]);
+          setDraft((d) => ({ ...d, [c.code]: "" }));
+        };
+        return (
+          <div key={c.code} className="rounded border border-line p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm"><b>{c.code}</b> · {c.name} <span className="text-xs text-ink-soft">({c.activities.length}/{all.length})</span></p>
+              <button type="button" className="tap -m-2 p-2 text-ink-soft hover:text-danger" aria-label={`Quitar ${c.code}`} onClick={() => setSelected((xs) => xs.filter((x) => x.code !== c.code))}><X size={16} /></button>
+            </div>
+            {all.length > 0 && (
+              <ul className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+                {all.map((a) => (
+                  <li key={a}><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={c.activities.includes(a)} onChange={(e) => toggle(a, e.target.checked)} />{a}</label></li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-2 flex gap-2">
+              <input className="input" maxLength={300} value={draft[c.code] ?? ""} placeholder="Agregar actividad" aria-label={`Agregar actividad a ${c.code}`}
+                onChange={(e) => setDraft((d) => ({ ...d, [c.code]: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }} />
+              <Button type="button" variant="secondary" onClick={addCustom}>Agregar</Button>
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
 export function QuoteEditor({
-  action, customers, initial, canOverride,
+  action, customers, initial, canOverride, complementOptions,
 }: {
   action: (prev: ActionResult<unknown> | null, fd: FormData) => Promise<ActionResult<unknown>>;
   customers: { id: string; legalName: string }[];
-  initial?: { customerId: string; validUntil: string; notes: string; deliveryTime?: string; items: EditorItem[] };
+  initial?: {
+    customerId: string; validUntil: string; notes: string; deliveryTime?: string;
+    warrantyMonths?: number | null; complements: QuoteComplement[] | null; items: EditorItem[];
+  };
   canOverride: boolean;
+  complementOptions: ComplementOption[];
 }) {
   const [items, setItems] = useState<EditorItem[]>(initial?.items ?? []);
+  const [complements, setComplementsRaw] = useState<QuoteComplement[]>(
+    () => initial?.complements ?? withSuggestions([], complementOptions, initial?.items ?? []),
+  );
+  // La garantía sigue al paquete de mayor garantía hasta que el vendedor la cambia a mano.
+  const warrantyTouched = useRef(initial?.warrantyMonths != null);
+  const suggestedWarranty = (cs: QuoteComplement[]) => {
+    const ms = cs.map((c) => complementOptions.find((o) => o.code === c.code)?.warrantyMonths).filter((m): m is number => m != null);
+    return ms.length ? String(Math.max(...ms)) : "";
+  };
+  const [warranty, setWarranty] = useState(() => initial?.warrantyMonths?.toString() ?? suggestedWarranty(complements));
+  const setComplements = (fn: (xs: QuoteComplement[]) => QuoteComplement[]) => {
+    const next = fn(complements);
+    setComplementsRaw(next);
+    if (!warrantyTouched.current) setWarranty(suggestedWarranty(next));
+  };
   const [term, setTerm] = useState("");
   const [found, setFound] = useState<Found[]>([]);
   const [searching, startSearch] = useTransition();
@@ -77,6 +165,7 @@ export function QuoteEditor({
       productId: p.id, sku: p.sku, description: p.description, unit: p.unit, listPrice: p.price,
       taxRate: p.taxRate, quantity: "1", discountPct: "0", unitPrice: "", details: "", priceUsd: p.priceUsd,
     }]);
+    setComplements((cs) => withSuggestions(cs, complementOptions, [p]));
     setTerm("");
     setFound([]);
   };
@@ -100,7 +189,8 @@ export function QuoteEditor({
       }}
     >
       <input type="hidden" name="items" value={JSON.stringify(items.map(({ productId, quantity, discountPct, unitPrice, details }) => ({ productId, quantity, discountPct, unitPrice, details })))} />
-      <div className="grid gap-3 sm:grid-cols-4">
+      <input type="hidden" name="complements" value={JSON.stringify(complements)} />
+      <div className="grid gap-3 sm:grid-cols-5">
         <div className="sm:col-span-2">
           <label className="label" htmlFor="customerId">Cliente</label>
           <select id="customerId" name="customerId" className="input" defaultValue={initial?.customerId} required>
@@ -120,6 +210,12 @@ export function QuoteEditor({
             <option value="Por confirmar según disponibilidad" />
             <option value="Programado de común acuerdo con el cliente" />
           </datalist>
+        </div>
+        <div>
+          <label className="label" htmlFor="warrantyMonths">Garantía (meses)</label>
+          <input id="warrantyMonths" name="warrantyMonths" type="number" min={0} max={60} inputMode="numeric" className="input" value={warranty}
+            onChange={(e) => { warrantyTouched.current = true; setWarranty(e.target.value); }} placeholder="3" aria-describedby="warranty-hint" />
+          <p id="warranty-hint" className="mt-1 text-xs text-ink-soft">{warranty ? `Cláusula D: ${warrantyText(Number(warranty))}` : "Vacío = 3 meses"}</p>
         </div>
       </div>
 
@@ -196,6 +292,8 @@ export function QuoteEditor({
         </table>
       </div>
       {!canOverride && <p className="text-xs text-ink-soft">Descuento máximo por partida: {MAX_DISCOUNT}%. Precios especiales requieren autorización de gerencia.</p>}
+
+      <Complements options={complementOptions} selected={complements} setSelected={setComplements} />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
         <div className="sm:w-1/2">

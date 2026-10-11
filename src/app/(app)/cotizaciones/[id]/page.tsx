@@ -17,6 +17,7 @@ import { Download } from "lucide-react";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 import { QuoteStatusBadge } from "../status-badge";
+import { warrantyText, type QuoteComplement } from "@/modules/complements/match";
 
 export default async function QuotePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requirePagePermission("quotes.read_all", "quotes.read_own");
@@ -50,6 +51,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
           { label: "Vendedor", value: q.seller.name },
           { label: "Vigente hasta", value: fmtDate(q.validUntil) },
           ...(q.deliveryTime ? [{ label: "Tiempo de entrega", value: q.deliveryTime }] : []),
+          ...(q.warrantyMonths != null ? [{ label: "Garantía", value: warrantyText(q.warrantyMonths) }] : []),
         ]}
         actions={
           <>
@@ -145,6 +147,12 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
             <dt className="text-ink-soft">IVA</dt><dd className="num">{fmtMoney(q.taxTotal)}</dd>
             <dt className="font-semibold">Total</dt><dd className="num font-semibold">{fmtMoney(q.total)}</dd>
           </dl>
+          {Array.isArray(q.complements) && (q.complements as unknown as QuoteComplement[]).map((c) => (
+            <div key={c.code} className="border-t border-line p-4 text-sm">
+              <p><b>Complementos {c.code}</b> · {c.name}</p>
+              {c.activities.length > 0 && <ol className="mt-1 list-decimal gap-x-6 pl-5 text-ink-soft sm:columns-2">{c.activities.map((a) => <li key={a}>{a}</li>)}</ol>}
+            </div>
+          ))}
           {q.notes && <p className="border-t border-line p-4 text-sm break-words whitespace-pre-line">{q.notes}</p>}
         </Card>
 

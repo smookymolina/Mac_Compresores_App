@@ -6,6 +6,7 @@ import { QuoteEditor, type EditorItem } from "../quote-editor";
 import { db } from "@/lib/db";
 import { currentExchangeRate } from "@/modules/products/service";
 import { catalogPriceMxn } from "@/modules/quotes/pricing";
+import { packageOptions } from "@/modules/complements/service";
 
 export const metadata = { title: "Nueva cotización" };
 
@@ -29,8 +30,9 @@ export default async function NewQuotePage({ searchParams }: { searchParams: Pro
         <QuoteEditor
           action={saveQuoteAction.bind(null, undefined)}
           customers={customers.map((c) => ({ id: c.id, legalName: c.legalName }))}
-          initial={cliente || items.length ? { customerId: cliente ?? "", validUntil: "", notes: "", items } : undefined}
+          initial={cliente || items.length ? { customerId: cliente ?? "", validUntil: "", notes: "", complements: null, items } : undefined}
           canOverride={can(user, "quotes.override_price")}
+          complementOptions={await packageOptions()}
         />
       </Card>
     </>

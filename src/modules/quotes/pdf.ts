@@ -5,6 +5,7 @@ import type { getQuote } from "./service";
 import { db } from "@/lib/db";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
+import { warrantyText, type QuoteComplement } from "@/modules/complements/match";
 
 type QuoteFull = Awaited<ReturnType<typeof getQuote>>;
 type Color = ReturnType<typeof rgb>;
@@ -217,25 +218,34 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
   });
   y -= 12;
 
-  // ---- Complementos (alcance del servicio de 8000 h) ----
+  // ---- Complementos (paquetes elegidos; las cotizaciones previas conservan el de 8000 h) ----
   const services = q.items.filter(isService8000);
-  if (services.length > 0) {
-    const half = Math.ceil(SERVICE_8000.length / 2);
-    const colW = (R - M - 96) / 2 - 8;
-    const listLines = (from: number, to: number) =>
-      SERVICE_8000.slice(from, to).map((s, k) => ({ n: from + k + 1, lines: wrap(s, font, 8, colW - 16) }));
-    const LH = 9.5;
-    const left = listLines(0, half);
-    const right = listLines(half, SERVICE_8000.length);
-    const colH = (xs: typeof left) => xs.reduce((a, x) => a + x.lines.length * LH + 1.5, 0);
-    const bodyH = Math.max(colH(left), colH(right)) + 12;
-    ensure(22 + bodyH);
+  const packs: QuoteComplement[] = Array.isArray(q.complements)
+    ? (q.complements as unknown as QuoteComplement[])
+    : services.length > 0 ? [{ code: services.map((s) => s.sku).join(", "), name: "", activities: SERVICE_8000 }] : [];
+  if (packs.length > 0) {
+    ensure(22 + 30);
     rect(M, y - 20, R - M, 20, TINT);
     text("Complementos", M + pad, y - 13.5, { f: bold, size: 9.5, color: BRAND });
     text("Alcance incluido en el servicio", R - pad, y - 13.5, { size: 8, color: SLATE5, align: "right" });
     y -= 20;
+  }
+  for (const pk of packs) {
+    const half = Math.ceil(pk.activities.length / 2);
+    const colW = (R - M - 96) / 2 - 8;
+    const listLines = (from: number, to: number) =>
+      pk.activities.slice(from, to).map((s, k) => ({ n: from + k + 1, lines: wrap(s, font, 8, colW - 16) }));
+    const LH = 9.5;
+    const left = listLines(0, half);
+    const right = listLines(half, pk.activities.length);
+    const colH = (xs: typeof left) => xs.reduce((a, x) => a + x.lines.length * LH + 1.5, 0);
+    const label = wrap(pk.code, bold, 8.5, 80);
+    const nameLines = pk.name ? wrap(pk.name, font, 7.5, 80) : [];
+    const bodyH = Math.max(colH(left), colH(right), label.length * 10 + nameLines.length * 9) + 12;
+    ensure(bodyH);
     rect(M, y - bodyH, R - M, bodyH, WHITE, LINE);
-    text(services.map((s) => s.sku).join(", "), M + pad, y - 16, { f: bold, size: 8.5 });
+    label.forEach((l, k) => text(l, M + pad, y - 16 - k * 10, { f: bold, size: 8.5 }));
+    nameLines.forEach((l, k) => text(l, M + pad, y - 16 - label.length * 10 - k * 9, { size: 7.5, color: SLATE5 }));
     const drawCol = (xs: typeof left, x: number) => {
       let yy = y - 16;
       for (const it of xs) {
@@ -246,8 +256,9 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
     };
     drawCol(left, M + 96);
     drawCol(right, M + 96 + colW + 16);
-    y -= bodyH + 12;
+    y -= bodyH;
   }
+  if (packs.length > 0) y -= 12;
 
   // ---- Totales + distribuidores oficiales ----
   const net = q.subtotal.sub(q.discountTotal);
@@ -302,7 +313,11 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
 
   // ---- Términos y condiciones (A–J) ----
   // Si la cotización trae tiempo de entrega, sustituye la cláusula genérica de entrega.
-  const terms = q.deliveryTime ? TERMS.map((t) => (t.startsWith("Entrega:") ? `Entrega: ${q.deliveryTime}. Equipos para entrega inmediata: considerar el tiempo de envío por paquetería. Acreditando pago.` : t)) : TERMS;
+  // Igual con la garantía elegida (cláusula D).
+  const terms = TERMS.map((t) =>
+    t.startsWith("Entrega:") && q.deliveryTime ? `Entrega: ${q.deliveryTime}. Equipos para entrega inmediata: considerar el tiempo de envío por paquetería. Acreditando pago.`
+    : t.startsWith("Garantía:") && q.warrantyMonths != null ? t.replace("3 meses", warrantyText(q.warrantyMonths))
+    : t);
   const termLines = terms.map((t, i) => ({ k: String.fromCharCode(65 + i), lines: wrap(t, font, 7.5, R - M - 34) }));
   const termsH = termLines.reduce((a, t) => a + t.lines.length * 9 + 1.5, 0) + 26;
   ensure(termsH);

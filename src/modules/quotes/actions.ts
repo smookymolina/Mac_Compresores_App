@@ -24,6 +24,22 @@ const quoteSchema = z.object({
   validUntil: z.coerce.date(),
   notes: z.string().trim().max(2000).optional(),
   deliveryTime: z.string().trim().max(200).optional(),
+  warrantyMonths: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(60)]).optional(),
+  complements: z
+    .string()
+    .transform((s, ctx) => {
+      try {
+        return JSON.parse(s || "[]") as unknown;
+      } catch {
+        ctx.addIssue({ code: "custom", message: "Complementos inválidos" });
+        return z.NEVER;
+      }
+    })
+    .pipe(z.array(z.object({
+      code: z.string().trim().min(1).max(40),
+      name: z.string().trim().max(120),
+      activities: z.array(z.string().trim().min(1).max(300)).max(60),
+    })).max(10)),
   items: z
     .string()
     .transform((s, ctx) => {
@@ -46,6 +62,8 @@ export async function saveQuoteAction(id: string | undefined, _: ActionResult<un
       validUntil: fd.get("validUntil"),
       notes: fd.get("notes") ?? undefined,
       deliveryTime: fd.get("deliveryTime") ?? undefined,
+      warrantyMonths: fd.get("warrantyMonths") ?? undefined,
+      complements: fd.get("complements") ?? "[]",
       items: fd.get("items"),
     });
     if (id) await updateQuote(user, id, data);

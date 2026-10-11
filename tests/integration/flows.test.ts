@@ -212,3 +212,36 @@ describe("comisiones: meta mensual, cobro y % del mes de la O.C.", () => {
     await expect(cancelSale(admin, sale.id, "prueba de bloqueo")).rejects.toThrow(/aprobadas/);
   });
 });
+
+describe("complementos y garantía", () => {
+  it("guarda la copia de los paquetes y la imprime en el PDF", async () => {
+    const { renderQuotePdf } = await import("@/modules/quotes/pdf");
+    const { execFileSync } = await import("node:child_process");
+    const { writeFileSync, mkdtempSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const complements = [
+      { code: "SERV-PISTON", name: "Servicio a pistón", activities: ["Drenado de lubricante", "Pruebas de funcionamiento"] },
+      { code: "SERV-RENTA", name: "Renta de equipo", activities: [] },
+    ];
+    const created = await createQuote(sellerA, {
+      customerId: customerA, validUntil: validUntil(), warrantyMonths: 1, complements,
+      items: [{ productId: srvId, quantity: "1", discountPct: "0" }],
+    });
+    const q = await getQuote(sellerA, created.id);
+    expect(q.complements).toEqual(complements);
+    expect(q.warrantyMonths).toBe(1);
+    const file = join(mkdtempSync(join(tmpdir(), "cot-")), "q.pdf");
+    writeFileSync(file, await renderQuotePdf(q));
+    const txt = execFileSync("pdftotext", [file, "-"]).toString();
+    expect(txt).toContain("Complementos");
+    expect(txt).toContain("SERV-PISTON");
+    expect(txt).toContain("Pruebas de funcionamiento");
+    expect(txt).toContain("SERV-RENTA");
+    expect(txt).toMatch(/Garantía: 1 mes en unidades nuevas/);
+
+    // Editar sin complementos deja la lista vacía (no vuelve al paquete de 8000 h).
+    await updateQuote(sellerA, q.id, { customerId: customerA, validUntil: validUntil(), complements: [], items: [{ productId: srvId, quantity: "1", discountPct: "0" }] });
+    expect((await getQuote(sellerA, q.id)).complements).toEqual([]);
+  });
+});

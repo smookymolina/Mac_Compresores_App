@@ -1,4 +1,5 @@
 import type { Prisma, QuoteStatus } from "@prisma/client";
+import type { QuoteComplement } from "@/modules/complements/match";
 import { db } from "@/lib/db";
 import { pageArgs, paged } from "@/lib/pagination";
 import { audit } from "@/lib/audit";
@@ -58,6 +59,8 @@ export interface QuoteInput {
   validUntil: Date;
   notes?: string;
   deliveryTime?: string;
+  warrantyMonths?: number;
+  complements?: QuoteComplement[];
   items: RequestedItem[];
 }
 
@@ -95,6 +98,8 @@ export async function createQuote(user: CurrentUser, input: QuoteInput) {
         validUntil: input.validUntil,
         notes: input.notes || null,
         deliveryTime: input.deliveryTime || null,
+        warrantyMonths: input.warrantyMonths ?? null,
+        complements: input.complements as unknown as Prisma.InputJsonValue | undefined,
         exchangeRate,
         ...totals,
         items: { create: itemRows(items) },
@@ -117,7 +122,10 @@ export async function updateQuote(user: CurrentUser, id: string, input: QuoteInp
   return db.$transaction(async (tx) => {
     const res = await tx.quote.updateMany({
       where: { id, status: "DRAFT", updatedAt: current.updatedAt }, // bloqueo optimista
-      data: { customerId: customer.id, validUntil: input.validUntil, notes: input.notes || null, deliveryTime: input.deliveryTime || null, exchangeRate, ...totals },
+      data: { customerId: customer.id, validUntil: input.validUntil, notes: input.notes || null, deliveryTime: input.deliveryTime || null,
+        warrantyMonths: input.warrantyMonths ?? null,
+        complements: input.complements as unknown as Prisma.InputJsonValue | undefined,
+        exchangeRate, ...totals },
     });
     if (res.count === 0) throw new AppError("La cotización cambió mientras la editabas. Recarga.", "CONFLICT");
     await tx.quoteItem.deleteMany({ where: { quoteId: id } });

@@ -4,6 +4,7 @@ import { AppError } from "@/lib/errors";
 import { renderEmail } from "@/lib/email-layout";
 import { QUOTE_SHARE_TTL_MS, createShareLink, loadShareUser, readShareToken } from "@/lib/share";
 import { isMailConfigured, sendMail } from "@/lib/mail";
+import { warrantyText } from "@/modules/complements/match";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 import { can, type CurrentUser } from "@/lib/auth/session";
@@ -35,6 +36,7 @@ export function quoteEmail(q: Awaited<ReturnType<typeof getQuote>>, message: str
       { label: "Total", value: total },
       { label: "Vigente hasta", value: fmtDate(q.validUntil) },
       ...(q.deliveryTime ? [{ label: "Tiempo de entrega", value: q.deliveryTime }] : []),
+      ...(q.warrantyMonths != null ? [{ label: "Garantía", value: warrantyText(q.warrantyMonths) }] : []),
       { label: "Vendedor", value: q.seller.name },
     ],
     notes: ["Adjuntamos la cotización en PDF. Para cualquier duda, responde a este correo y le llegará directamente a tu vendedor."],
