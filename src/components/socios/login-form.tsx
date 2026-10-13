@@ -39,7 +39,7 @@ export function LoginForm() {
       className="auth-fields"
     >
       {msg && (
-        <div role="alert" className="portal-error">
+        <div id="login-error" role="alert" className="portal-error">
           <p>{msg.text}</p>
           {msg.blocked && <ContactLine contact={PORTAL_CONTACT} />}
         </div>
@@ -49,7 +49,7 @@ export function LoginForm() {
         <div className="input-wrap has-icon">
           <input
             ref={email} id="partner-email" name="email" type="email" className="input" autoComplete="username"
-            spellCheck={false} autoCapitalize="none" required aria-invalid={!!failed}
+            spellCheck={false} autoCapitalize="none" required aria-invalid={!!failed} aria-describedby={msg ? "login-error" : undefined}
           />
           <span aria-hidden className="input-icon"><Mail size={16} strokeWidth={1.75} /></span>
         </div>

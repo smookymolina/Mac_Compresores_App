@@ -27,8 +27,15 @@ export interface PriceSearchProps {
   watermark: { name: string; shortId: string; ip: string };
 }
 
-function Legend() {
-  return <p className="mt-6 text-xs text-muted">Precios sin IVA · moneda indicada por producto</p>;
+function Legend({ contact }: { contact?: PortalContact }) {
+  return (
+    <div className="mt-6 text-xs text-muted">
+      <p>Precios sin IVA · moneda indicada por producto</p>
+      {/* Los precios son imagen (anti-extracción); quien usa lector de pantalla los pide por correo. */}
+      <p className="mt-1">¿Usas lector de pantalla o no ves los precios? Escríbenos y te los enviamos.</p>
+      <ContactLine contact={contact} />
+    </div>
+  );
 }
 
 function PriceImg({ src, onFail }: { src: string; onFail: () => void }) {
@@ -39,7 +46,7 @@ function PriceImg({ src, onFail }: { src: string; onFail: () => void }) {
 
 function Results({ items, stale, onFail }: { items: PartnerSearchItem[]; stale: boolean; onFail: () => void }) {
   return (
-    <table className="table portal-table">
+    <table className="table portal-table" role="table">
       <caption className="sr-only">Precios de socio</caption>
       <thead>
         <tr>
@@ -50,14 +57,15 @@ function Results({ items, stale, onFail }: { items: PartnerSearchItem[]; stale: 
           <th scope="col" className="num">Precio de socio</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         {items.map((it) => (
-          <tr key={it.key}>
-            <td data-col="sku" className="mono">{it.sku}</td>
-            <td data-col="desc">{it.description}</td>
-            <td data-col="unit"><span className="md:hidden">Unidad: </span>{it.unit}</td>
-            <td data-col="cur"><Badge tone={it.currency === "USD" ? "blue" : "neutral"}>{it.currency}</Badge></td>
-            <td data-col="price" className="num">
+          // role explícitos: en móvil las filas son grid y Safari pierde la semántica de tabla.
+          <tr key={it.key} role="row">
+            <td role="cell" data-col="sku" className="mono"><span className="sr-only md:hidden">SKU: </span>{it.sku}</td>
+            <td role="cell" data-col="desc" title={it.description}><span className="sr-only md:hidden">Descripción: </span>{it.description}</td>
+            <td role="cell" data-col="unit"><span className="md:hidden">Unidad: </span>{it.unit}</td>
+            <td role="cell" data-col="cur"><span className="sr-only md:hidden">Moneda: </span><Badge tone={it.currency === "USD" ? "blue" : "neutral"}>{it.currency}</Badge></td>
+            <td role="cell" data-col="price" className="num"><span className="sr-only md:hidden">Precio de socio: </span>
               {stale ? <span className="portal-price" role="img" aria-label="Precio no disponible: actualiza la búsqueda" /> : <PriceImg src={it.img} onFail={onFail} />}
             </td>
           </tr>
@@ -181,7 +189,8 @@ export function PriceSearch({ remaining: initialRemaining, quota, resetOn, conta
   useEffect(() => {
     const t = term.trim().replace(/\s+/g, " ");
     if (t.length < MIN_CHARS || t === lastQ.current || pause > 0 || quotaOut || blocked) return;
-    const id = window.setTimeout(() => void run(t), DEBOUNCE_MS);
+    // Si Enter ya lanzó esta misma búsqueda (lastQ es ref, el efecto no se entera), no se repite: cada una gasta cuota.
+    const id = window.setTimeout(() => { if (t !== lastQ.current) void run(t); }, DEBOUNCE_MS);
     return () => window.clearTimeout(id);
   }, [term, run, pause, quotaOut, blocked]);
 
@@ -251,7 +260,9 @@ export function PriceSearch({ remaining: initialRemaining, quota, resetOn, conta
                 </div>
                 <p id="q-hint" className="mt-1 text-xs text-muted">Escribe al menos 3 caracteres: SKU o descripción</p>
               </div>
-              <div aria-live="polite" className="text-xs text-ink-soft">
+              {/* Solo se anuncia al acercarse al límite; antes sería ruido en cada búsqueda. */}
+              <p aria-live="polite" className="sr-only">{remaining <= 10 ? (quotaOut ? "Aviso: ya no tienes búsquedas disponibles hoy" : `Aviso: solo ${remaining === 1 ? "queda 1 búsqueda" : `quedan ${remaining} búsquedas`} por hoy`) : ""}</p>
+              <div className="text-xs text-ink-soft">
                 {remaining <= 10 ? (
                   quotaOut ? <span>0 de {quota} búsquedas hoy</span> : <Badge tone="amber">Te quedan {remaining} búsquedas hoy</Badge>
                 ) : (
@@ -308,7 +319,7 @@ export function PriceSearch({ remaining: initialRemaining, quota, resetOn, conta
             </section>
           </>
         )}
-        <Legend />
+        <Legend contact={contact} />
         {/* Señuelos: invisibles y fuera del orden de tabulación. Entrar aquí bloquea la cuenta. */}
         <span className="portal-hp" aria-hidden="true">
           <a href="/socios/catalogo-completo" rel="nofollow" tabIndex={-1}>Catálogo completo</a>

@@ -7,19 +7,22 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { AppError, runAction, type ActionResult } from "@/lib/errors";
 import { clientIp } from "@/lib/request";
+import { clear, hit } from "@/lib/rate-limit";
+import { notify, usersWithPermission } from "@/modules/notifications/service";
 import { logPartnerActivity } from "./activity";
-import { consumeBackupCode, generateBackupCodes, newTotpSecret, registerFailure, verifyPartnerPassword, verifyTotp } from "./auth";
+import { consumeBackupCode, generateBackupCodes, MAX_FAILED_LOGINS, newTotpSecret, registerFailure, verifyPartnerPassword, verifyTotp } from "./auth";
 import { encryptSecret } from "./crypto";
 import { checkLimits, registerBurst } from "./guard";
 import { cleanSearchTerm, PARTNER_SEARCH_MIN, searchPartnerProducts } from "./search";
 import {
-  clearPendingPartner, createPartnerSession, destroyPartnerSession, getCurrentPartner, getPendingPartner,
+  clearPendingPartner, createPartnerSession, PARTNER_PRE_TTL_MS, destroyPartnerSession, getCurrentPartner, getPendingPartner,
   requirePartnerAction, setPendingPartner,
 } from "./session";
 import { detectSweep } from "./sweep";
 import { signPriceToken } from "./token";
 
 const SWEEP_WINDOW = 8;
+const TOTP_WINDOW_MS = 15 * 60_000;
 
 async function reqCtx() {
   const h = await headers();
@@ -51,6 +54,11 @@ export async function partnerTotpSetupAction(): Promise<ActionResult<{ qr: strin
     const pending = await getPendingPartner();
     if (!pending) throw new AppError("Tu sesión de acceso expiró. Inicia sesión de nuevo.", "UNAUTHENTICATED");
     if (pending.totpEnabledAt) throw new AppError("La verificación en dos pasos ya está activa.", "CONFLICT");
+    // Un alta cada 10 min por socio: un tercero con la contraseña temporal no puede regenerar el secreto
+    // a mitad del alta del socio legítimo (y deja rastro).
+    if ((await hit(`ptotpsetup:${pending.id}`, PARTNER_PRE_TTL_MS)) > 1) {
+      throw new AppError("Ya se generó un código QR hace unos minutos. Usa ese o espera 10 minutos.", "CONFLICT");
+    }
     const { secret, uri } = newTotpSecret(pending.email);
     const codes = await generateBackupCodes();
     await db.partner.update({ where: { id: pending.id }, data: { totpSecretEnc: encryptSecret(secret), backupCodes: codes.hashes, totpLastStep: null } });
@@ -74,6 +82,8 @@ export async function partnerTotpVerifyAction(_: ActionResult | null, fd: FormDa
     const p = await db.partner.findUnique({ where: { id: pending.id }, select: { id: true, totpSecretEnc: true, totpEnabledAt: true, totpLastStep: true, backupCodes: true } });
     if (!p) throw new AppError("Tu sesión de acceso expiró. Inicia sesión de nuevo.", "UNAUTHENTICATED");
     if (!p.totpEnabledAt && !p.totpSecretEnc) throw new AppError("Primero configura la verificación en dos pasos.");
+    // El intento se reserva antes de verificar: un lote en paralelo no puede probar más de 5 códigos.
+    if ((await hit(`p2fa:${p.id}`, TOTP_WINDOW_MS)) > MAX_FAILED_LOGINS) throw new AppError("Demasiados intentos. Espera 15 minutos.", "FORBIDDEN");
 
     const digits = code.replace(/\s/g, "");
     const isTotp = /^\d{6}$/.test(digits);
@@ -84,9 +94,18 @@ export async function partnerTotpVerifyAction(_: ActionResult | null, fd: FormDa
       const blocked = await registerFailure(p.id, ctx);
       throw new AppError(blocked ? "Tu cuenta fue bloqueada por intentos fallidos. Contacta a MAC Compresores." : "Código incorrecto. Intenta de nuevo.", blocked ? "FORBIDDEN" : "VALIDATION");
     }
+    // Pudo bloquearse por otra petición en paralelo mientras se verificaba este código.
+    const now = await db.partner.findUnique({ where: { id: p.id }, select: { status: true } });
+    if (now?.status !== "ACTIVE") throw new AppError("Tu cuenta está bloqueada. Contacta a MAC Compresores.", "FORBIDDEN");
+    await clear(`p2fa:${p.id}`);
     if (!p.totpEnabledAt) {
       await db.partner.update({ where: { id: p.id }, data: { totpEnabledAt: new Date() } });
       await logPartnerActivity({ partnerId: p.id, type: "TOTP_SETUP", ...ctx });
+      const admins = await usersWithPermission("partners.manage");
+      await notify(admins.map((u) => u.id), {
+        kind: "partner.totp_setup", title: `${pending.name} activó su verificación en dos pasos`,
+        body: `IP ${ctx.ip}. Si no fue el socio, restablece su 2FA.`, href: `/socios-admin/${p.id}`,
+      });
     } else if (!isTotp) {
       await logPartnerActivity({ partnerId: p.id, type: "BACKUP_CODE_USED", meta: { remaining: p.backupCodes.length - 1 }, ...ctx });
     }

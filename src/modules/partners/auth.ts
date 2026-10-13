@@ -4,9 +4,9 @@ import bcrypt from "bcryptjs";
 import { createGuardrails, generateSecret, generateURI, verifySync } from "otplib";
 import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
-import { clear, hit, isLimited } from "@/lib/rate-limit";
+import { clear, hit } from "@/lib/rate-limit";
 import { logPartnerActivity } from "./activity";
-import { decryptSecret, encryptSecret } from "./crypto";
+import { decryptSecret } from "./crypto";
 import { autoBlock } from "./guard";
 
 export { encryptSecret, decryptSecret } from "./crypto";
@@ -15,6 +15,8 @@ export const MAX_FAILED_LOGINS = 5;
 export const BACKUP_CODE_COUNT = 10;
 export const TOTP_ISSUER = "MAC Compresores";
 const LOGIN_WINDOW_MS = 15 * 60_000;
+/** Intentos de contraseña por IP real en 15 min (frena probar una contraseña contra muchos correos). */
+const MAX_LOGINS_PER_IP = 20;
 const BCRYPT_COST = 12;
 const BACKUP_COST = 10;
 /** Los secretos nuevos son de 20 bytes; se admiten desde 10 por compatibilidad con el socio demo del seed (JBSWY3DPEHPK3PXP). */
@@ -51,12 +53,14 @@ export async function verifyPartnerPassword(emailRaw: string, password: string, 
   const email = emailRaw.trim().toLowerCase();
   const rlKey = `plogin:${email}`;
   const generic = new AppError("Correo o contraseña inválidos.");
-  if (await isLimited(rlKey, MAX_FAILED_LOGINS)) throw new AppError("Demasiados intentos. Espera 15 minutos.");
+  const tooMany = new AppError("Demasiados intentos. Espera 15 minutos.");
+  // El intento se reserva ANTES de verificar (atómico): un lote en paralelo no puede probar más de 5 contraseñas.
+  if (ctx.ip && (await hit(`ploginip:${ctx.ip}`, LOGIN_WINDOW_MS)) > MAX_LOGINS_PER_IP) throw tooMany;
+  if ((await hit(rlKey, LOGIN_WINDOW_MS)) > MAX_FAILED_LOGINS) throw tooMany;
 
   const p = await db.partner.findUnique({ where: { email }, select: { id: true, passwordHash: true, status: true } });
   const ok = await bcrypt.compare(password, p?.passwordHash ?? (await getDummyHash()));
   if (!p || !ok) {
-    await hit(rlKey, LOGIN_WINDOW_MS);
     if (p) {
       await logPartnerActivity({ partnerId: p.id, type: "LOGIN_FAIL", meta: { reason: "password" }, ...ctx });
       if (p.status === "ACTIVE" && (await registerFailure(p.id, ctx))) {
@@ -125,13 +129,10 @@ export async function consumeBackupCode(partner: { id: string; backupCodes: stri
   if (n.length !== 10) return false;
   for (const hash of partner.backupCodes) {
     if (!(await bcrypt.compare(n, hash))) continue;
-    // Atómico: si otra petición ya lo consumió, `has` ya no coincide y count = 0.
-    const fresh = await db.partner.findUnique({ where: { id: partner.id }, select: { backupCodes: true } });
-    const res = await db.partner.updateMany({
-      where: { id: partner.id, backupCodes: { has: hash } },
-      data: { backupCodes: (fresh?.backupCodes ?? []).filter((h) => h !== hash) },
-    });
-    return res.count === 1;
+    // Atómico en una sola sentencia: si otra petición ya lo consumió, no coincide y devuelve 0;
+    // array_remove no reescribe la lista completa, así que consumir A y B a la vez no restaura ninguno.
+    const removed = await db.$executeRaw`UPDATE "Partner" SET "backupCodes" = array_remove("backupCodes", ${hash}) WHERE "id" = ${partner.id}::uuid AND ${hash} = ANY("backupCodes")`;
+    return removed === 1;
   }
   return false;
 }

@@ -86,6 +86,7 @@ export async function setPartnerStatusAction(input: { id: string; status: "ACTIV
     } else {
       await db.partner.update({ where: { id: d.id }, data: { status: "ACTIVE", blockedReason: null, blockedAt: null, failedLogins: 0 } });
       await clear(`plogin:${p.email}`);
+      await clear(`p2fa:${d.id}`);
       await audit({ userId: user.id, action: "partner.unblock", entity: "Partner", entityId: d.id });
       await logAdminChange(d.id, user.id, "unblock");
     }
@@ -101,6 +102,7 @@ export async function resetPartner2faAction(input: { id: string }): Promise<Acti
     const res = await db.partner.updateMany({ where: { id }, data: { totpSecretEnc: null, totpEnabledAt: null, totpLastStep: null, backupCodes: [] } });
     if (res.count === 0) throw new AppError("Socio no encontrado.", "NOT_FOUND");
     await db.partnerSession.deleteMany({ where: { partnerId: id } });
+    await clear(`ptotpsetup:${id}`);
     await audit({ userId: user.id, action: "partner.reset_2fa", entity: "Partner", entityId: id });
     await logAdminChange(id, user.id, "reset_2fa");
     return undefined;

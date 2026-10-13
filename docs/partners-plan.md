@@ -3,15 +3,23 @@
 Fuente: `docs/prompts/superprompt-portal-socios.md`. Este plan lo **corrige** donde difiere.
 
 ## Decisiones
-- **Dominio:** `PARTNER_PORTAL_HOST` en `.env`, nunca escrito en el código. El dominio real está pendiente de confirmar con el usuario; el nginx actual sirve `maccompresores.app`, así que lo probable es `socios.maccompresores.app`. En local: `socios.localhost`.
-- **Rutas:** las páginas del portal viven en `src/app/(socios)/socios-portal/{page,login,2fa}` y el PNG en `socios-portal/p/[token]/route.ts`.
-  - En el host del portal, el middleware reescribe `/x` a `/socios-portal/x` y bloquea `/api/*` y `/_next/image` (solo deja `/_next/static`).
-  - En el host interno, `/socios-portal/*` responde 404.
-  - El admin interno está en `src/app/(app)/socios`.
+- **CAMBIO 2026-10-13 (decisión del usuario): el portal va EN RUTA del mismo dominio, sin subdominio.** Queda en `https://maccompresores.app/socios`. `PARTNER_PORTAL_HOST` ya no se usa.
+- **Rutas:**
+  - Portal: `src/app/(socios)/socios/{page,login,2fa}`.
+  - PNG: `src/app/(socios)/socios/p/[token]/route.ts`.
+  - Honeypot: `/socios/catalogo-completo` y `/socios/api-precios`.
+  - No hay reescrituras de URL.
+  - El admin interno se mueve a `src/app/(app)/socios-admin` (`/socios-admin`, `/socios-admin/[id]`, `/socios-admin/historial`, `/socios-admin/ajustes`). En el NAV va el `href` `/socios-admin` con la etiqueta "Socios".
+- **Middleware por ruta:**
+  - `/socios/*`: no usa `mac_session`. Usa la cookie del socio; si falta y la ruta no es `/socios/login` ni `/socios/2fa`, redirige a `/socios/login`. Aplica las cabeceras CSP estricta, X-Robots-Tag noindex, no-store y Referrer-Policy no-referrer.
+  - El resto: la lógica actual con `mac_session`.
+  - Un socio que pida rutas internas no tiene `mac_session`, así que va al login interno como hoy.
+- **Cookie del socio:** `__Secure-mac_partner` con `Path=/socios`, HttpOnly, Secure, SameSite=Strict y sin Domain. Si `COOKIE_SECURE=false`, se llama `mac_partner`. No se usa `__Host-` porque ese prefijo exige Path=/.
+- **robots.txt:** agregar `Disallow: /socios`.
+- **nginx:** dentro del server existente de `maccompresores.app`, un `location /socios` (y `^~ /socios/p/`) con `limit_req` de 30 r/m por IP y burst 10, y bloqueo de UAs de bots. No hace falta DNS ni certbot.
 - **Setting:** como no existía, se crea el modelo `Setting { key String @id, value Json, updatedAt @updatedAt, updatedById String? @db.Uuid }`. Claves `partners.discountPct`=15 y `partners.dailyQuota`=80. El seed hace upsert con `update:{}` para no pisar lo que cambie el admin.
 - **Dependencias:** `otplib` y `sharp` van en `dependencies`. Los dígitos del PNG se dibujan como `<path>` en el SVG, así no hacen falta fuentes en `node:22-slim`.
 - **Cookie:** `__Host-mac_partner` (Secure, Path=/, sin Domain, SameSite=Strict). Si `COOKIE_SECURE=false`, se llama `mac_partner`.
-- **Detección de host:** se usa `host` sin puerto y en minúsculas. nginx sobrescribe `X-Forwarded-Host $host`. Nunca se confía en el valor que manda el cliente.
 - **Bloqueo automático solo por** webdriver, honeypot, cuota excedida o más de 3 ráfagas. La pestaña oculta, devtools, impresión y copia **solo se registran**.
 
 ## Código a reutilizar
@@ -75,5 +83,5 @@ Fuente: `docs/prompts/superprompt-portal-socios.md`. Este plan lo **corrige** do
 
 ## Pruebas
 - Vitest ya está configurado con `TEST_DATABASE_URL`.
-- Playwright: agregar proyectos webkit y firefox, los viewports de 360, 390 y 1280 px, y un proyecto de socios con `baseURL http://socios.localhost:3100`. Para webkit, agregar `socios.localhost` a `/etc/hosts`.
+- Playwright: agregar proyectos webkit y firefox, los viewports de 360, 390 y 1280 px, y un proyecto de socios con baseURL `http://localhost:3100/socios`.
 - Para el E2E, un seed solo de prueba con un socio y un secreto TOTP conocido.

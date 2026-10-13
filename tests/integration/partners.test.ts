@@ -111,6 +111,13 @@ describe("TOTP", () => {
     expect(await consumeBackupCode(p2, plain[3]!)).toBe(false);
     expect(await consumeBackupCode(p2, "zzzzz-zzzzz")).toBe(false);
   });
+  it("dos códigos de respaldo distintos a la vez: se consumen los dos (sin lost update)", async () => {
+    const { plain, hashes } = await generateBackupCodes();
+    const p = await mkPartner({ backupCodes: hashes });
+    expect(await Promise.all([consumeBackupCode(p, plain[0]!), consumeBackupCode(p, plain[1]!)])).toEqual([true, true]);
+    expect((await db.partner.findUniqueOrThrow({ where: { id: p.id } })).backupCodes).toHaveLength(8);
+    expect(await consumeBackupCode(p, plain[0]!)).toBe(false);
+  });
 });
 
 describe("contraseña y bloqueo", () => {
@@ -133,6 +140,14 @@ describe("contraseña y bloqueo", () => {
     await autoBlock(p.id, "honeypot", { path: "/socios/api-precios" });
     await autoBlock(p.id, "honeypot");
     expect(await db.partnerActivity.count({ where: { partnerId: p.id, type: "AUTO_BLOCK" } })).toBe(1);
+  });
+  it("20 contraseñas en paralelo: solo 5 se evalúan y la correcta no se confirma", async () => {
+    const p = await mkPartner();
+    const tries = Array.from({ length: 20 }, (_, i) => (i === 19 ? "Pass-1234-xyz" : `mala-${i}`));
+    const res = await Promise.allSettled(tries.map((pw) => verifyPartnerPassword(p.email, pw)));
+    const evaluated = res.filter((r) => r.status === "fulfilled" || !/Demasiados/.test(String(r.reason)));
+    expect(evaluated.length).toBeLessThanOrEqual(5);
+    expect(await db.partnerActivity.count({ where: { partnerId: p.id, type: "LOGIN_FAIL" } })).toBeLessThanOrEqual(5);
   });
   it("correo desconocido: mismo mensaje genérico", async () => {
     await expect(verifyPartnerPassword(`${tag}-nadie@t.mx`, "x")).rejects.toThrow("Correo o contraseña inválidos.");

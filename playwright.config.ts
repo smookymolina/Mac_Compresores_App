@@ -24,6 +24,21 @@ export default defineConfig({
     { name: "socios", grep: /@socios/, use: { ...devices["Desktop Chrome"] } },
     { name: "socios-mobile", grep: /@socios/, use: { ...devices["Pixel 7"] } },
     { name: "socios-webkit", grep: /@socios/, use: { ...devices["Desktop Safari"] } },
+    // Matriz QA v1.4.0: chromium/webkit/firefox × 360/390/1280 (npx playwright test --project='socios-*-*').
+    // Chromium sin la marca AutomationControlled (si no, navigator.webdriver=true dispara el autoBloqueo, correcto);
+    // en webkit/firefox los flujos normales fuerzan navigator.webdriver=false con addInitScript (ver tests/e2e/socios-helpers.ts).
+    ...(["chromium", "webkit", "firefox"] as const).flatMap((b) =>
+      [360, 390, 1280].map((w) => ({
+        name: `socios-${b}-${w}`,
+        grep: /@socios/,
+        use: {
+          ...devices[b === "chromium" ? "Desktop Chrome" : b === "webkit" ? "Desktop Safari" : "Desktop Firefox"],
+          viewport: { width: w, height: w < 768 ? (w === 360 ? 740 : 844) : 800 },
+          ...(w < 768 && b !== "firefox" ? { isMobile: true, hasTouch: true } : {}),
+          ...(b === "chromium" ? { launchOptions: { args: ["--disable-blink-features=AutomationControlled"] } } : {}),
+        },
+      })),
+    ),
   ],
   webServer: external
     ? undefined

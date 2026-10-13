@@ -39,7 +39,7 @@ function CodeForm({ canUseBackup, submitLabel }: { canUseBackup: boolean; submit
       }}
     >
       {msg && (
-        <div role="alert" className="portal-error">
+        <div id="code-error" role="alert" className="portal-error">
           <p>{msg.text}</p>
           {msg.blocked && <ContactLine contact={PORTAL_CONTACT} />}
           {msg.expired && <p><Link className="auth-link" href="/socios/login">Volver a iniciar sesión</Link></p>}
@@ -49,7 +49,7 @@ function CodeForm({ canUseBackup, submitLabel }: { canUseBackup: boolean; submit
         <label htmlFor="partner-code" className="label">{backup ? "Código de respaldo" : "Código de 6 dígitos"}</label>
         <input
           key={backup ? "backup" : "totp"} ref={input} id="partner-code" name="code" className="input mono" required
-          autoComplete="one-time-code" autoCapitalize="none" spellCheck={false} aria-invalid={!!failed}
+          autoComplete="one-time-code" autoCapitalize="none" spellCheck={false} aria-invalid={!!failed} aria-describedby={msg ? "code-error" : undefined}
           inputMode={backup ? "text" : "numeric"} maxLength={backup ? 20 : 6} pattern={backup ? undefined : "[0-9]*"}
           placeholder={backup ? "xxxxx-xxxxx" : "000000"}
         />

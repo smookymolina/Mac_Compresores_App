@@ -74,8 +74,9 @@ export function PartnerForm({ values, globalPct, globalQuota }: { values: Partne
 
   if (created)
     return (
-      <div className="space-y-3 p-4" role="status">
-        <p className="text-sm font-medium">{created.name} quedó registrado.</p>
+      <div className="space-y-3 p-4">
+        {/* Solo el aviso es región viva: la contraseña no debe leerse en voz alta sola. */}
+        <p role="status" className="text-sm font-medium">{created.name} quedó registrado.</p>
         <p className="portal-warn">Esta contraseña temporal se muestra una sola vez. Compártela por un canal seguro; el socio configurará su 2FA en el primer acceso.</p>
         <p className="mono select-all break-all rounded-md bg-panel-2 p-3 text-base">{created.tempPassword}</p>
         <div className="flex flex-wrap gap-2">

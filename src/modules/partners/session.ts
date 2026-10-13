@@ -6,6 +6,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { hashToken } from "@/lib/auth/session";
+import { hit, isLimited } from "@/lib/rate-limit";
 import { logPartnerActivity } from "./activity";
 import { PARTNER_COOKIE, PARTNER_COOKIE_PATH, PARTNER_COOKIE_SECURE, PARTNER_PRE_COOKIE } from "./cookie";
 
@@ -35,41 +36,63 @@ function preKey() {
   return createHmac("sha256", s).update("mac-partner-pre-v1").digest();
 }
 
-/** Token `base64url(JSON{p,exp}).base64url(HMAC)`. Puro respecto a la fecha para poder probarlo. */
-export function signPreToken(partnerId: string, now = Date.now()): string {
-  const body = Buffer.from(JSON.stringify({ p: partnerId, exp: now + PARTNER_PRE_TTL_MS })).toString("base64url");
+/**
+ * Huella del estado del socio que ata la cookie previa: cambia con la contraseña, el reset de 2FA y el bloqueo/desbloqueo,
+ * así una copia de la cookie deja de servir en cuanto cambia cualquiera de ellos.
+ */
+const preVersion = (p: { passwordHash: string; totpEnabledAt: Date | null; blockedAt: Date | null; status: string }) =>
+  createHmac("sha256", preKey()).update(`${p.passwordHash}|${p.totpEnabledAt?.getTime() ?? 0}|${p.blockedAt?.getTime() ?? 0}|${p.status}`).digest("base64url").slice(0, 16);
+const preUsedKey = (token: string) => `ppreused:${token.slice(token.lastIndexOf(".") + 1)}`;
+
+/** Token `base64url(JSON{p,exp,v}).base64url(HMAC)`. Puro respecto a la fecha para poder probarlo. */
+export function signPreToken(partnerId: string, now = Date.now(), v = ""): string {
+  const body = Buffer.from(JSON.stringify({ p: partnerId, exp: now + PARTNER_PRE_TTL_MS, v })).toString("base64url");
   return `${body}.${createHmac("sha256", preKey()).update(body).digest("base64url")}`;
 }
 
 export function verifyPreToken(token: string, now = Date.now()): string | null {
+  return readPreToken(token, now)?.p ?? null;
+}
+
+function readPreToken(token: string, now = Date.now()): { p: string; v: string } | null {
   const [body, sig, extra] = token.split(".");
   if (!body || !sig || extra !== undefined || token.length > 512) return null;
   const expected = createHmac("sha256", preKey()).update(body).digest();
   const given = Buffer.from(sig, "base64url");
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
   try {
-    const p = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as { p?: unknown; exp?: unknown };
-    return typeof p.p === "string" && typeof p.exp === "number" && p.exp > now ? p.p : null;
+    const p = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as { p?: unknown; exp?: unknown; v?: unknown };
+    return typeof p.p === "string" && typeof p.exp === "number" && p.exp > now ? { p: p.p, v: typeof p.v === "string" ? p.v : "" } : null;
   } catch {
     return null;
   }
 }
 
+const preStateSelect = { passwordHash: true, totpEnabledAt: true, blockedAt: true, status: true } satisfies Prisma.PartnerSelect;
+
 export async function setPendingPartner(partnerId: string) {
-  (await cookies()).set(PARTNER_PRE_COOKIE, signPreToken(partnerId), cookieOpts(new Date(Date.now() + PARTNER_PRE_TTL_MS)));
+  const st = await db.partner.findUniqueOrThrow({ where: { id: partnerId }, select: preStateSelect });
+  (await cookies()).set(PARTNER_PRE_COOKIE, signPreToken(partnerId, Date.now(), preVersion(st)), cookieOpts(new Date(Date.now() + PARTNER_PRE_TTL_MS)));
 }
 
+/** Borra la cookie previa y la marca como usada en BD: una copia del valor ya no sirve para más intentos. */
 export async function clearPendingPartner() {
-  (await cookies()).delete({ name: PARTNER_PRE_COOKIE, path: PARTNER_COOKIE_PATH });
+  const jar = await cookies();
+  const raw = jar.get(PARTNER_PRE_COOKIE)?.value;
+  if (raw && readPreToken(raw)) await hit(preUsedKey(raw), PARTNER_PRE_TTL_MS);
+  jar.delete({ name: PARTNER_PRE_COOKIE, path: PARTNER_COOKIE_PATH });
 }
 
 /** Socio que ya puso su contraseña y está en el paso de 2FA (para /2fa). null si no hay cookie válida o está bloqueado. */
 export async function getPendingPartner() {
   const raw = (await cookies()).get(PARTNER_PRE_COOKIE)?.value;
-  const id = raw ? verifyPreToken(raw) : null;
-  if (!id) return null;
-  const p = await db.partner.findUnique({ where: { id }, select: sessionPartnerSelect });
-  return p && p.status === "ACTIVE" ? p : null;
+  const claims = raw ? readPreToken(raw) : null;
+  if (!raw || !claims) return null;
+  if (await isLimited(preUsedKey(raw), 1)) return null;
+  const p = await db.partner.findUnique({ where: { id: claims.p }, select: { ...sessionPartnerSelect, ...preStateSelect } });
+  if (!p || p.status !== "ACTIVE" || preVersion(p) !== claims.v) return null;
+  const { passwordHash: _h, blockedAt: _b, ...partner } = p;
+  return partner;
 }
 
 // ---- Sesión ----

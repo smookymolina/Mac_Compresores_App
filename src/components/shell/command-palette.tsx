@@ -63,7 +63,7 @@ export function CommandPalette() {
   let lastGroup = "";
   return (
     <>
-      <button type="button" onClick={openFromTap} aria-label="Buscar (Ctrl+K)" className="search-trigger">
+      <button type="button" onClick={openFromTap} aria-label="Buscar… (Ctrl+K)" className="search-trigger">
         <Search size={16} strokeWidth={1.75} aria-hidden />
         <span className="hidden lg:inline">Buscar…</span>
         <kbd className="hidden lg:inline">Ctrl K</kbd>

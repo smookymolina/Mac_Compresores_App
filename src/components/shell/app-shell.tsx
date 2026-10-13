@@ -53,7 +53,7 @@ function UserMenu({ name, roleName, logout }: { name: string; roleName: string; 
   return (
     <div ref={root} className="relative">
       <button
-        ref={button} type="button" aria-label="Cuenta" aria-expanded={open} aria-controls={panelId}
+        ref={button} type="button" aria-label={`Cuenta: ${name}, ${roleName}`} aria-expanded={open} aria-controls={panelId}
         onClick={() => setOpen((o) => !o)} className="btn btn-ghost gap-2 !px-1.5"
       >
         <span aria-hidden className="grid size-7 place-items-center rounded-full bg-accent-soft text-xs font-semibold text-accent-fg">{initials(name)}</span>
