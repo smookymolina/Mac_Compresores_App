@@ -145,7 +145,7 @@ export function QuoteEditor({
   action: (prev: ActionResult<unknown> | null, fd: FormData) => Promise<ActionResult<unknown>>;
   customers: { id: string; legalName: string }[];
   initial?: {
-    customerId: string; validUntil: string; notes: string; deliveryTime?: string;
+    customerId: string; validUntil: string; notes: string; deliveryTime?: string; currency?: string;
     warrantyMonths?: number | null; complements: QuoteComplement[] | null; items: EditorItem[];
   };
   canOverride: boolean;
@@ -229,6 +229,14 @@ export function QuoteEditor({
         <div>
           <label className="label" htmlFor="validUntil">Vigencia</label>
           <input id="validUntil" name="validUntil" type="date" className="input" defaultValue={initial?.validUntil || defaultValid} required />
+        </div>
+        <div>
+          <label className="label" htmlFor="currency">Moneda para el cliente</label>
+          <select id="currency" name="currency" className="input" defaultValue={initial?.currency ?? "USD"} aria-describedby="currency-hint">
+            <option value="USD">Dólares (USD)</option>
+            <option value="MXN">Pesos (MXN)</option>
+          </select>
+          <p id="currency-hint" className="mt-1 text-xs text-ink-soft">Aquí se captura en MXN; el PDF y el correo salen en la moneda elegida al TC del día.</p>
         </div>
         <div>
           <label className="label" htmlFor="deliveryTime">Tiempo de entrega</label>

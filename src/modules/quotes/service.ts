@@ -8,6 +8,7 @@ import { can, type CurrentUser } from "@/lib/auth/session";
 import { customerScope } from "@/modules/customers/service";
 import { buildItemSnapshots, type RequestedItem } from "./pricing";
 import { currentExchangeRate } from "@/modules/products/service";
+import type { QuoteCurrency } from "./currency";
 import { notify } from "@/modules/notifications/service";
 import { QUOTE_STATUS_LABEL, canTransition } from "./status";
 
@@ -61,13 +62,15 @@ export interface QuoteInput {
   deliveryTime?: string;
   warrantyMonths?: number;
   complements?: QuoteComplement[];
+  currency?: QuoteCurrency;
   items: RequestedItem[];
 }
 
-async function snapshots(user: CurrentUser, items: RequestedItem[]) {
+async function snapshots(user: CurrentUser, items: RequestedItem[], currency: QuoteCurrency = "MXN") {
   const products = await db.product.findMany({ where: { id: { in: items.map((i) => i.productId) } } });
-  const usesUsd = products.some((p) => p.currency === "USD");
+  const usesUsd = currency === "USD" || products.some((p) => p.currency === "USD");
   const fx = usesUsd ? ((await currentExchangeRate())?.rate ?? null) : null;
+  if (currency === "USD" && !fx) throw new AppError("Captura el tipo de cambio USD antes de cotizar en dólares.");
   const res = buildItemSnapshots(items, new Map(products.map((p) => [p.id, p])), {
     canOverridePrice: can(user, "quotes.override_price"),
     fx,
@@ -88,7 +91,7 @@ function itemRows(items: Awaited<ReturnType<typeof snapshots>>["items"]) {
 export async function createQuote(user: CurrentUser, input: QuoteInput) {
   const customer = await db.customer.findFirst({ where: { AND: [{ id: input.customerId }, customerScope(user)] } });
   if (!customer) throw new AppError("Cliente no encontrado.", "NOT_FOUND");
-  const { items, totals, exchangeRate } = await snapshots(user, input.items);
+  const { items, totals, exchangeRate } = await snapshots(user, input.items, input.currency);
 
   return db.$transaction(async (tx) => {
     const quote = await tx.quote.create({
@@ -100,6 +103,7 @@ export async function createQuote(user: CurrentUser, input: QuoteInput) {
         deliveryTime: input.deliveryTime || null,
         warrantyMonths: input.warrantyMonths ?? null,
         complements: input.complements as unknown as Prisma.InputJsonValue | undefined,
+        currency: input.currency ?? "MXN",
         exchangeRate,
         ...totals,
         items: { create: itemRows(items) },
@@ -117,7 +121,7 @@ export async function updateQuote(user: CurrentUser, id: string, input: QuoteInp
   if (current.status !== "DRAFT") throw new AppError("Solo se pueden editar cotizaciones en borrador.", "CONFLICT");
   const customer = await db.customer.findFirst({ where: { AND: [{ id: input.customerId }, customerScope(user)] } });
   if (!customer) throw new AppError("Cliente no encontrado.", "NOT_FOUND");
-  const { items, totals, exchangeRate } = await snapshots(user, input.items);
+  const { items, totals, exchangeRate } = await snapshots(user, input.items, input.currency);
 
   return db.$transaction(async (tx) => {
     const res = await tx.quote.updateMany({
@@ -125,7 +129,7 @@ export async function updateQuote(user: CurrentUser, id: string, input: QuoteInp
       data: { customerId: customer.id, validUntil: input.validUntil, notes: input.notes || null, deliveryTime: input.deliveryTime || null,
         warrantyMonths: input.warrantyMonths ?? null,
         complements: input.complements as unknown as Prisma.InputJsonValue | undefined,
-        exchangeRate, ...totals },
+        currency: input.currency ?? "MXN", exchangeRate, ...totals },
     });
     if (res.count === 0) throw new AppError("La cotización cambió mientras la editabas. Recarga.", "CONFLICT");
     await tx.quoteItem.deleteMany({ where: { quoteId: id } });

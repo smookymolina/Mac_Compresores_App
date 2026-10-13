@@ -4,6 +4,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFP
 import type { getQuote } from "./service";
 import { db } from "@/lib/db";
 import { fmtMoney, fmtPct } from "@/lib/money";
+import { presentQuote } from "./currency";
 import { fmtDate } from "@/lib/utils";
 import { warrantyText, type QuoteComplement } from "@/modules/complements/match";
 
@@ -89,7 +90,8 @@ function wrap(text: string, font: PDFFont, size: number, width: number): string[
   return lines;
 }
 
-export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
+export async function renderQuotePdf(raw: QuoteFull): Promise<Uint8Array> {
+  const q = presentQuote(raw);
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Cotización C-${q.folio}`);
   pdf.setAuthor("MAC Compresores");
@@ -198,7 +200,7 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
     const descW = col.qty - 40 - col.desc - pad * 2;
     const descLines = [
       ...wrap(i.description, font, size, descW),
-      ...(i.origCurrency === "USD" && i.origUnitPrice
+      ...(q.currency !== "USD" && i.origCurrency === "USD" && i.origUnitPrice
         ? [`USD ${i.origUnitPrice.toFixed(2)} × TC ${i.fxRate.toFixed(4)}`] : []),
       // Actividades/alcance del servicio capturadas en la cotización.
       ...(i.details ?? "").split(/\r?\n/).filter((l) => l.trim()).flatMap((l) => wrap(`• ${l.trim()}`, font, size, descW)),
@@ -318,6 +320,8 @@ export async function renderQuotePdf(q: QuoteFull): Promise<Uint8Array> {
   const terms = TERMS.map((t) =>
     t.startsWith("Entrega:") && q.deliveryTime ? `Entrega: ${q.deliveryTime}. Equipos para entrega inmediata: considerar el tiempo de envío por paquetería. Acreditando pago.`
     : t.startsWith("Garantía:") && q.warrantyMonths != null ? t.replace("3 meses", warrantyText(q.warrantyMonths))
+    : t.startsWith("Todos los precios") && q.currency === "USD"
+      ? `Todos los precios indicados en la presente cotización están expresados en dólares estadounidenses (USD)${q.exchangeRate ? `; tipo de cambio de referencia: ${q.exchangeRate.toFixed(4)} MXN por USD` : ""}.`
     : t);
   const termLines = terms.map((t, i) => ({ k: String.fromCharCode(65 + i), lines: wrap(t, font, 7.5, R - M - 34) }));
   const termsH = termLines.reduce((a, t) => a + t.lines.length * 9 + 1.5, 0) + 26;

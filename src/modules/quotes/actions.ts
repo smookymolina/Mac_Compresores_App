@@ -28,6 +28,7 @@ const quoteSchema = z.object({
   validUntil: z.coerce.date(),
   notes: z.string().trim().max(2000).optional(),
   deliveryTime: z.string().trim().max(200).optional(),
+  currency: z.enum(["MXN", "USD"]).default("USD"),
   warrantyMonths: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(60)]).optional(),
   complements: z
     .string()
@@ -67,6 +68,7 @@ export async function saveQuoteAction(id: string | undefined, _: ActionResult<un
       validUntil: fd.get("validUntil"),
       notes: fd.get("notes") ?? undefined,
       deliveryTime: fd.get("deliveryTime") ?? undefined,
+      currency: fd.get("currency") ?? undefined,
       warrantyMonths: fd.get("warrantyMonths") ?? undefined,
       complements: fd.get("complements") ?? "[]",
       items: fd.get("items"),

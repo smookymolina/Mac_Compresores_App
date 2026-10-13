@@ -2,6 +2,7 @@ import "server-only";
 import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { renderEmail } from "@/lib/email-layout";
+import { presentQuote } from "./currency";
 import { QUOTE_SHARE_TTL_MS, createShareLink, loadShareUser, readShareToken } from "@/lib/share";
 import { companyReplyTo, isMailConfigured, sendMail } from "@/lib/mail";
 import { warrantyText } from "@/modules/complements/match";
@@ -24,7 +25,8 @@ export function suggestedPhone(q: Awaited<ReturnType<typeof getQuote>>) {
 }
 
 /** Correo de marca de la cotización (HTML + texto). El mensaje del vendedor va en párrafos. */
-export function quoteEmail(q: Awaited<ReturnType<typeof getQuote>>, message: string) {
+export function quoteEmail(raw: Awaited<ReturnType<typeof getQuote>>, message: string) {
+  const q = presentQuote(raw);
   const total = `${fmtMoney(q.total)} ${q.currency}`;
   return renderEmail({
     preheader: `Cotización C-${q.folio} por ${total}, vigente hasta ${fmtDate(q.validUntil)}.`,

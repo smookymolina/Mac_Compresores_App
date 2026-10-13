@@ -15,6 +15,7 @@ import { Card, CardHeader, LinkButton, DataTable, PageHeader, SelectField, btnCl
 import { SendDialog, type SendSuggestion } from "@/components/ui/send-dialog";
 import { Download } from "lucide-react";
 import { fmtMoney, fmtPct } from "@/lib/money";
+import { presentQuote } from "@/modules/quotes/currency";
 import { fmtDate } from "@/lib/utils";
 import { QuoteStatusBadge } from "../status-badge";
 import { warrantyText, type QuoteComplement } from "@/modules/complements/match";
@@ -23,10 +24,10 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const user = await requirePagePermission("quotes.read_all", "quotes.read_own");
   const { id } = await params;
   if (!uuid.safeParse(id).success) notFound();
-  const q = await getQuote(user, id).catch((e) => {
+  const q = presentQuote(await getQuote(user, id).catch((e) => {
     if (e instanceof AppError) notFound();
     throw e;
-  });
+  }));
   const writable = can(user, "quotes.write");
   const transitions = QUOTE_TRANSITIONS[q.status];
   const warehouses = q.status === "ACCEPTED" && can(user, "sales.create") ? await db.warehouse.findMany({ where: { active: true } }) : [];
@@ -100,7 +101,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
                   <div className="min-w-0">
                     <b className="break-words">{i.position}. {i.sku}</b>
                     <div className="break-words text-xs text-ink-soft">{i.description}</div>
-                    {i.origCurrency === "USD" && i.origUnitPrice && <div className="text-xs text-ink-soft">USD {i.origUnitPrice.toFixed(2)} × TC {i.fxRate.toFixed(4)}</div>}
+                    {q.currency !== "USD" && i.origCurrency === "USD" && i.origUnitPrice && <div className="text-xs text-ink-soft">USD {i.origUnitPrice.toFixed(2)} × TC {i.fxRate.toFixed(4)}</div>}
                     {i.details && <div className="mt-1 whitespace-pre-line break-words text-xs">{i.details}</div>}
                   </div>
                   <span className="num shrink-0 font-medium">{fmtMoney(i.subtotal.sub(i.discount))}</span>
@@ -130,7 +131,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
               cells: [
                 i.position,
                 <div key="c"><b>{i.sku}</b><div className="text-xs text-ink-soft">{i.description}</div>
-                  {i.origCurrency === "USD" && i.origUnitPrice && <div className="text-xs text-ink-soft">USD {i.origUnitPrice.toFixed(2)} × TC {i.fxRate.toFixed(4)}</div>}
+                  {q.currency !== "USD" && i.origCurrency === "USD" && i.origUnitPrice && <div className="text-xs text-ink-soft">USD {i.origUnitPrice.toFixed(2)} × TC {i.fxRate.toFixed(4)}</div>}
                   {i.details && <div className="mt-1 whitespace-pre-line text-xs">{i.details}</div>}</div>,
                 `${i.quantity.toString()} ${i.unit}`,
                 fmtMoney(i.unitPrice),

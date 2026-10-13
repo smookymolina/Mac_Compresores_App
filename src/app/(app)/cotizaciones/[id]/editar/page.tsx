@@ -55,6 +55,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
             validUntil: q.validUntil.toISOString().slice(0, 10),
             notes: q.notes ?? "",
             deliveryTime: q.deliveryTime ?? "",
+            currency: q.currency,
             warrantyMonths: q.warrantyMonths,
             complements: q.complements as QuoteComplement[] | null, // null = cotización previa: se sugieren por SKU
             items: q.items
