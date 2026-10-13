@@ -57,6 +57,12 @@ export const ACTION_LABEL: Record<string, string> = {
   "report.email": "Reporte enviado por correo",
   "report.whatsapp": "Reporte enviado por WhatsApp",
   "report.share_download": "Reporte descargado desde enlace",
+  "partner.create": "Socio creado",
+  "partner.update": "Socio modificado",
+  "partner.block": "Socio bloqueado",
+  "partner.unblock": "Socio desbloqueado",
+  "partner.reset_2fa": "Verificación en dos pasos del socio restablecida",
+  "partner.settings": "Ajustes del portal de socios actualizados",
   "job.daily": "Proceso automático diario",
   activate: "Activación",
 };
@@ -75,6 +81,8 @@ export const ENTITY_LABEL: Record<string, string> = {
   CommissionRuleSet: "Reglas de comisión",
   SalesTarget: "Meta de ventas",
   Report: "Reporte",
+  Partner: "Socio",
+  Setting: "Ajuste",
   System: "Sistema",
 };
 
@@ -88,7 +96,7 @@ const FIELD_LABEL: Record<string, string> = {
   minStock: "Stock mínimo", warehouseId: "Almacén", sellerId: "Vendedor", tipo: "Tipo", desde: "Desde", hasta: "Hasta",
   created: "Creados", updated: "Actualizados", unchanged: "Sin cambios", errors: "Con errores",
   version: "Versión", entries: "Reglas", ruleSet: "Conjunto de reglas", contactId: "Contacto", addressId: "Dirección",
-  paymentId: "Pago", reverses: "Revierte movimiento",
+  paymentId: "Pago", discountPct: "Descuento (%)", dailyQuota: "Cuota diaria", company: "Empresa", reverses: "Revierte movimiento",
 };
 
 const METHOD_LABEL: Record<string, string> = {

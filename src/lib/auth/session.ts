@@ -19,7 +19,7 @@ export interface CurrentUser {
   permissions: ReadonlySet<Permission>;
 }
 
-const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
+export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 
 export async function createSession(userId: string) {
   const token = randomBytes(32).toString("base64url");
