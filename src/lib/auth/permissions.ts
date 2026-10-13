@@ -24,6 +24,7 @@ export const PERMISSIONS = [
   "payments.write",
   "reports.export",
   "complements.manage", // catálogo de complementos/condiciones y servicios: solo ADMIN
+  "partners.manage", // portal de socios comerciales (socios, descuentos, actividad): solo ADMIN
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

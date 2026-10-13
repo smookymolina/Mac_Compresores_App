@@ -5,6 +5,7 @@
  */
 import { PrismaClient, type ProductLine } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { createCipheriv, randomBytes } from "node:crypto";
 import { PERMISSIONS, ROLE_NAMES, ROLE_PERMISSIONS, type RoleCode } from "../src/lib/auth/permissions";
 
 const db = new PrismaClient();
@@ -58,6 +59,11 @@ async function main() {
     });
   }
 
+  // Ajustes del portal de socios (idempotente: update vacío para no pisar lo que cambie el admin).
+  for (const [key, value] of [["partners.discountPct", 15], ["partners.dailyQuota", 80]] as const) {
+    await db.setting.upsert({ where: { key }, create: { key, value }, update: {} });
+  }
+
   if (process.env.SEED_DEMO === "1") await demo(roles, hash, adminEmail);
   console.log("Seed completo.");
 }
@@ -107,6 +113,35 @@ async function demo(roles: Record<RoleCode, string>, hash: string, adminEmail: s
       },
     });
   }
+  await demoPartner(hash);
+}
+
+/**
+ * Socio DEMO solo para E2E (únicamente bajo SEED_DEMO=1; nunca en producción).
+ *  - email: socio@demo.local / contraseña: Demo-Socio-2026!
+ *  - Secreto TOTP CONOCIDO (base32): JBSWY3DPEHPK3PXP  (generar el código con otplib (secreto base32 JBSWY3DPEHPK3PXP))
+ *  - Se guarda cifrado AES-256-GCM `iv:tag:ct` (base64) con PARTNER_TOTP_KEY (32 bytes en hex de 64 car. o base64).
+ *  - Sin PARTNER_TOTP_KEY no se crea (el socio quedaría sin 2FA utilizable).
+ */
+async function demoPartner(_adminHash: string) {
+  const rawKey = process.env.PARTNER_TOTP_KEY;
+  if (!rawKey) return console.warn("SEED_DEMO: sin PARTNER_TOTP_KEY, se omite el socio demo.");
+  const key = /^[0-9a-f]{64}$/i.test(rawKey) ? Buffer.from(rawKey, "hex") : Buffer.from(rawKey, "base64");
+  if (key.length !== 32) throw new Error("PARTNER_TOTP_KEY debe ser de 32 bytes (hex de 64 o base64).");
+  const iv = randomBytes(12);
+  const c = createCipheriv("aes-256-gcm", key, iv);
+  const ct = Buffer.concat([c.update("JBSWY3DPEHPK3PXP", "utf8"), c.final()]);
+  const totpSecretEnc = [iv, c.getAuthTag(), ct].map((b) => b.toString("base64")).join(":");
+  const email = "socio@demo.local";
+  await db.partner.upsert({
+    where: { email },
+    create: {
+      email, name: "[DEMO] Socio Uno", company: "[DEMO] Socio Comercial SA",
+      passwordHash: await bcrypt.hash("Demo-Socio-2026!", 12),
+      totpSecretEnc, totpEnabledAt: new Date(),
+    },
+    update: {},
+  });
 }
 
 main()

@@ -65,6 +65,7 @@ model User {
   auditLogs         AuditLog[]
   commissionEntries CommissionEntry[]
   salesTargets      SalesTarget[]
+  partnersCreated   Partner[]           @relation("PartnerCreatedBy")
 }
 
 model Session {
@@ -620,4 +621,101 @@ model ComplementPackage {
   position       Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// ───────────── Portal de socios comerciales (v1.4.0) ─────────────
+
+/// Ajustes globales clave/valor editables por el administrador.
+model Setting {
+  key         String   @id
+  value       Json
+  updatedAt   DateTime @updatedAt
+  updatedById String?  @db.Uuid
+}
+
+enum PartnerStatus {
+  ACTIVE
+  BLOCKED
+}
+
+model Partner {
+  id             String             @id @default(uuid()) @db.Uuid
+  email          String             @unique
+  name           String
+  company        String
+  passwordHash   String
+  failedLogins   Int                @default(0)
+  /// AES-256-GCM `iv:tag:ct` en base64; llave PARTNER_TOTP_KEY (.env).
+  totpSecretEnc  String?
+  totpEnabledAt  DateTime?
+  /// Último paso TOTP aceptado (evita reutilizar el mismo código).
+  totpLastStep   Int?
+  /// Códigos de respaldo (hash bcrypt).
+  backupCodes    String[]
+  /// null = usa el descuento global (Setting partners.discountPct).
+  discountPct    Decimal?           @db.Decimal(5, 2)
+  /// null = usa la cuota global (Setting partners.dailyQuota).
+  dailyQuota     Int?
+  status         PartnerStatus      @default(ACTIVE)
+  blockedReason  String?
+  blockedAt      DateTime?
+  lastSeenAt     DateTime?
+  createdById    String?            @db.Uuid
+  createdBy      User?              @relation("PartnerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  sessions       PartnerSession[]
+  activities     PartnerActivity[]
+}
+
+model PartnerSession {
+  id             String   @id // SHA-256 del token; el token en claro solo vive en la cookie
+  partnerId      String   @db.Uuid
+  partner        Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  ip             String?
+  userAgent      String?
+  lastActivityAt DateTime @default(now())
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([partnerId])
+}
+
+enum PartnerActivityType {
+  LOGIN_OK
+  LOGIN_FAIL
+  TOTP_OK
+  TOTP_FAIL
+  TOTP_SETUP
+  BACKUP_CODE_USED
+  SEARCH
+  PRICE_VIEW
+  LOGOUT
+  SESSION_REVOKED
+  QUOTA_EXCEEDED
+  RATE_LIMITED
+  AUTO_BLOCK
+  SWEEP_SUSPECT
+  HIDDEN
+  PRINT_ATTEMPT
+  COPY_ATTEMPT
+  CAPTURE_KEY
+  DEVTOOLS
+  WEBDRIVER
+  HONEYPOT
+  ADMIN_CHANGE
+}
+
+model PartnerActivity {
+  id        String              @id @default(uuid()) @db.Uuid
+  partnerId String              @db.Uuid
+  partner   Partner             @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  type      PartnerActivityType
+  meta      Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime            @default(now())
+
+  @@index([partnerId, createdAt(sort: Desc)])
+  @@index([type, createdAt])
 }
