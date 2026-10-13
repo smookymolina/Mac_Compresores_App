@@ -760,7 +760,7 @@ input[type="file"] { max-width: 100%; }
 .portal-head { border-bottom: 1px solid var(--border); background: var(--panel); }
 .portal-head-in { display: flex; align-items: center; gap: 0.75rem; max-width: 64rem; margin-inline: auto; padding: 0.5rem 1rem; }
 .portal-who { min-width: 0; flex: 1 1 auto; line-height: 1.25rem; }
-.portal-img { height: 2rem; width: auto; max-width: 100%; display: block; }
+.portal-img { width: 9rem; height: auto; max-width: 100%; display: block; }
 .portal-price { width: 9rem; height: 2rem; display: block; background: var(--panel-2); border-radius: var(--r-sm); }
 .portal-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--panel); }
 /* Acceso (login y 2FA): tarjeta centrada sin animaciones nuevas. */

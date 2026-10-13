@@ -39,7 +39,7 @@ function Legend({ contact }: { contact?: PortalContact }) {
 function PriceImg({ src, onFail }: { src: string; onFail: () => void }) {
   const hidden = useShieldHidden();
   // eslint-disable-next-line @next/next/no-img-element -- PNG firmado y de un solo uso: no debe pasar por el optimizador
-  return <img src={shieldSrc(src, hidden)} alt="Precio protegido" width={144} height={32} draggable={false} className="portal-img" onError={hidden ? undefined : onFail} />;
+  return <img src={shieldSrc(src, hidden)} alt="Precio protegido: precio normal y tu precio con descuento" width={144} draggable={false} className="portal-img" onError={hidden ? undefined : onFail} />;
 }
 
 function Results({ items, stale, onFail }: { items: PartnerSearchItem[]; stale: boolean; onFail: () => void }) {
@@ -52,7 +52,7 @@ function Results({ items, stale, onFail }: { items: PartnerSearchItem[]; stale: 
           <th scope="col">Descripción</th>
           <th scope="col">Unidad</th>
           <th scope="col">Moneda</th>
-          <th scope="col" className="num">Precio de socio</th>
+          <th scope="col" className="num">Precio normal → tu precio</th>
         </tr>
       </thead>
       <tbody role="rowgroup">

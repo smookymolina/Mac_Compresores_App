@@ -36,6 +36,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   const png = await renderPriceImage({
     amount: price.price.toFixed(2),
     currency: price.currency,
+    // Sin descuento no hay nada que comparar: solo el precio.
+    list: price.pct.gt(0) ? { amount: price.listPrice.toFixed(2), pct: price.pct.toDecimalPlaces(2).toString() } : undefined,
     watermark: `${partner.id}|${stamp}|${ip ?? ""}`,
   });
   await logPartnerActivity({

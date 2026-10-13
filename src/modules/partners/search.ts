@@ -41,12 +41,13 @@ export async function searchPartnerProducts(q: string): Promise<PartnerProductRo
 export async function getPartnerPriceForProduct(
   productId: string,
   partner: { discountPct: Dec | null },
-): Promise<{ price: Dec; currency: Currency } | null> {
+): Promise<{ price: Dec; listPrice: Dec; pct: Dec; currency: Currency } | null> {
   const p = await db.product.findFirst({
     where: { id: productId, status: "ACTIVE", price: { gt: 0 } },
     select: { currency: true, price: true },
   });
   if (!p) return null;
   const settings = await getPartnerSettings();
-  return { price: getPartnerPrice(p.price, effectiveDiscount(partner, settings)), currency: p.currency };
+  const pct = effectiveDiscount(partner, settings);
+  return { price: getPartnerPrice(p.price, pct), listPrice: p.price, pct, currency: p.currency };
 }
