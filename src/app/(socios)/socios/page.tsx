@@ -1,5 +1,3 @@
-import { headers } from "next/headers";
-import { clientIp } from "@/lib/request";
 import { getQuotaRemaining, mxDate } from "@/modules/partners/guard";
 import { getPartnerSettings } from "@/modules/partners/pricing";
 import { requirePartner } from "@/modules/partners/session";
@@ -18,7 +16,7 @@ function nextResetOn(): string {
 
 export default async function PartnerHomePage() {
   const { partner } = await requirePartner();
-  const [remaining, settings, h] = await Promise.all([getQuotaRemaining(partner), getPartnerSettings(), headers()]);
+  const [remaining, settings] = await Promise.all([getQuotaRemaining(partner), getPartnerSettings()]);
   return (
     <>
       <a href="#contenido" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-panel focus:px-3 focus:py-2">
@@ -30,7 +28,6 @@ export default async function PartnerHomePage() {
         quota={partner.dailyQuota ?? settings.dailyQuota}
         resetOn={nextResetOn()}
         contact={PORTAL_CONTACT}
-        watermark={{ name: partner.name, shortId: partner.id.slice(0, 8).toUpperCase(), ip: clientIp(h) }}
       />
     </>
   );

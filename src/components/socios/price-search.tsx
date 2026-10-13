@@ -5,7 +5,6 @@ import { Clock, Info, RefreshCw, Search, SearchX, ShieldAlert } from "lucide-rea
 import { Badge } from "@/components/ui/badge";
 import { EmptyState, ErrorState } from "@/components/ui/data";
 import { CaptureShield, shieldSrc, useShieldHidden } from "@/components/partners/capture-shield";
-import { Watermark } from "@/components/partners/watermark";
 import { searchPricesAction, type PartnerSearchItem } from "@/modules/partners/portal-actions";
 import { ContactLine, type PortalContact } from "./contact";
 
@@ -24,7 +23,6 @@ export interface PriceSearchProps {
   /** dd/mm/aaaa del próximo reinicio de la cuota (hora de Ciudad de México). */
   resetOn: string;
   contact?: PortalContact;
-  watermark: { name: string; shortId: string; ip: string };
 }
 
 function Legend({ contact }: { contact?: PortalContact }) {
@@ -90,7 +88,7 @@ function ResultsSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-export function PriceSearch({ remaining: initialRemaining, quota, resetOn, contact, watermark }: PriceSearchProps) {
+export function PriceSearch({ remaining: initialRemaining, quota, resetOn, contact }: PriceSearchProps) {
   const [term, setTerm] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [items, setItems] = useState<PartnerSearchItem[]>([]);
@@ -230,7 +228,6 @@ export function PriceSearch({ remaining: initialRemaining, quota, resetOn, conta
 
   return (
     <>
-      <Watermark {...watermark} />
       <CaptureShield id="contenido" className="portal-main" onReveal={() => lastQ.current && void runRef.current(lastQ.current, true)}>
         {blocked ? (
           <section aria-labelledby="blk" className="portal-card">
