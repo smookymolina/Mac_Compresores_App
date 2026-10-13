@@ -37,6 +37,8 @@ services:
       CRON_SECRET: ${CRON_SECRET:-}
       SHARE_SECRET: ${SHARE_SECRET:-}
       BANK_INFO: ${BANK_INFO:-}
+      PARTNER_TOKEN_SECRET: ${PARTNER_TOKEN_SECRET:-}
+      PARTNER_TOTP_KEY: ${PARTNER_TOTP_KEY:-}
     ports: ["127.0.0.1:3080:3000"]
     depends_on: { migrate: { condition: service_completed_successfully } }
   # Respaldo diario de la BD en ./backups (03:00 de México; conserva BACKUP_KEEP_DAYS días).

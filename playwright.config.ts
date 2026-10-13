@@ -12,6 +12,18 @@ export default defineConfig({
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] } },
+    // Navegadores adicionales (instalar con `npx playwright install webkit firefox`).
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+    // Viewports de referencia: 360x740 y 390x844 (móvil) y 1280x800 (escritorio).
+    { name: "vp-360", use: { ...devices["Desktop Chrome"], viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true } },
+    { name: "vp-390", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: "vp-1280", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } } },
+    // Portal de socios: vive en /socios del mismo host (sin subdominio), así que el baseURL es el mismo
+    // y los tests usan rutas /socios/... Solo corre los tests marcados con @socios (npx playwright test --project=socios).
+    { name: "socios", grep: /@socios/, use: { ...devices["Desktop Chrome"] } },
+    { name: "socios-mobile", grep: /@socios/, use: { ...devices["Pixel 7"] } },
+    { name: "socios-webkit", grep: /@socios/, use: { ...devices["Desktop Safari"] } },
   ],
   webServer: external
     ? undefined
