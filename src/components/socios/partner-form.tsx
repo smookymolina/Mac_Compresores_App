@@ -27,14 +27,14 @@ const RULES: Record<string, (v: string) => string | null> = {
   },
 };
 
-/** Alta/edición de socio. Etiquetas visibles, validación al salir del campo y la contraseña temporal se muestra una sola vez. */
+/** Alta/edición de socio. Etiquetas visibles, validación al salir del campo y al crear se envía la invitación por correo. */
 export function PartnerForm({ values, globalPct, globalQuota }: { values: PartnerFormValues; globalPct: string; globalQuota: number }) {
   const router = useRouter();
   const { push } = useToast();
   const [pending, start] = useTransition();
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState("");
-  const [created, setCreated] = useState<{ id: string; name: string; tempPassword: string } | null>(null);
+  const [created, setCreated] = useState<{ id: string; name: string; email: string; url?: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLFormElement>(null);
   const isNew = !values.id;
@@ -60,7 +60,7 @@ export function PartnerForm({ values, globalPct, globalQuota }: { values: Partne
     start(async () => {
       const r = await savePartnerAction(null, fd);
       if (r.ok && r.data) {
-        if (r.data.tempPassword) setCreated({ id: r.data.id, name: String(fd.get("name")), tempPassword: r.data.tempPassword });
+        if (r.data.invited) setCreated({ id: r.data.id, name: String(fd.get("name")), email: String(fd.get("email")), url: r.data.invited.url });
         else {
           push(`Guardaste los cambios de ${String(fd.get("name"))}.`, "success");
           router.refresh();
@@ -75,17 +75,24 @@ export function PartnerForm({ values, globalPct, globalQuota }: { values: Partne
   if (created)
     return (
       <div className="space-y-3 p-4">
-        {/* Solo el aviso es región viva: la contraseña no debe leerse en voz alta sola. */}
         <p role="status" className="text-sm font-medium">{created.name} quedó registrado.</p>
-        <p className="portal-warn">Esta contraseña temporal se muestra una sola vez. Compártela por un canal seguro; el socio configurará su 2FA en el primer acceso.</p>
-        <p className="mono select-all break-all rounded-md bg-panel-2 p-3 text-base">{created.tempPassword}</p>
+        {created.url ? (
+          <>
+            <p className="portal-warn">No se pudo enviar el correo. Comparte este enlace con el socio por un canal seguro; sirve una vez y vence en 72 horas.</p>
+            <p className="mono select-all break-all rounded-md bg-panel-2 p-3 text-sm">{created.url}</p>
+          </>
+        ) : (
+          <p className="text-sm text-ink-soft">Le enviamos a {created.email} un enlace para crear su contraseña (vence en 72 horas).</p>
+        )}
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button" className="btn btn-secondary tap gap-2"
-            onClick={async () => { try { await navigator.clipboard.writeText(created.tempPassword); setCopied(true); } catch { /* sin portapapeles: está seleccionable */ } }}
-          >
-            <Copy size={16} strokeWidth={1.75} aria-hidden /> {copied ? "Copiada" : "Copiar contraseña"}
-          </button>
+          {created.url && (
+            <button
+              type="button" className="btn btn-secondary tap gap-2"
+              onClick={async () => { try { await navigator.clipboard.writeText(created.url!); setCopied(true); } catch { /* sin portapapeles: está seleccionable */ } }}
+            >
+              <Copy size={16} strokeWidth={1.75} aria-hidden /> {copied ? "Copiado" : "Copiar enlace"}
+            </button>
+          )}
           <Link className="btn btn-primary tap" href={`/socios-admin/${created.id}`}>Ir al socio</Link>
         </div>
       </div>
@@ -96,7 +103,7 @@ export function PartnerForm({ values, globalPct, globalQuota }: { values: Partne
       <Field label="Nombre" name="name" defaultValue={values.name} required autoComplete="off" error={errors.name} onBlur={onBlur} />
       <Field label="Empresa" name="company" defaultValue={values.company} required autoComplete="off" error={errors.company} onBlur={onBlur} />
       <Field label="Correo electrónico" name="email" type="email" defaultValue={values.email} required autoComplete="off" spellCheck={false} error={errors.email} onBlur={onBlur}
-        hint={isNew ? "Se genera una contraseña temporal al crear al socio; la verás una sola vez." : undefined} />
+        hint={isNew ? "Le llegará un correo para crear su contraseña." : undefined} />
       <span className="hidden md:block" aria-hidden />
       <Field label="Descuento propio (%)" name="discountPct" inputMode="decimal" defaultValue={values.discountPct} error={errors.discountPct} onBlur={onBlur}
         hint={`Déjalo vacío para usar el global (${globalPct} %).`} />

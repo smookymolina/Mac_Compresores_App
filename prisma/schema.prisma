@@ -652,6 +652,15 @@ model Partner {
   totpLastStep   Int?
   /// Códigos de respaldo (hash bcrypt).
   backupCodes    String[]
+  /// SHA-256 del token de invitación/restablecimiento (un solo uso).
+  inviteTokenHash String?           @unique
+  inviteExpiresAt DateTime?
+  /// Cuándo el socio fijó su propia contraseña (null = invitación pendiente).
+  passwordSetAt  DateTime?
+  /// Código de acceso enviado por correo (SHA-256), su vencimiento e intentos fallidos.
+  emailCodeHash  String?
+  emailCodeExpiresAt DateTime?
+  emailCodeTries Int                @default(0)
   /// null = usa el descuento global (Setting partners.discountPct).
   discountPct    Decimal?           @db.Decimal(5, 2)
   /// null = usa la cuota global (Setting partners.dailyQuota).
@@ -704,6 +713,11 @@ enum PartnerActivityType {
   WEBDRIVER
   HONEYPOT
   ADMIN_CHANGE
+  INVITE_SENT
+  PASSWORD_SET
+  EMAIL_CODE_SENT
+  EMAIL_CODE_OK
+  EMAIL_CODE_FAIL
 }
 
 model PartnerActivity {

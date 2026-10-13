@@ -8,7 +8,7 @@ import { getPartnerSettings } from "./pricing";
 /** Campos visibles en el admin: nunca el hash de contraseña, el secreto TOTP ni los códigos de respaldo. */
 const partnerAdminSelect = {
   id: true, email: true, name: true, company: true, discountPct: true, dailyQuota: true, status: true,
-  blockedReason: true, blockedAt: true, lastSeenAt: true, failedLogins: true, totpEnabledAt: true, createdAt: true,
+  blockedReason: true, blockedAt: true, lastSeenAt: true, failedLogins: true, totpEnabledAt: true, passwordSetAt: true, createdAt: true,
 } satisfies Prisma.PartnerSelect;
 
 export async function listPartners(opts: { search?: string; page?: number; status?: "ACTIVE" | "BLOCKED" } = {}) {

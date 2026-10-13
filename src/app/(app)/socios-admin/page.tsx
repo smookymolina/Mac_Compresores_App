@@ -75,7 +75,7 @@ export default async function PartnersAdminPage({ searchParams }: { searchParams
               </span>,
               <span key="s" className="inline-flex flex-wrap items-center gap-1">
                 <Badge tone={p.status === "ACTIVE" ? "green" : "red"}>{p.status === "ACTIVE" ? "Activo" : "Bloqueado"}</Badge>
-                {!p.totpEnabledAt && <Badge tone="amber">2FA pendiente</Badge>}
+                {!p.passwordSetAt && <Badge tone="amber">Invitación pendiente</Badge>}
               </span>,
               p.lastSeenAt ? fmtDateTime(p.lastSeenAt) : <span key="l" className="text-muted">Nunca</span>,
             ],

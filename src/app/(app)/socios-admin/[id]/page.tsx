@@ -44,7 +44,7 @@ export default async function PartnerDetailPage({ params }: { params: Promise<{ 
         subtitle={`${p.company} · ${p.email}`}
         meta={[
           { label: "Estado", value: <Badge tone={p.status === "ACTIVE" ? "green" : "red"}>{p.status === "ACTIVE" ? "Activo" : "Bloqueado"}</Badge> },
-          { label: "2FA", value: p.totpEnabledAt ? "Activa" : "Pendiente" },
+          { label: "Acceso", value: !p.passwordSetAt ? "Invitación pendiente" : p.totpEnabledAt ? "Contraseña + app de verificación" : "Contraseña + código por correo" },
           { label: "Descuento efectivo", value: `${pctLabel(effective)} · ${p.discountPct === null ? "global" : "propio"}` },
           { label: "Último acceso", value: p.lastSeenAt ? fmtDateTime(p.lastSeenAt) : "Nunca" },
         ]}

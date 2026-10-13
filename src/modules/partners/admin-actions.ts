@@ -12,7 +12,7 @@ import { clear } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request";
 import { decimalStr, formObject, uuid } from "@/lib/validation";
 import { logPartnerActivity } from "./activity";
-import { generateTempPassword, hashPassword } from "./auth";
+import { sendPartnerInvite, unusablePasswordHash } from "./invite";
 import { SETTING_DISCOUNT, SETTING_QUOTA } from "./pricing";
 
 const PERM = "partners.manage" as const;
@@ -42,11 +42,13 @@ async function logAdminChange(partnerId: string, userId: string, action: string,
   revalidatePath("/socios-admin");
 }
 
+type SaveResult = { id: string; invited?: { emailed: boolean; url?: string } };
+
 /**
- * Crea o edita un socio. Al crear genera una contraseña temporal que se devuelve UNA sola vez (solo se guarda su hash).
- * `discountPct` y `dailyQuota` vacíos = usa el valor global.
+ * Crea o edita un socio. Al crear le envía por correo un enlace (72 h, un solo uso) para que cree su contraseña;
+ * si el correo falla, se devuelve el enlace para compartirlo a mano. `discountPct` y `dailyQuota` vacíos = valor global.
  */
-export async function savePartnerAction(_: ActionResult<{ id: string; tempPassword?: string }> | null, fd: FormData): Promise<ActionResult<{ id: string; tempPassword?: string }>> {
+export async function savePartnerAction(_: ActionResult<SaveResult> | null, fd: FormData): Promise<ActionResult<SaveResult>> {
   return runAction(async () => {
     const user = await requirePermission(PERM);
     const d = partnerSchema.parse(formObject(fd));
@@ -60,11 +62,11 @@ export async function savePartnerAction(_: ActionResult<{ id: string; tempPasswo
       await logAdminChange(d.id, user.id, "update", changes);
       return { id: d.id };
     }
-    const tempPassword = generateTempPassword();
-    const p = await db.partner.create({ data: { ...data, passwordHash: await hashPassword(tempPassword), createdById: user.id } });
+    const p = await db.partner.create({ data: { ...data, passwordHash: await unusablePasswordHash(), createdById: user.id } });
     await audit({ userId: user.id, action: "partner.create", entity: "Partner", entityId: p.id, data: { email: d.email, name: d.name, company: d.company, ...changes } });
     await logAdminChange(p.id, user.id, "create", changes);
-    return { id: p.id, tempPassword };
+    const { url, emailed } = await sendPartnerInvite(p.id, await adminCtx());
+    return { id: p.id, invited: { emailed, url: emailed ? undefined : url } };
   }, "Socio guardado.");
 }
 
@@ -107,6 +109,21 @@ export async function resetPartner2faAction(input: { id: string }): Promise<Acti
     await logAdminChange(id, user.id, "reset_2fa");
     return undefined;
   }, "Verificación en dos pasos restablecida.");
+}
+
+/** Envía un enlace nuevo para crear contraseña (invitación pendiente u olvido). La contraseña actual sigue hasta que la cambie. */
+export async function resendPartnerInviteAction(input: { id: string }): Promise<ActionResult<{ emailed: boolean; url?: string }>> {
+  return runAction(async () => {
+    const user = await requirePermission(PERM);
+    const id = uuid.parse(input.id);
+    const p = await db.partner.findUnique({ where: { id }, select: { status: true } });
+    if (!p) throw new AppError("Socio no encontrado.", "NOT_FOUND");
+    if (p.status !== "ACTIVE") throw new AppError("Desbloquea al socio antes de enviarle un enlace.");
+    const { url, emailed } = await sendPartnerInvite(id, await adminCtx());
+    await audit({ userId: user.id, action: "partner.invite", entity: "Partner", entityId: id, data: { emailed } });
+    await logAdminChange(id, user.id, "invite");
+    return { emailed, url: emailed ? undefined : url };
+  });
 }
 
 const settingsSchema = z.object({ discountPct: pctField, dailyQuota: quotaField });

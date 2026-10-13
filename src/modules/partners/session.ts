@@ -134,7 +134,7 @@ export async function getCurrentPartner(): Promise<{ partner: SessionPartner; se
     return null;
   }
   const { lastSeenAt, ...partner } = s.partner;
-  if (partner.status !== "ACTIVE" || !partner.totpEnabledAt) return null;
+  if (partner.status !== "ACTIVE") return null;
   if (now - s.lastActivityAt.getTime() > TOUCH_EVERY_MS)
     await db.partnerSession.update({ where: { id: sessionId }, data: { lastActivityAt: new Date(now) } }).catch(() => {});
   if (!lastSeenAt || now - lastSeenAt.getTime() > SEEN_EVERY_MS)

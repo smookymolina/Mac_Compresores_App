@@ -12,6 +12,8 @@ import { notify, usersWithPermission } from "@/modules/notifications/service";
 import { logPartnerActivity } from "./activity";
 import { consumeBackupCode, generateBackupCodes, MAX_FAILED_LOGINS, newTotpSecret, registerFailure, verifyPartnerPassword, verifyTotp } from "./auth";
 import { encryptSecret } from "./crypto";
+import { isTrustedDevice, sendEmailCode, trustDevice, verifyEmailCode } from "./email-code";
+import { acceptInvite } from "./invite";
 import { checkLimits, registerBurst } from "./guard";
 import { cleanSearchTerm, PARTNER_SEARCH_MIN, searchPartnerProducts } from "./search";
 import {
@@ -31,17 +33,74 @@ async function reqCtx() {
 
 const loginSchema = z.object({ email: z.string().trim().email().max(200), password: z.string().min(1).max(200) });
 
-/** Paso 1: correo + contraseña. Con éxito fija la cookie previa y redirige a /socios/2fa. */
+/**
+ * Paso 1: correo + contraseña. Segundo factor: código por correo (o la app autenticadora si el socio ya la tenía).
+ * En un dispositivo de confianza (código verificado hace menos de 30 días) entra directo.
+ */
 export async function partnerLoginAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const parsed = loginSchema.safeParse({ email: fd.get("email"), password: fd.get("password") });
   if (!parsed.success) return { ok: false, error: "Correo o contraseña inválidos." };
   const ctx = await reqCtx();
+  let next = "/socios/2fa";
   const res = await runAction(async () => {
-    const { id } = await verifyPartnerPassword(parsed.data.email, parsed.data.password, ctx);
+    const { id, totp } = await verifyPartnerPassword(parsed.data.email, parsed.data.password, ctx);
+    if (!totp && (await isTrustedDevice(id))) {
+      await db.partner.update({ where: { id }, data: { failedLogins: 0 } });
+      await createPartnerSession(id, ctx);
+      next = "/socios";
+      return undefined;
+    }
     await setPendingPartner(id);
+    if (!totp) await sendEmailCode(id, ctx);
     return undefined;
   });
-  if (res.ok) redirect("/socios/2fa");
+  if (res.ok) redirect(next);
+  return res;
+}
+
+/** Segundo factor por correo: valida el código, recuerda el dispositivo 30 días y abre la sesión. */
+export async function partnerEmailCodeAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const ctx = await reqCtx();
+  const res = await runAction(async () => {
+    const pending = await getPendingPartner();
+    if (!pending) throw new AppError("Tu acceso expiró. Vuelve a iniciar sesión.", "UNAUTHENTICATED");
+    if (pending.totpEnabledAt) throw new AppError("Usa el código de tu app de verificación.");
+    await verifyEmailCode(pending.id, String(fd.get("code") ?? ""), ctx);
+    await trustDevice(pending.id);
+    await createPartnerSession(pending.id, ctx);
+    await clearPendingPartner();
+    return undefined;
+  });
+  if (res.ok) redirect("/socios");
+  return res;
+}
+
+export async function partnerResendCodeAction(): Promise<ActionResult> {
+  const ctx = await reqCtx();
+  return runAction(async () => {
+    const pending = await getPendingPartner();
+    if (!pending) throw new AppError("Tu acceso expiró. Vuelve a iniciar sesión.", "UNAUTHENTICATED");
+    await sendEmailCode(pending.id, ctx);
+    return undefined;
+  }, "Te enviamos un código nuevo.");
+}
+
+const activateSchema = z.object({ token: z.string().min(20).max(100), password: z.string().max(200), confirm: z.string().max(200) });
+
+/** Enlace de invitación/restablecimiento: fija la contraseña y abre la sesión (el enlace ya prueba el correo). */
+export async function partnerActivateAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  const parsed = activateSchema.safeParse({ token: fd.get("token"), password: fd.get("password"), confirm: fd.get("confirm") });
+  if (!parsed.success) return { ok: false, error: "El enlace no es válido." };
+  if (parsed.data.password !== parsed.data.confirm) return { ok: false, error: "Las contraseñas no coinciden." };
+  const ctx = await reqCtx();
+  const res = await runAction(async () => {
+    if (ctx.ip && (await hit(`pactivate:${ctx.ip}`, TOTP_WINDOW_MS)) > 10) throw new AppError("Demasiados intentos. Espera 15 minutos.");
+    const { id } = await acceptInvite(parsed.data.token, parsed.data.password, ctx);
+    await trustDevice(id);
+    await createPartnerSession(id, ctx);
+    return undefined;
+  });
+  if (res.ok) redirect("/socios");
   return res;
 }
 

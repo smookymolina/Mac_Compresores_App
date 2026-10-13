@@ -32,11 +32,16 @@ export const ACTIVITY: Record<PartnerActivityType, { label: string; severity: Se
   WEBDRIVER: { label: "Navegador automatizado detectado", severity: "critical" },
   HONEYPOT: { label: "Entró a un enlace trampa", severity: "critical" },
   ADMIN_CHANGE: { label: "Cambio hecho por un administrador", severity: "info" },
+  INVITE_SENT: { label: "Enlace de contraseña enviado", severity: "info" },
+  PASSWORD_SET: { label: "Creó su contraseña", severity: "info" },
+  EMAIL_CODE_SENT: { label: "Código de acceso enviado por correo", severity: "info" },
+  EMAIL_CODE_OK: { label: "Código de correo correcto", severity: "info" },
+  EMAIL_CODE_FAIL: { label: "Código de correo incorrecto", severity: "warning" },
 };
 
 /** Categorías del selector de tipo de evento. */
 export const ACTIVITY_GROUPS: { label: string; types: PartnerActivityType[] }[] = [
-  { label: "Acceso", types: ["LOGIN_OK", "LOGIN_FAIL", "TOTP_OK", "TOTP_FAIL", "TOTP_SETUP", "BACKUP_CODE_USED", "LOGOUT", "SESSION_REVOKED"] },
+  { label: "Acceso", types: ["LOGIN_OK", "LOGIN_FAIL", "TOTP_OK", "TOTP_FAIL", "TOTP_SETUP", "BACKUP_CODE_USED", "EMAIL_CODE_SENT", "EMAIL_CODE_OK", "EMAIL_CODE_FAIL", "INVITE_SENT", "PASSWORD_SET", "LOGOUT", "SESSION_REVOKED"] },
   { label: "Consulta", types: ["SEARCH", "PRICE_VIEW"] },
   { label: "Límites", types: ["QUOTA_EXCEEDED", "RATE_LIMITED", "SWEEP_SUSPECT", "AUTO_BLOCK"] },
   { label: "Seguridad", types: ["HIDDEN", "PRINT_ATTEMPT", "COPY_ATTEMPT", "CAPTURE_KEY", "DEVTOOLS", "WEBDRIVER", "HONEYPOT"] },
@@ -44,7 +49,7 @@ export const ACTIVITY_GROUPS: { label: string; types: PartnerActivityType[] }[] 
 ];
 
 const ADMIN_ACTIONS: Record<string, string> = {
-  create: "Alta del socio", update: "Edición de datos", block: "Bloqueo de acceso", unblock: "Desbloqueo de acceso", reset_2fa: "Restablecimiento de 2FA",
+  create: "Alta del socio", update: "Edición de datos", block: "Bloqueo de acceso", unblock: "Desbloqueo de acceso", reset_2fa: "Quitó la app de verificación", invite: "Envío de enlace de contraseña",
 };
 
 /** Resumen corto y seguro de `meta` para la columna Detalle (solo valores primitivos, texto plano). */

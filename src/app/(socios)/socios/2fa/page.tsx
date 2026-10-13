@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { getPendingPartner } from "@/modules/partners/session";
 import { PortalAuthShell } from "@/components/socios/portal-auth-shell";
-import { TotpSetup, TotpVerify } from "@/components/socios/totp-flow";
+import { TotpVerify } from "@/components/socios/totp-flow";
+import { EmailCodeForm } from "@/components/socios/email-code-form";
 
-export const metadata = { title: "Verificación en dos pasos" };
+export const metadata = { title: "Verifica tu acceso" };
 
 export default async function PartnerTwoFactorPage() {
   const pending = await getPendingPartner();
@@ -14,8 +15,8 @@ export default async function PartnerTwoFactorPage() {
       <TotpVerify />
     </PortalAuthShell>
   ) : (
-    <PortalAuthShell title="Activa la verificación en dos pasos" description="Es un paso único para proteger tu cuenta.">
-      <TotpSetup />
+    <PortalAuthShell title="Revisa tu correo" description="Un último paso para confirmar que eres tú.">
+      <EmailCodeForm email={pending.email} />
     </PortalAuthShell>
   );
 }

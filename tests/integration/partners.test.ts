@@ -24,14 +24,21 @@ vi.mock("next/navigation", () => ({
   },
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+const sent: { to: string; subject: string; text?: string }[] = [];
+vi.mock("@/lib/mail", async (orig) => ({
+  ...(await orig<typeof import("@/lib/mail")>()),
+  isMailConfigured: () => true,
+  sendMail: async (m: { to: string; subject: string; text?: string }) => void sent.push(m),
+}));
 vi.mock("@/lib/auth/session", async (orig) => ({ ...(await orig<typeof import("@/lib/auth/session")>()), requirePermission: async () => adminUser }));
 
 import { consumeBackupCode, generateBackupCodes, verifyPartnerPassword, verifyTotp } from "@/modules/partners/auth";
 import { encryptSecret } from "@/modules/partners/crypto";
 import { autoBlock, checkLimits, registerBurst } from "@/modules/partners/guard";
 import { getPartnerPriceForProduct, searchPartnerProducts } from "@/modules/partners/search";
-import { createPartnerSession, getCurrentPartner } from "@/modules/partners/session";
-import { partnerLoginAction, partnerTotpSetupAction, partnerTotpVerifyAction, searchPricesAction } from "@/modules/partners/portal-actions";
+import { createPartnerSession, getCurrentPartner, PARTNER_COOKIE } from "@/modules/partners/session";
+import { partnerActivateAction, partnerEmailCodeAction, partnerLoginAction, partnerTotpVerifyAction, searchPricesAction } from "@/modules/partners/portal-actions";
+import { sendPartnerInvite } from "@/modules/partners/invite";
 import { resetPartner2faAction, savePartnerAction, setGlobalPartnerSettingsAction, setPartnerStatusAction } from "@/modules/partners/admin-actions";
 import { listPartnerActivity, listPartners } from "@/modules/partners/queries";
 
@@ -223,18 +230,16 @@ describe("búsqueda y precios (sin fuga de costo ni de precio)", () => {
     const zero = await db.product.findUniqueOrThrow({ where: { sku: `${tag}-CERO` } });
     expect(await getPartnerPriceForProduct(zero.id, partner)).toBeNull();
   });
-  it("flujo completo: login → alta 2FA → sesión → searchPricesAction sin precio ni costo", async () => {
+  it("flujo completo: login → código por correo → sesión → searchPricesAction sin precio ni costo", async () => {
     nextIp();
     const p = await mkPartner({ totpSecretEnc: null, totpEnabledAt: null, dailyQuota: 50 });
     expect(await redirected(partnerLoginAction(null, fd({ email: p.email, password: "mala" })))).toBeNull();
     expect(await redirected(partnerLoginAction(null, fd({ email: p.email, password: "Pass-1234-xyz" })))).toBe("/socios/2fa");
-    const setup = await partnerTotpSetupAction();
-    expect(setup.ok && setup.data!.qr.startsWith("data:image/png;base64,")).toBe(true);
-    if (!setup.ok) throw new Error("setup");
-    expect(setup.data!.backupCodes).toHaveLength(10);
-    expect((await partnerTotpVerifyAction(null, fd({ code: "000000" }))).ok).toBe(false);
-    const code = generateSync({ secret: setup.data!.secret });
-    expect(await redirected(partnerTotpVerifyAction(null, fd({ code })))).toBe("/socios");
+    const mail = sent.findLast((m) => m.to === p.email)!;
+    const code = mail.subject.slice(0, 6);
+    expect(code).toMatch(/^\d{6}$/);
+    expect((await partnerEmailCodeAction(null, fd({ code: code === "000000" ? "111111" : "000000" }))).ok).toBe(false);
+    expect(await redirected(partnerEmailCodeAction(null, fd({ code })))).toBe("/socios");
     const cur = await getCurrentPartner();
     expect(cur?.partner.id).toBe(p.id);
     expect(JSON.stringify(cur)).not.toMatch(/passwordHash|totpSecret|backupCodes/);
@@ -248,14 +253,32 @@ describe("búsqueda y precios (sin fuga de costo ni de precio)", () => {
     expect(res.data!.items[0]!.img).toMatch(/^\/socios\/p\/.+\..+$/);
     for (const bad of [/cost/i, /price/i, /5555/, /7391/, /6282/, /48\.2/, /40\.97/]) expect(json).not.toMatch(bad);
     expect(await db.partnerActivity.count({ where: { partnerId: p.id, type: "SEARCH" } })).toBe(1);
-    expect(await db.partnerActivity.count({ where: { partnerId: p.id, type: { in: ["LOGIN_OK", "TOTP_OK", "TOTP_SETUP", "TOTP_FAIL"] } } })).toBe(4);
+    expect(await db.partnerActivity.count({ where: { partnerId: p.id, type: { in: ["LOGIN_OK", "EMAIL_CODE_SENT", "EMAIL_CODE_OK", "EMAIL_CODE_FAIL"] } } })).toBe(4);
+    // Navegador recordado: el siguiente acceso entra sin código.
+    jar.delete(PARTNER_COOKIE);
+    expect(await redirected(partnerLoginAction(null, fd({ email: p.email, password: "Pass-1234-xyz" })))).toBe("/socios");
 
     expect((await searchPricesAction("ab")).ok).toBe(false);
     // Una nueva sesión revoca la anterior.
-    const first = jar.get("__Secure-mac_partner");
+    const first = jar.get(PARTNER_COOKIE);
     await createPartnerSession(p.id);
-    expect(jar.get("__Secure-mac_partner")).not.toBe(first);
+    expect(jar.get(PARTNER_COOKIE)).not.toBe(first);
     expect(await db.partnerSession.count({ where: { partnerId: p.id } })).toBe(1);
+  });
+  it("invitación: crea contraseña con el enlace, un solo uso, y entra", async () => {
+    nextIp();
+    const p = await mkPartner({ passwordSetAt: null });
+    const { url } = await sendPartnerInvite(p.id);
+    const token = new URL(url).searchParams.get("t")!;
+    expect(sent.findLast((m) => m.to === p.email)?.text).toContain(token);
+    expect((await partnerActivateAction(null, fd({ token, password: "corta", confirm: "corta" }))).ok).toBe(false);
+    expect((await partnerActivateAction(null, fd({ token, password: "Nueva-Clave-123", confirm: "otra" }))).ok).toBe(false);
+    expect(await redirected(partnerActivateAction(null, fd({ token, password: "Nueva-Clave-123", confirm: "Nueva-Clave-123" })))).toBe("/socios");
+    const row = await db.partner.findUniqueOrThrow({ where: { id: p.id } });
+    expect(row.passwordSetAt).not.toBeNull();
+    expect(row.inviteTokenHash).toBeNull();
+    expect(await bcrypt.compare("Nueva-Clave-123", row.passwordHash)).toBe(true);
+    expect((await partnerActivateAction(null, fd({ token, password: "Otra-Clave-456", confirm: "Otra-Clave-456" }))).ok).toBe(false);
   });
   it("sesión: vence por inactividad (30 min) y absoluta (8 h)", async () => {
     const p = await mkPartner();
@@ -280,23 +303,23 @@ describe("búsqueda y precios (sin fuga de costo ni de precio)", () => {
 });
 
 describe("administración", () => {
-  it("crear socio devuelve contraseña temporal una sola vez y solo guarda su hash", async () => {
+  it("crear socio genera una invitación de un solo uso y ninguna contraseña conocida", async () => {
     const r = await savePartnerAction(null, fd({ name: "Ana Socia", company: "Ana SA", email: `${tag}-NEW@T.mx`, discountPct: "12.5", dailyQuota: "" }));
     expect(r.ok).toBe(true);
     if (!r.ok) throw new Error();
-    const pw = r.data!.tempPassword!;
-    expect(pw.length).toBeGreaterThanOrEqual(12);
+    expect(r.data!.invited).toBeTruthy();
     const row = await db.partner.findUniqueOrThrow({ where: { id: r.data!.id } });
     expect(row.email).toBe(`${tag}-new@t.mx`);
-    expect(row.passwordHash).not.toContain(pw);
-    expect(await bcrypt.compare(pw, row.passwordHash)).toBe(true);
+    expect(row.passwordSetAt).toBeNull();
+    expect(row.inviteTokenHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(row.inviteExpiresAt!.getTime()).toBeGreaterThan(Date.now());
     expect(row.discountPct?.toString()).toBe("12.5");
     expect(row.dailyQuota).toBeNull();
     expect(await db.partnerActivity.count({ where: { partnerId: row.id, type: "ADMIN_CHANGE" } })).toBe(1);
     expect(await db.auditLog.count({ where: { entity: "Partner", entityId: row.id, action: "partner.create" } })).toBe(1);
     // editar no genera contraseña
     const e = await savePartnerAction(null, fd({ id: row.id, name: "Ana S.", company: "Ana SA", email: row.email, discountPct: "", dailyQuota: "30" }));
-    expect(e.ok && e.data!.tempPassword).toBeFalsy();
+    expect(e.ok && e.data!.invited).toBeFalsy();
     expect((await db.partner.findUniqueOrThrow({ where: { id: row.id } })).discountPct).toBeNull();
     // validaciones
     expect((await savePartnerAction(null, fd({ name: "X", company: "Y", email: "mal", discountPct: "61" }))).ok).toBe(false);

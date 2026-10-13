@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog, useToast } from "@/components/ui";
-import { resetPartner2faAction, setPartnerStatusAction } from "@/modules/partners/admin-actions";
+import { resendPartnerInviteAction, resetPartner2faAction, setPartnerStatusAction } from "@/modules/partners/admin-actions";
 
-type Kind = "block" | "unblock" | "reset2fa";
+type Kind = "block" | "unblock" | "reset2fa" | "invite";
 
 /** Acciones de seguridad del socio. Cada una pide confirmación nombrada (nunca «Aceptar»); el foco inicial va a «Cancelar». */
 export function PartnerSecurity({ id, name, blocked }: { id: string; name: string; blocked: boolean }) {
@@ -17,8 +17,9 @@ export function PartnerSecurity({ id, name, blocked }: { id: string; name: strin
       ) : (
         <button type="button" className="btn btn-secondary tap text-danger" onClick={() => setKind("block")}>Bloquear acceso</button>
       )}
-      <button type="button" className="btn btn-secondary tap text-danger" onClick={() => setKind("reset2fa")}>Restablecer 2FA</button>
-      <Dialog open={kind !== null} onClose={() => setKind(null)} title={kind === "block" ? `Bloquear a ${name}` : kind === "unblock" ? `Desbloquear a ${name}` : `Restablecer 2FA de ${name}`} side="center">
+      <button type="button" className="btn btn-secondary tap" onClick={() => setKind("invite")}>Enviar enlace de contraseña</button>
+      <button type="button" className="btn btn-secondary tap text-danger" onClick={() => setKind("reset2fa")}>Quitar app de verificación</button>
+      <Dialog open={kind !== null} onClose={() => setKind(null)} title={kind === "block" ? `Bloquear a ${name}` : kind === "unblock" ? `Desbloquear a ${name}` : kind === "invite" ? `Enlace de contraseña para ${name}` : `Quitar app de verificación de ${name}`} side="center">
         {kind && <ConfirmBody kind={kind} id={id} name={name} onClose={() => setKind(null)} />}
       </Dialog>
     </div>
@@ -41,13 +42,23 @@ function ConfirmBody({ kind, id, name, onClose }: { kind: Kind; id: string; name
 
   const copy = {
     block: { body: "No podrá iniciar sesión ni buscar precios hasta que lo desbloquees. Su sesión actual se cierra.", label: `Bloquear a ${name}`, done: `${name} quedó bloqueado.`, danger: true },
-    unblock: { body: "Podrá iniciar sesión de nuevo con su contraseña y su 2FA.", label: `Desbloquear a ${name}`, done: `${name} quedó desbloqueado.`, danger: false },
-    reset2fa: { body: "Borramos su app de verificación y sus códigos de respaldo. En su próximo inicio de sesión tendrá que configurarla de nuevo.", label: `Restablecer 2FA de ${name}`, done: `Restableciste el 2FA de ${name}.`, danger: true },
+    unblock: { body: "Podrá iniciar sesión de nuevo con su contraseña y el código que le llega por correo.", label: `Desbloquear a ${name}`, done: `${name} quedó desbloqueado.`, danger: false },
+    reset2fa: { body: "Borramos su app de verificación y sus códigos de respaldo y cerramos su sesión. Desde su próximo acceso recibirá el código por correo.", label: "Quitar app de verificación", done: `Quitaste la app de verificación de ${name}.`, danger: true },
+    invite: { body: "Le enviamos por correo un enlace (un solo uso, vence en 72 horas) para crear una contraseña nueva. Sirve para la invitación pendiente o si olvidó su contraseña.", label: "Enviar enlace", done: `Enviamos el enlace a ${name}.`, danger: false },
   }[kind];
 
   const confirm = () =>
     start(async () => {
       setError("");
+      if (kind === "invite") {
+        const r = await resendPartnerInviteAction({ id });
+        if (!r.ok) return setError(r.error);
+        if (r.data?.url) return setError(`No se pudo enviar el correo. Comparte este enlace por un canal seguro: ${r.data.url}`);
+        push(copy.done, "success");
+        onClose();
+        router.refresh();
+        return;
+      }
       const r = kind === "reset2fa"
         ? await resetPartner2faAction({ id })
         : await setPartnerStatusAction({ id, status: kind === "block" ? "BLOCKED" : "ACTIVE", reason: kind === "block" && reason.trim() ? reason.trim() : undefined });

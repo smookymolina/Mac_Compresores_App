@@ -49,7 +49,7 @@ export async function registerFailure(partnerId: string, ctx: Ctx = {}): Promise
  * Valida correo + contraseña. Devuelve el id del socio o lanza AppError con mensaje genérico.
  * Fallos: se registran (LOGIN_FAIL); al 5.º la cuenta pasa a BLOCKED. El correo desconocido también se limita (plogin).
  */
-export async function verifyPartnerPassword(emailRaw: string, password: string, ctx: Ctx = {}): Promise<{ id: string }> {
+export async function verifyPartnerPassword(emailRaw: string, password: string, ctx: Ctx = {}): Promise<{ id: string; totp: boolean }> {
   const email = emailRaw.trim().toLowerCase();
   const rlKey = `plogin:${email}`;
   const generic = new AppError("Correo o contraseña inválidos.");
@@ -58,7 +58,7 @@ export async function verifyPartnerPassword(emailRaw: string, password: string, 
   if (ctx.ip && (await hit(`ploginip:${ctx.ip}`, LOGIN_WINDOW_MS)) > MAX_LOGINS_PER_IP) throw tooMany;
   if ((await hit(rlKey, LOGIN_WINDOW_MS)) > MAX_FAILED_LOGINS) throw tooMany;
 
-  const p = await db.partner.findUnique({ where: { email }, select: { id: true, passwordHash: true, status: true } });
+  const p = await db.partner.findUnique({ where: { email }, select: { id: true, passwordHash: true, status: true, totpEnabledAt: true } });
   const ok = await bcrypt.compare(password, p?.passwordHash ?? (await getDummyHash()));
   if (!p || !ok) {
     if (p) {
@@ -75,7 +75,7 @@ export async function verifyPartnerPassword(emailRaw: string, password: string, 
   }
   await clear(rlKey);
   await logPartnerActivity({ partnerId: p.id, type: "LOGIN_OK", ...ctx });
-  return { id: p.id };
+  return { id: p.id, totp: !!p.totpEnabledAt };
 }
 
 // ---- TOTP ----
