@@ -16,7 +16,7 @@ function isPortalPath(p: string): boolean {
 }
 
 function isAuthPage(p: string): boolean {
-  return p === `${PORTAL}/login` || p.startsWith(`${PORTAL}/login/`) || p === `${PORTAL}/2fa` || p.startsWith(`${PORTAL}/2fa/`);
+  return p === `${PORTAL}/login` || p.startsWith(`${PORTAL}/login/`) || p === `${PORTAL}/2fa` || p.startsWith(`${PORTAL}/2fa/`) || p === `${PORTAL}/activar`;
 }
 
 function portalCsp(): string {

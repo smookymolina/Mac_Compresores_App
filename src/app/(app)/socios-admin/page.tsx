@@ -15,6 +15,7 @@ const COLUMNS: DataColumn[] = [
   { id: "discount", header: "Descuento", align: "right" },
   { id: "status", header: "Estado" },
   { id: "seen", header: "Último acceso", cellClass: "whitespace-nowrap" },
+  { id: "actions", header: "Acciones", align: "right" },
 ];
 
 const STATUS = { all: "Todos", active: "Activos", blocked: "Bloqueados" } as const;
@@ -78,6 +79,7 @@ export default async function PartnersAdminPage({ searchParams }: { searchParams
                 {!p.passwordSetAt && <Badge tone="amber">Invitación pendiente</Badge>}
               </span>,
               p.lastSeenAt ? fmtDateTime(p.lastSeenAt) : <span key="l" className="text-muted">Nunca</span>,
+              <LinkButton key="e" variant="secondary" size="sm" className="tap" href={`/socios-admin/${p.id}`} aria-label={`Editar o eliminar a ${p.name}`}>Editar</LinkButton>,
             ],
           }))}
         />

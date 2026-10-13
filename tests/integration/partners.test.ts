@@ -39,7 +39,7 @@ import { getPartnerPriceForProduct, searchPartnerProducts } from "@/modules/part
 import { createPartnerSession, getCurrentPartner, PARTNER_COOKIE } from "@/modules/partners/session";
 import { partnerActivateAction, partnerEmailCodeAction, partnerLoginAction, partnerTotpVerifyAction, searchPricesAction } from "@/modules/partners/portal-actions";
 import { sendPartnerInvite } from "@/modules/partners/invite";
-import { resetPartner2faAction, savePartnerAction, setGlobalPartnerSettingsAction, setPartnerStatusAction } from "@/modules/partners/admin-actions";
+import { deletePartnerAction, resetPartner2faAction, savePartnerAction, setGlobalPartnerSettingsAction, setPartnerStatusAction } from "@/modules/partners/admin-actions";
 import { listPartnerActivity, listPartners } from "@/modules/partners/queries";
 
 const tag = `ptest${Date.now()}`;
@@ -264,6 +264,15 @@ describe("búsqueda y precios (sin fuga de costo ni de precio)", () => {
     await createPartnerSession(p.id);
     expect(jar.get(PARTNER_COOKIE)).not.toBe(first);
     expect(await db.partnerSession.count({ where: { partnerId: p.id } })).toBe(1);
+  });
+  it("eliminar socio borra sesiones y bitácora y deja auditoría", async () => {
+    const p = await mkPartner();
+    await createPartnerSession(p.id);
+    expect((await deletePartnerAction({ id: p.id })).ok).toBe(true);
+    expect(await db.partner.findUnique({ where: { id: p.id } })).toBeNull();
+    expect(await db.partnerSession.count({ where: { partnerId: p.id } })).toBe(0);
+    expect(await db.auditLog.count({ where: { entity: "Partner", entityId: p.id, action: "partner.delete" } })).toBe(1);
+    expect((await deletePartnerAction({ id: p.id })).ok).toBe(false);
   });
   it("invitación: crea contraseña con el enlace, un solo uso, y entra", async () => {
     nextIp();

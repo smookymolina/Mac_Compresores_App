@@ -111,6 +111,23 @@ export async function resetPartner2faAction(input: { id: string }): Promise<Acti
   }, "Verificación en dos pasos restablecida.");
 }
 
+/**
+ * Elimina al socio con sus sesiones y su bitácora (cascada). Queda constancia en la auditoría interna.
+ * Para conservar el historial, mejor bloquearlo.
+ */
+export async function deletePartnerAction(input: { id: string }): Promise<ActionResult> {
+  return runAction<undefined>(async () => {
+    const user = await requirePermission(PERM);
+    const id = uuid.parse(input.id);
+    const p = await db.partner.findUnique({ where: { id }, select: { email: true, name: true, company: true } });
+    if (!p) throw new AppError("Socio no encontrado.", "NOT_FOUND");
+    await db.partner.delete({ where: { id } });
+    await audit({ userId: user.id, action: "partner.delete", entity: "Partner", entityId: id, data: p });
+    revalidatePath("/socios-admin");
+    return undefined;
+  }, "Socio eliminado.");
+}
+
 /** Envía un enlace nuevo para crear contraseña (invitación pendiente u olvido). La contraseña actual sigue hasta que la cambie. */
 export async function resendPartnerInviteAction(input: { id: string }): Promise<ActionResult<{ emailed: boolean; url?: string }>> {
   return runAction(async () => {
