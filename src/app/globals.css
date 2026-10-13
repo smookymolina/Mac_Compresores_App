@@ -751,3 +751,49 @@ body { overflow-x: clip; padding-inline: env(safe-area-inset-left) env(safe-area
 input[type="file"] { max-width: 100%; }
 /* v1.3.10 iOS: el marco del diálogo centrado no depende de alturas en % (WebKit las resolvía a 0 con height:fit-content). */
 .dialog-center > .dialog-frame { height: auto; }
+
+/* ---- Portal de socios v1.4.0 (docs/partners-ui-spec.md §1, §5, §9). Sin color nuevo; solo tokens. ---- */
+.portal { min-height: 100dvh; background: var(--bg); color: var(--text); }
+.portal .btn, .portal .input, .portal .tap { min-height: var(--hit); }
+.portal-main { max-width: 64rem; margin-inline: auto; padding: 1rem; }
+.portal-main :where(p, td) { overflow-wrap: anywhere; }
+.portal-head { border-bottom: 1px solid var(--border); background: var(--panel); }
+.portal-head-in { display: flex; align-items: center; gap: 0.75rem; max-width: 64rem; margin-inline: auto; padding: 0.5rem 1rem; }
+.portal-who { min-width: 0; flex: 1 1 auto; line-height: 1.25rem; }
+.portal-img { height: 2rem; width: auto; max-width: 100%; display: block; }
+.portal-price { width: 9rem; height: 2rem; display: block; background: var(--panel-2); border-radius: var(--r-sm); }
+.portal-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--panel); }
+/* Acceso (login y 2FA): tarjeta centrada sin animaciones nuevas. */
+.portal-auth { display: grid; place-items: start center; min-height: 100dvh; padding: 1rem; }
+.portal-auth-card { width: 100%; max-width: 26rem; margin-top: 2vh; padding: 1.5rem 1.25rem; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--panel); box-shadow: var(--elev-pop); }
+@media (min-width: 640px) { .portal-auth { place-items: center; } .portal-auth-card { margin-top: 0; padding: 2rem; } }
+.portal-qr { display: block; margin-inline: auto; padding: 12px; background: #fff; border-radius: var(--r); width: 216px; height: 216px; }
+.portal-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; padding: 0; list-style: none; }
+.portal-codes li { padding: 0.5rem; text-align: center; border: 1px solid var(--border); border-radius: var(--r); background: var(--panel-2); }
+.portal-warn { padding: 0.75rem; border: 1px solid color-mix(in oklab, var(--warn) 35%, transparent); border-radius: var(--r); background: var(--warn-soft); color: var(--warn); font-size: 0.875rem; }
+.portal-hp { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media print { .portal, .portal * { display: none !important; } body { background: #fff; } }
+
+@media (max-width: 767px) { /* 360 y 390 px: tarjeta, sin scroll horizontal */
+  .portal .portal-table { width: 100%; min-width: 0; }
+  .portal .portal-table thead { display: none; }
+  .portal .portal-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.25rem 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+  .portal .portal-table tbody tr:last-child { border-bottom: 0; }
+  .portal .portal-table tbody tr:hover td { background: transparent; }
+  .portal .portal-table tbody td { display: block; height: auto; max-width: none; min-width: 0; padding: 0; border: 0; position: static; background: transparent; }
+  .portal .portal-table tbody td[data-col="sku"] { grid-area: 1 / 1; font-weight: 500; }
+  .portal .portal-table tbody td[data-col="cur"] { grid-area: 1 / 2; justify-self: end; }
+  .portal .portal-table tbody td[data-col="desc"] { grid-column: 1 / -1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .portal .portal-table tbody td[data-col="unit"] { grid-area: 3 / 1; align-self: center; font-size: 0.75rem; color: var(--muted); }
+  .portal .portal-table tbody td[data-col="price"] { grid-area: 3 / 2; justify-self: end; }
+}
+@media (min-width: 768px) {
+  .portal .portal-table tbody td { height: 3.5rem; }
+}
+.portal-error { padding: 0.75rem; border: 1px solid color-mix(in oklab, var(--danger) 35%, transparent); border-radius: var(--r); background: var(--danger-soft); color: var(--danger); font-size: 0.875rem; }
+.portal .portal-table td.num .portal-img, .portal .portal-table td.num .portal-price { margin-left: auto; }
+@media (max-width: 479px) {
+  .portal-head-in { flex-wrap: wrap; row-gap: 0; }
+  .portal-head-in > form { margin-left: auto; }
+  .portal-who { order: 3; flex-basis: 100%; padding-bottom: 0.25rem; }
+}

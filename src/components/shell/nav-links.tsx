@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BadgePercent, Boxes, ClipboardList, FileSpreadsheet, FileText, HandCoins, LayoutDashboard, Package, Receipt, ShieldCheck, Users, UserCog,
+  BadgePercent, Boxes, ClipboardList, FileSpreadsheet, FileText, HandCoins, Handshake, LayoutDashboard, Package, Receipt, ShieldCheck, Users, UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,7 @@ const ICONS = {
   audit: ShieldCheck,
   receivables: HandCoins,
   reports: FileSpreadsheet,
+  partners: Handshake,
   default: ClipboardList,
 } as const;
 

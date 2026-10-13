@@ -11,12 +11,13 @@ const partnerAdminSelect = {
   blockedReason: true, blockedAt: true, lastSeenAt: true, failedLogins: true, totpEnabledAt: true, createdAt: true,
 } satisfies Prisma.PartnerSelect;
 
-export async function listPartners(opts: { search?: string; page?: number } = {}) {
+export async function listPartners(opts: { search?: string; page?: number; status?: "ACTIVE" | "BLOCKED" } = {}) {
   await requirePermission("partners.manage");
   const q = opts.search?.trim();
-  const where: Prisma.PartnerWhereInput = q
-    ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { company: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] }
-    : {};
+  const where: Prisma.PartnerWhereInput = {
+    ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { company: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] } : {}),
+    ...(opts.status ? { status: opts.status } : {}),
+  };
   const { page, skip, take } = pageArgs(opts.page);
   const [rows, total] = await Promise.all([
     db.partner.findMany({ where, select: partnerAdminSelect, orderBy: [{ status: "asc" }, { company: "asc" }], skip, take }),
@@ -66,4 +67,17 @@ export async function listPartnerActivity(f: ActivityFilter = {}) {
     db.partnerActivity.count({ where }),
   ]);
   return paged(rows, total, page);
+}
+
+/** Socios para el selector del historial (sin datos sensibles). */
+export async function listPartnerOptions() {
+  await requirePermission("partners.manage");
+  return db.partner.findMany({ select: { id: true, name: true, company: true }, orderBy: [{ company: "asc" }, { name: "asc" }] });
+}
+
+/** Cuántos socios usan el descuento global (sin descuento propio) y cuántos hay en total. */
+export async function getPartnerCounts() {
+  await requirePermission("partners.manage");
+  const [total, onGlobal] = await Promise.all([db.partner.count(), db.partner.count({ where: { discountPct: null } })]);
+  return { total, onGlobal };
 }
