@@ -6,6 +6,10 @@
 
 ## 1. Objetivo
 
+> **Alcance de uso:** app **privada** para unos cuantos usuarios de MAC (no se publica en tiendas). Tú les envías el APK, ellos
+> lo instalan y entran **con su misma cuenta de la web** (correo y contraseña). Todos los teléfonos y la web comparten **una sola
+> base de datos central** en el hosting; cada teléfono guarda una copia local que se sincroniza con ella.
+
 Que vendedores y gerencia puedan **cotizar, registrar clientes, cobrar y levantar ventas sin internet** desde un teléfono o
 tableta Android. Al recuperar señal, todo se **sincroniza solo** con el servidor en el hosting actual, sin capturar nada dos veces.
 
@@ -118,6 +122,10 @@ Los IDs ya son UUID en todo el esquema, lo que permite crear registros en el tel
 
 ### 4.4 Pantallas nuevas en la web
 
+- **Acceso a la app móvil por usuario** (en **Usuarios**, solo ADMIN): casilla «Puede usar la app móvil». Si no está marcada,
+  aunque alguien tenga el APK y una cuenta válida, el servidor no le registra el dispositivo. Opcional: el primer inicio de
+  sesión desde un teléfono nuevo queda **«pendiente de aprobar»** hasta que el ADMIN lo autoriza (útil con pocos usuarios).
+
 - **Sincronización** (`/sincronizacion`, ADMIN y GERENCIA): dispositivos activos, último sync, pendientes y **bandeja de conflictos**
   con acciones *aceptar con precio actual*, *aceptar precio capturado* (requiere `quotes.override_price`), *rechazar y avisar al vendedor*.
 - En **Usuarios**: botón «Revocar dispositivo». Si roban o pierden un teléfono, en el siguiente contacto se borra su base local y ya no puede sincronizar.
@@ -179,7 +187,36 @@ Hoy `Quote.folio` es autoincremental en PostgreSQL y el teléfono no puede pedir
 - **Usuario desactivado o dispositivo revocado** → en el siguiente contacto se borran los datos locales.
 - Al teléfono solo baja lo que el usuario puede ver por su rol (scope); nada de otros vendedores.
 
-## 6. Experiencia de uso en el teléfono
+## 6. Distribución privada del APK (sin Google Play)
+
+### 6.1 Cómo les llega la app
+1. Se compila un **APK firmado** con la llave de MAC (ver §6.3).
+2. El APK se **publica en el mismo hosting**, en una ruta protegida: `https://<dominio>/app` (solo con sesión iniciada y el permiso de
+   app móvil), o se manda directo por WhatsApp/correo/Drive. La ruta en el hosting es mejor: siempre está la última versión y no
+   circulan APK viejos.
+3. El usuario lo abre en su Android, acepta **«Permitir instalar apps de esta fuente»** (una sola vez; se incluye una guía con capturas).
+4. Abre la app, escribe su **correo y contraseña de siempre**, crea su **PIN** (o activa huella) y la app descarga sus datos
+   (catálogo, sus clientes y cotizaciones). Desde ese momento ya funciona sin internet.
+
+Google Play Protect puede mostrar un aviso «App no reconocida» por no venir de la tienda; es normal en apps privadas y se indica en la guía
+cómo continuar. Si a futuro prefieren evitarlo, se puede subir a Play en modo **prueba cerrada** (solo los correos invitados la ven) sin hacerla pública.
+
+### 6.2 Actualizaciones sin tienda
+- El servidor expone `GET /api/app/version` con la versión vigente, la mínima aceptada y notas del cambio.
+- Al sincronizar, la app compara: si hay versión nueva muestra **«Actualizar»**, descarga el APK desde el hosting y abre el
+  instalador de Android (permiso `REQUEST_INSTALL_PACKAGES`). La instalación encima **conserva la base local y los pendientes**.
+- Si la versión del teléfono es menor a la mínima (cambio de protocolo), la app **primero sube sus pendientes** y luego pide actualizar
+  antes de seguir capturando. Nunca se pierde lo capturado.
+- Cambios que solo afectan reglas del servidor (precios, permisos, validaciones) **no requieren** reinstalar nada.
+
+### 6.3 Llave de firma (importante)
+- Android solo permite actualizar una app encima de otra si **ambas están firmadas con la misma llave**. Si la llave se pierde,
+  cada usuario tendría que desinstalar (y perder lo no sincronizado) para instalar la nueva.
+- La llave (`.jks`) y sus contraseñas se guardan **fuera del repositorio** (regla del proyecto: nada de secretos en el repo), con
+  copia en dos lugares seguros (p. ej. gestor de contraseñas de MAC + respaldo cifrado). El build firmado se hace en GitHub Actions
+  leyendo la llave desde *secrets*, o localmente.
+
+## 7. Experiencia de uso en el teléfono
 
 - Barra de estado siempre visible: 🟢 *En línea* · 🟠 *Sin conexión — 4 pendientes* · 🔄 *Sincronizando…* · 🔴 *2 conflictos*.
 - Cada registro pendiente muestra «Pendiente de sincronizar». Un conflicto explica el motivo en una frase («El precio de
@@ -188,7 +225,7 @@ Hoy `Quote.folio` es autoincremental en PostgreSQL y el teléfono no puede pedir
 - Compartir PDF desde el teléfono (WhatsApp, correo, Drive) aunque no haya red: se manda en cuanto el teléfono tiene datos o Wi-Fi.
 - Sincronización automática al abrir la app, al recuperar red y cada 5 minutos con la app abierta; botón «Sincronizar ahora».
 
-## 7. Plan de trabajo
+## 8. Plan de trabajo
 
 | Fase | Entregable | Duración estimada* |
 |---|---|---|
@@ -197,12 +234,12 @@ Hoy `Quote.folio` es autoincremental en PostgreSQL y el teléfono no puede pedir
 | 2. App móvil base | Proyecto Capacitor, login + PIN, bootstrap, catálogo y clientes **solo lectura** offline, APK de prueba | 2 semanas |
 | 3. Cotizaciones offline | Crear y editar, PDF, compartir, folios por bloque, cola de correo, reglas de precio | 2–3 semanas |
 | 4. Clientes, cobranza y ventas | Alta y edición de clientes, pagos, ventas pendientes, inventario de almacén, bandeja de conflictos en la web | 2–3 semanas |
-| 5. Piloto y publicación | 2–3 vendedores reales 2 semanas, ajustes, publicación en Google Play (pruebas internas → producción) | 2 semanas |
-| **Total** | | **≈ 11–13 semanas** con un desarrollador |
+| 5. Piloto y entrega | APK firmado, descarga desde el hosting, auto-actualización, guía de instalación; 2–3 usuarios reales 2 semanas y ajustes | 2 semanas |
+| **Total** | | **≈ 10–12 semanas** con un desarrollador (sin publicación en tienda) |
 
 \* Estimación de referencia. Se puede entregar por fases: al terminar la fase 3 los vendedores ya cotizan sin internet.
 
-## 8. Pruebas
+## 9. Pruebas
 
 - **Unitarias** (vitest): paridad teléfono/servidor de precios, IVA, descuentos y conversión USD al centavo; reglas de transición.
 - **Integración** (BD real, como las de concurrencia actuales): reintento del mismo comando = un solo efecto; dos dispositivos
@@ -210,24 +247,24 @@ Hoy `Quote.folio` es autoincremental en PostgreSQL y el teléfono no puede pedir
 - **E2E**: Playwright para la bandeja de conflictos en la web; flujo completo en emulador Android con el modo avión activado y desactivado.
 - Antes de cada entrega: `npm run lint && npm run typecheck && npm test && npm run build` (servidor) y build firmado del APK.
 
-## 9. Costos y operación
+## 10. Costos y operación
 
 - **Hosting**: el mismo. Solo se suman algunas tablas y un poco de tráfico. El catálogo completo se descarga una vez (~3–5 MB) y después solo los cambios.
-- **Google Play**: cuenta de desarrollador (pago único de USD 25). También se puede repartir el APK directamente o por MDM, pero Play da actualizaciones automáticas.
+- **Sin tienda**: no hay cuenta de Google Play ni costo de publicación; el APK se descarga del propio hosting (§6). Para pocos usuarios la carga extra del servidor es mínima.
 - **Respaldos**: los actuales cubren todo. El teléfono no es respaldo: lo que no se ha sincronizado solo existe ahí, y la app avisa si hay pendientes de más de 24 h.
 - **Actualizaciones**: el servidor acepta las dos últimas versiones del protocolo; una app más vieja recibe «actualiza».
 
-## 10. Decisiones que necesitamos del cliente
+## 11. Decisiones que necesitamos del cliente
 
 1. **Ventana de precio** (§5.3): ¿cuántos días se respeta un precio de catálogo anterior? Propuesta: 3.
 2. **Folios** (§5.4): ¿aceptan huecos en la numeración de cotizaciones a cambio de folios definitivos sin red?
 3. **Ventas sin conexión**: ¿se permiten como «pendiente de confirmar», o la venta se confirma solo con red y sin conexión solo se cotiza y cobra?
 4. **Tiempo máximo sin sincronizar** antes de bloquear capturas. Propuesta: 7 días.
 5. **Quién usa la app**: VENTAS y GERENCIA seguro. ¿ALMACÉN también (entradas y salidas en bodega sin red)?
-6. **Dispositivos**: ¿teléfonos propios o de la empresa? ¿Android mínimo? (Propuesta: Android 10 o superior.) ¿También iOS después? Capacitor lo permite con poco esfuerzo extra.
+6. **Dispositivos y usuarios**: ¿cuántos usuarios y quiénes? ¿Teléfonos propios o de la empresa? ¿Android mínimo? (Propuesta: Android 10 o superior.) ¿Se aprueba cada teléfono nuevo (§4.4)? Nota: iPhone **no** permite instalar apps fuera de la App Store/TestFlight; si algún usuario usa iPhone, para él se usaría TestFlight o la web.
 7. **Pagos en efectivo sin conexión**: ¿requieren foto del comprobante? (Se puede adjuntar y subir al sincronizar.)
 
-## 11. Riesgos y cómo se mitigan
+## 12. Riesgos y cómo se mitigan
 
 | Riesgo | Mitigación |
 |---|---|
@@ -236,4 +273,6 @@ Hoy `Quote.folio` es autoincremental en PostgreSQL y el teléfono no puede pedir
 | Diferencias de cálculo teléfono/servidor | Mismo código (`src/domain`) y prueba de paridad obligatoria en CI |
 | Precio desactualizado | Ventana de N días + `PriceHistory` + aviso fijo de catálogo viejo |
 | Robo del teléfono | Base cifrada, PIN/huella, token revocable, borrado en el siguiente contacto, sin costos para VENTAS |
-| Versión vieja de la app | Protocolo versionado, Play con actualización automática |
+| Versión vieja de la app | Protocolo versionado, aviso de actualización desde el hosting, versión mínima obligatoria (subiendo pendientes antes) |
+| APK compartido con alguien externo | Sin cuenta válida **y** permiso de app móvil no sirve de nada; opcional aprobación de cada teléfono por ADMIN |
+| Pérdida de la llave de firma | Llave fuera del repo con doble respaldo (§6.3) |
