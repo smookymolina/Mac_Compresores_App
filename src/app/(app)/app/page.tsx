@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Download, ExternalLink, Smartphone } from "lucide-react";
 import { homePath, requireUser } from "@/lib/auth/session";
-import { DOWNLOAD_PATH, userHasMobileAccess } from "@/modules/sync/app-download";
+import { DOWNLOAD_PATH, iosWebInstallUrl, userHasMobileAccess } from "@/modules/sync/app-download";
 import { mobileAppVersion } from "@/modules/sync/version";
 import { Card, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { fmtDateTime } from "@/lib/utils";
@@ -13,6 +13,8 @@ export default async function MobileAppPage() {
   const user = await requireUser();
   if (!(await userHasMobileAccess(user.id))) redirect(`${homePath(user)}?denied=1`);
   const app = await mobileAppVersion();
+  // Enlace itms-services con token fresco (10 min): el instalador de iOS no manda cookies.
+  const iosInstall = app.ios ? await iosWebInstallUrl(user.id).catch(() => null) : null;
   const size = app.size != null ? `${(app.size / (1024 * 1024)).toLocaleString("es-MX", { maximumFractionDigits: 1 })} MB` : null;
 
   return (
@@ -49,7 +51,7 @@ export default async function MobileAppPage() {
             <li>Abre MAC Campo, entra con tu correo y contraseña de siempre y crea tu PIN.</li>
             <li>Las siguientes versiones se instalan desde la propia app al sincronizar; tus datos y pendientes se conservan.</li>
           </ol>
-          {app.iosUrl && (
+          {!app.ios && app.iosUrl && (
             <div className="border-t border-line p-4">
               <a href={app.iosUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary w-full gap-2 sm:w-auto">
                 <ExternalLink size={16} aria-hidden /> Instalar en iPhone / iPad
@@ -57,6 +59,21 @@ export default async function MobileAppPage() {
             </div>
           )}
         </Card>
+        {app.ios && (
+          <Card className="overflow-hidden">
+            <CardHeader title="iPhone" description={`Versión ${app.ios.latest}`} />
+            <div className="space-y-3 p-4">
+              {iosInstall ? (
+                <a href={iosInstall} className="btn btn-primary w-full gap-2 sm:w-auto">
+                  <Smartphone size={16} aria-hidden /> Instalar en iPhone
+                </a>
+              ) : (
+                <p className="text-sm text-muted">La instalación en iPhone no está disponible por ahora. Avisa al administrador.</p>
+              )}
+              <p className="text-sm text-muted">Solo iPhones registrados (UDID) por el administrador. Abre esta página en Safari desde el iPhone; el enlace vence en 10 minutos (recarga la página si venció).</p>
+            </div>
+          </Card>
+        )}
       </div>
     </>
   );

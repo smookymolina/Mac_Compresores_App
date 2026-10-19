@@ -3,9 +3,14 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 export const DOWNLOAD_TTL_MS = 10 * 60_000;
 
+export type DownloadPlatform = "android" | "ios";
+
+/** Sujeto: un dispositivo (pedido desde la app) o un usuario (página /app con sesión; solo iOS, el instalador no manda cookies). */
 export interface DownloadPayload {
-  deviceId: string;
+  deviceId?: string;
+  userId?: string;
   version: string;
+  platform: DownloadPlatform;
   exp: number;
 }
 
@@ -26,14 +31,22 @@ function secret(): string {
 const sign = (body: string) => createHmac("sha256", secret()).update(body).digest("base64url");
 
 /** Token = base64url(payload JSON).HMAC-SHA256(base64url). */
-export function signDownloadToken(p: { deviceId: string; version: string }, now = Date.now()): { token: string; exp: number } {
+export function signDownloadToken(
+  p: { deviceId?: string; userId?: string; version: string; platform?: DownloadPlatform },
+  now = Date.now(),
+): { token: string; exp: number } {
+  if (!p.deviceId === !p.userId) throw new Error("El token de descarga requiere deviceId o userId.");
   const exp = now + DOWNLOAD_TTL_MS;
-  const body = Buffer.from(JSON.stringify({ deviceId: p.deviceId, version: p.version, exp })).toString("base64url");
+  const payload = { deviceId: p.deviceId, userId: p.userId, version: p.version, platform: p.platform ?? "android", exp };
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return { token: `${body}.${sign(body)}`, exp };
 }
 
-/** Payload si la firma es válida (comparación de tiempo constante) y no ha vencido; si no, null. */
-export function verifyDownloadToken(token: string, now = Date.now()): DownloadPayload | null {
+/**
+ * Payload si la firma es válida (comparación de tiempo constante), no ha vencido y es de la plataforma esperada
+ * (un token de iOS no sirve para Android ni al revés); si no, null.
+ */
+export function verifyDownloadToken(token: string, now = Date.now(), platform: DownloadPlatform = "android"): DownloadPayload | null {
   const [body, mac, extra] = token.split(".");
   if (!body || !mac || extra !== undefined) return null;
   const expected = Buffer.from(sign(body));
@@ -41,8 +54,10 @@ export function verifyDownloadToken(token: string, now = Date.now()): DownloadPa
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
   try {
     const p = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as Partial<DownloadPayload>;
-    if (typeof p.deviceId !== "string" || typeof p.version !== "string" || typeof p.exp !== "number") return null;
-    return p.exp > now ? (p as DownloadPayload) : null;
+    const subject = typeof p.deviceId === "string" ? !p.userId : typeof p.userId === "string";
+    if (!subject || typeof p.version !== "string" || typeof p.exp !== "number") return null;
+    if ((p.platform ?? "android") !== platform) return null;
+    return p.exp > now ? ({ ...p, platform } as DownloadPayload) : null;
   } catch {
     return null;
   }

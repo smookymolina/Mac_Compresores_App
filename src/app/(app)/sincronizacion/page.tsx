@@ -12,7 +12,7 @@ import { fmtDateTime } from "@/lib/utils";
 import { fmtMoney } from "@/lib/money";
 import { mobileAppVersion } from "@/modules/sync/version";
 import { compareVersions } from "@/modules/sync/semver";
-import { ReleaseForm } from "./release-form";
+import { IosReleaseForm, ReleaseForm } from "./release-form";
 
 export const metadata = { title: "Sincronización" };
 
@@ -124,7 +124,25 @@ export default async function SyncPage() {
           ) : (
             <p className="border-b border-line px-4 py-3 text-sm text-muted">Aún no se ha publicado ningún APK.</p>
           )}
-          <ReleaseForm latest={app.latest} minimum={app.minimum} iosUrl={app.iosUrl ?? ""} />
+          <ReleaseForm latest={app.latest} minimum={app.minimum} iosUrl={app.ios ? "" : app.iosUrl ?? ""} iosAdHoc={!!app.ios} />
+          <section aria-labelledby="ios-adhoc" className="border-t border-line">
+            <div className="px-4 pt-4">
+              <h3 id="ios-adhoc" className="text-sm font-semibold">iOS (Ad Hoc)</h3>
+              <p className="text-xs text-muted">Se instala desde la página /app (enlace itms-services). Solo en iPhones cuyo UDID esté registrado en el perfil Ad Hoc; se conservan las últimas 3 versiones.</p>
+            </div>
+            {app.ios ? (
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-y border-line px-4 py-3 text-sm sm:grid-cols-5">
+                <div><dt className="text-xs text-muted">Publicada</dt><dd className="mono">{app.ios.latest}</dd></div>
+                <div><dt className="text-xs text-muted">Bundle ID</dt><dd className="mono break-all">{app.ios.bundleId}</dd></div>
+                <div><dt className="text-xs text-muted">Fecha</dt><dd>{fmtDateTime(new Date(app.ios.publishedAt))}</dd></div>
+                <div><dt className="text-xs text-muted">Tamaño</dt><dd>{fmtSize(app.ios.size)}</dd></div>
+                <div className="min-w-0"><dt className="text-xs text-muted">SHA-256</dt><dd className="mono truncate" title={app.ios.sha256}>{`${app.ios.sha256.slice(0, 12)}…`}</dd></div>
+              </dl>
+            ) : (
+              <p className="mt-3 border-y border-line px-4 py-3 text-sm text-muted">Aún no se ha publicado ningún IPA.</p>
+            )}
+            <IosReleaseForm latest={app.ios?.latest ?? app.latest} />
+          </section>
         </Card>
         <Card className="overflow-hidden">
           <CardHeader title="Dispositivos" description={`${active} activos de ${devices.length} registrados. Revocar cierra la sesión del teléfono.`} />

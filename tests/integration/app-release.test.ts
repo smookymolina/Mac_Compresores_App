@@ -70,7 +70,7 @@ describe("publicación del APK", () => {
 
   it("GET /api/app/version devuelve el contrato completo", async () => {
     const body = await (await versionGET(new Request("http://x/api/app/version"))).json();
-    expect(Object.keys(body).sort()).toEqual(["androidUrl", "iosUrl", "latest", "minimum", "notes", "publishedAt", "sha256", "size"]);
+    expect(Object.keys(body).sort()).toEqual(["androidUrl", "ios", "iosUrl", "latest", "minimum", "notes", "publishedAt", "sha256", "size"]);
     expect(body).toMatchObject({ latest: "1.11.0", androidUrl: "/app" });
   });
 });
