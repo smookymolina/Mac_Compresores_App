@@ -35,12 +35,27 @@ export interface PullResponse { changes: PulledChange[]; cursor: string; hasMore
 export interface AppVersionInfo { latest: string; minimum: string; androidUrl: string | null; iosUrl: string | null; notes: string }
 export interface FoliosResponse { folios: number[] }
 
-export type SyncCommandType = "customer.save" | "quote.create" | "quote.update" | "quote.status" | "sale.convert" | "payment.register";
+export type SyncCommandType = "customer.save" | "quote.create" | "quote.update" | "quote.status" | "quote.email" | "sale.convert" | "payment.register";
 /** Comando del outbox (fase 3). `id` = UUID generado en el teléfono (idempotencia). */
 export interface SyncCommand<P = Record<string, unknown>> { id: string; type: SyncCommandType; capturedAt: string; payload: P }
 export type PushStatus = "APPLIED" | "REJECTED" | "CONFLICT" | "retry";
 export interface PushResult { id: string; status: PushStatus; result?: unknown; error?: string }
 export interface PushResponse { results: PushResult[] }
+/** Estado guardado de un comando de este dispositivo (`GET /api/sync/commands?ids=`). */
+export interface CommandState { id: string; status: "APPLIED" | "REJECTED" | "CONFLICT"; result?: unknown; error?: string | null; resolvedAt?: string | null }
+/** Conflicto de precio de `quote.create`/`quote.update`. */
+export interface PriceConflict { kind: "price"; items: { productId: string; sku: string; clientPrice: string; serverPrice: string }[] }
+/** `GET /api/sync/config`. */
+export interface SyncConfig {
+  bankInfo: string[];
+  /** PNG del bloque del asesor en base64 (o null). */
+  sellerBlockPng: string | null;
+  /** Fracción, p. ej. "0.15". */
+  maxDiscountPct: string;
+  canOverridePrice: boolean;
+  priceGraceDays: number;
+  maxOfflineDays: number;
+}
 
 // ---------- Errores tipados ----------
 
@@ -135,5 +150,10 @@ export function createApiClient(opts: ApiClientOptions) {
     folios: (count: number) => request<FoliosResponse>("POST", "/api/sync/folios", { body: { count } }),
     /** Fase 3: envía hasta 100 comandos del outbox. */
     push: (commands: SyncCommand[]) => request<PushResponse>("POST", "/api/sync/push", { body: { commands } }),
+    /** Estado de comandos ya enviados (p. ej. conflictos que gerencia resolvió). */
+    commands: (ids: string[]) => request<CommandState[] | { commands: CommandState[] }>("GET", `/api/sync/commands?${qs({ ids: ids.join(",") })}`)
+      .then((r) => (Array.isArray(r) ? r : r?.commands ?? [])),
+    /** Datos bancarios, bloque del asesor y reglas de captura. */
+    config: () => request<SyncConfig>("GET", "/api/sync/config"),
   };
 }

@@ -19,6 +19,8 @@ function server(opts: { pull?: (cursor: string, n: number) => { status?: number;
     Customer: [{ id: C1, legalName: "Cliente Demo", rfc: "XAXX010101000", ownerId: null, active: true }],
   };
   const f = mockFetch({
+    // Fase 3: el push va antes del pull; aquí el servidor pide reintentar (el outbox queda intacto).
+    "/api/sync/push": (_u, init) => ({ body: { results: (JSON.parse(String(init.body)) as { commands: { id: string }[] }).commands.map((c) => ({ id: c.id, status: "retry" })) } }),
     "/api/sync/bootstrap": (url) => {
       const entity = url.searchParams.get("entity") as SyncEntity;
       const after = url.searchParams.get("after");

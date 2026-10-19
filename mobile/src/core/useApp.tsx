@@ -7,7 +7,9 @@ export function AppProvider({ controller, children }: { controller: AppControlle
   return <Ctx.Provider value={controller}>{children}</Ctx.Provider>;
 }
 
-export type UseApp = AppState & Pick<AppController, "syncNow" | "login" | "setPin" | "unlock" | "unlockBiometric" | "lock" | "logout"> & { controller: AppController };
+export type UseApp = AppState
+  & Pick<AppController, "syncNow" | "login" | "setPin" | "unlock" | "unlockBiometric" | "lock" | "logout" | "quotes" | "quotePdf" | "shareQuotePdf">
+  & { controller: AppController };
 
 /** Estado de la app + acciones. Requiere `<AppProvider>`. */
 export function useApp(): UseApp {
@@ -22,6 +24,9 @@ export function useApp(): UseApp {
     unlockBiometric: () => c.unlockBiometric(),
     lock: () => c.lock(),
     logout: () => c.logout(),
+    quotes: c.quotes,
+    quotePdf: c.quotePdf,
+    shareQuotePdf: c.shareQuotePdf,
   }), [c]);
   return { ...state, ...actions, controller: c };
 }

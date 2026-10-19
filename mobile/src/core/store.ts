@@ -24,7 +24,7 @@ export type IndexedColumn<E extends SyncEntity> = (typeof ENTITY_INDEX)[E][numbe
 export const ENTITY_SEARCH: Record<SyncEntity, readonly string[]> = {
   Product: ["sku", "oemPartNumber", "description", "searchText"],
   Customer: ["legalName", "rfc", "email", "phone"],
-  Quote: ["folio", "customerName", "sellerName"],
+  Quote: ["folio", "provisionalFolio", "customerName", "sellerName"],
   Sale: ["folio", "customerName", "quoteFolio"],
   StockBalance: [],
   Warehouse: ["code", "name"],
@@ -51,6 +51,12 @@ export interface MetaMap {
   lastSyncAt: string;
   user: import("./api").SessionUser;
   deviceId: string;
+  /** Última `/api/sync/config` descargada. */
+  config: import("./api").SyncConfig;
+  /** Folios apartados por este dispositivo y aún sin usar (ascendente). */
+  folios: number[];
+  /** Consecutivo del folio provisional `P-<iniciales>-<n>`. */
+  provisionalSeq: number;
 }
 export type MetaKey = keyof MetaMap;
 
@@ -76,6 +82,8 @@ export interface LocalStore {
   outbox(limit?: number): Promise<OutboxEntry[]>;
   updateOutbox(id: string, patch: Partial<Pick<OutboxEntry, "attempts" | "lastError">>): Promise<void>;
   removeOutbox(ids: string[]): Promise<void>;
+  /** Reescribe un comando aún en el outbox (misma posición). false si ya no está. */
+  replaceOutbox(cmd: SyncCommand): Promise<boolean>;
   pendingCount(): Promise<number>;
   /** Borra TODO: entidades, meta y outbox (dispositivo revocado / PIN bloqueado / logout). */
   wipe(): Promise<void>;
@@ -169,6 +177,11 @@ export class MemoryStore implements LocalStore {
   async removeOutbox(ids: string[]) {
     const s = new Set(ids);
     this.queue = this.queue.filter((e) => !s.has(e.cmd.id));
+  }
+  async replaceOutbox(cmd: SyncCommand) {
+    const e = this.queue.find((x) => x.cmd.id === cmd.id);
+    if (e) e.cmd = structuredClone(cmd);
+    return !!e;
   }
   async pendingCount() {
     return this.queue.length;

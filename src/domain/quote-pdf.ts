@@ -30,6 +30,10 @@ export interface QuotePdfItem {
 
 export interface QuotePdfData {
   folio: number | string;
+  /** Reemplaza `C-<folio>` (p. ej. folio provisional del teléfono). */
+  folioLabel?: string;
+  /** Muestra «Folio provisional» en el encabezado. */
+  provisional?: boolean;
   currency: string;
   /** TC de la cotización ya formateado a 4 decimales (o null). */
   exchangeRate: string | null;
@@ -139,8 +143,9 @@ function wrap(text: string, font: PDFFont, size: number, width: number): string[
 
 export async function renderQuotePdf(data: QuotePdfData, assets: QuotePdfAssets): Promise<Uint8Array> {
   const q = data;
+  const folio = q.folioLabel ?? `C-${q.folio}`;
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Cotización C-${q.folio}`);
+  pdf.setTitle(`Cotización ${folio}`);
   pdf.setAuthor("MAC Compresores");
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -176,13 +181,13 @@ export async function renderQuotePdf(data: QuotePdfData, assets: QuotePdfAssets)
   page.drawImage(headerImg, { x: M, y: y - headerH, width: headerW, height: headerH });
   y -= headerH + 14;
   text("COTIZACIÓN", R, y - 4, { size: 20, f: bold, align: "right" });
-  text(`Folio C-${q.folio}`, R, y - 18, { size: 10, color: SLATE5, align: "right" });
+  text(`${q.provisional ? "Folio provisional" : "Folio"} ${folio}`, R, y - 18, { size: 10, color: SLATE5, align: "right" });
   y -= 26;
 
   // ---- Ficha: empresa / cliente / folio / fecha ----
   const leftW = 360;
   const rows: [string, string, string, string][] = [
-    ["Empresa", q.customer.legalName, "Folio", `C-${q.folio}`],
+    ["Empresa", q.customer.legalName, "Folio", folio],
     ["Cliente", q.customer.contactName ?? "—", "Fecha", fmtDate(q.createdAt)],
     ["RFC", q.customer.rfc ?? "—", "Vigencia", fmtDate(q.validUntil)],
   ];
@@ -230,7 +235,7 @@ export async function renderQuotePdf(data: QuotePdfData, assets: QuotePdfAssets)
   const newPage = () => {
     page = pdf.addPage([W, H]);
     y = H - M;
-    text(`Cotización C-${q.folio} (continuación)`, M, y - 10, { f: bold, size: 10 });
+    text(`Cotización ${folio} (continuación)`, M, y - 10, { f: bold, size: 10 });
     y -= 24;
   };
   const ensure = (h: number, onBreak?: () => void) => {

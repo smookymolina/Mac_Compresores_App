@@ -175,6 +175,10 @@ export class SqliteStore implements LocalStore {
     if (!ids.length) return;
     await this.db.run(`DELETE FROM outbox WHERE id IN (${ids.map(() => "?").join(",")})`, ids, true);
   }
+  async replaceOutbox(cmd: SyncCommand) {
+    const r = await this.db.run(`UPDATE outbox SET json = ? WHERE id = ?`, [JSON.stringify(cmd), cmd.id], true);
+    return Number(r.changes?.changes ?? 0) > 0;
+  }
   async pendingCount() {
     const r = await this.db.query(`SELECT COUNT(*) AS n FROM outbox`);
     return Number((r.values?.[0] as { n?: number } | undefined)?.n ?? 0);

@@ -46,10 +46,10 @@ export async function verifyPinHash(pin: string, h: PinHash): Promise<boolean> {
 // ---------- Límite sin conexión ----------
 
 /** Capturas permitidas solo si la última sincronización tiene ≤ 7 días. Consultar siempre se permite. */
-export function canCapture(lastSyncAt: string | null | undefined, now: number = Date.now()): boolean {
+export function canCapture(lastSyncAt: string | null | undefined, now: number = Date.now(), limitMs: number = OFFLINE_LIMIT_MS): boolean {
   if (!lastSyncAt) return false;
   const t = Date.parse(lastSyncAt);
-  return Number.isFinite(t) && now - t <= OFFLINE_LIMIT_MS;
+  return Number.isFinite(t) && now - t <= limitMs;
 }
 
 // ---------- Sesión ----------

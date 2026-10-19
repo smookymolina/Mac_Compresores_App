@@ -6,4 +6,6 @@ export * from "./sync";
 export * from "./session";
 export * from "./app";
 export * from "./config";
+export * from "./quotes";
+export * from "./pdf";
 export { AppProvider, useApp, type UseApp } from "./useApp";

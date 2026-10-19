@@ -1,9 +1,11 @@
 import { Capacitor } from "@capacitor/core";
 import { OfflineError, UnauthorizedError, UpgradeError, createApiClient, type ApiClient, type SessionUser, type SyncEntity } from "./api";
 import { API_URL, APP_VERSION, SYNC_INTERVAL_MS } from "./config";
-import { Session, canCapture, prefsKV, secureKV, unlockWithBiometry, type PinResult } from "./session";
+import { Session, prefsKV, secureKV, unlockWithBiometry, type PinResult } from "./session";
 import { createDefaultStore, type LocalStore } from "./store";
 import { SyncEngine } from "./sync";
+import { QuoteService, type LocalQuote } from "./quotes";
+import { quotePdf, shareQuotePdf, type AssetLoader } from "./pdf";
 
 export type NetStatus = "online" | "offline" | "syncing";
 
@@ -12,6 +14,10 @@ export interface AppState {
   status: NetStatus;
   /** Comandos en el outbox. */
   pending: number;
+  /** Igual que `pending` (nombre usado por las pantallas). */
+  pendingCount: number;
+  /** Cotizaciones con conflicto o rechazo (`_sync.state`), más recientes primero. */
+  conflicts: LocalQuote[];
   lastSyncAt: string | null;
   user: SessionUser | null;
   /** Hay token de dispositivo. Si es false → pantalla de alta (correo/contraseña). */
@@ -42,16 +48,20 @@ export interface AppControllerOptions {
   network?: NetworkAdapter;
   intervalMs?: number;
   now?: () => number;
+  /** Imágenes del PDF (pruebas); por omisión `fetch` a `/brand/*`. */
+  loadAsset?: AssetLoader;
 }
 
 const initial: AppState = {
-  ready: false, status: "offline", pending: 0, lastSyncAt: null, user: null, registered: false,
+  ready: false, status: "offline", pending: 0, pendingCount: 0, conflicts: [], lastSyncAt: null, user: null, registered: false,
   needsPin: false, locked: true, canCapture: false, upgradeRequired: false, error: null, progress: null,
 };
 
 /** Estado global de la app (sin React). `useApp()` lo expone a la UI. */
 export class AppController {
   readonly engine: SyncEngine;
+  /** Cotizaciones locales: `createQuote`, `updateQuote`, `changeStatus`, `emailQuote`, `listQuotes`, `getQuote`, `buildQuote`. */
+  readonly quotes: QuoteService;
   private state: AppState = initial;
   private listeners = new Set<() => void>();
   private online = false;
@@ -60,7 +70,16 @@ export class AppController {
 
   constructor(readonly o: AppControllerOptions) {
     this.engine = new SyncEngine({ api: o.api, store: o.store, onUnauthorized: () => o.session.wipe(), onProgress: (p) => this.set({ progress: p }) });
+    this.quotes = new QuoteService({
+      store: o.store, now: o.now, onChange: () => this.refresh(),
+      beforeWrite: async () => { await this.engine.idle(); },
+    });
   }
+
+  /** PDF (bytes) de una cotización local. */
+  quotePdf = (quoteId: string) => quotePdf(this.o.store, quoteId, { loadAsset: this.o.loadAsset });
+  /** Guarda el PDF en caché y abre la hoja de compartir del sistema. */
+  shareQuotePdf = (quoteId: string) => shareQuotePdf(this.o.store, quoteId, { loadAsset: this.o.loadAsset });
 
   get api() { return this.o.api; }
   get store() { return this.o.store; }
@@ -76,14 +95,14 @@ export class AppController {
   /** Recalcula usuario, pendientes, lastSyncAt y banderas desde el almacenamiento. */
   async refresh() {
     const { store, session } = this.o;
-    const [registered, hasPin, user, pending, lastSyncAt] = await Promise.all([
+    const [registered, hasPin, user, pending, lastSyncAt, capture, conflicts] = await Promise.all([
       session.isRegistered(), session.hasPin(), session.user(), store.pendingCount(), store.getMeta("lastSyncAt"),
+      this.quotes.canCapture(), this.quotes.listIssues(),
     ]);
-    const now = this.o.now?.() ?? Date.now();
     this.set({
-      registered, user, pending, lastSyncAt, needsPin: registered && !hasPin,
+      registered, user, pending, pendingCount: pending, conflicts, lastSyncAt, needsPin: registered && !hasPin,
       locked: registered ? this.state.locked || !hasPin : false,
-      canCapture: canCapture(lastSyncAt, now),
+      canCapture: capture,
     });
   }
 
