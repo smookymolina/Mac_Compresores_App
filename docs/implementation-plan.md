@@ -34,3 +34,8 @@
 4. ~~Cobranza y expiración automática de cotizaciones~~ (v1.1.2). Pendiente de decisión: calcular comisiones sobre lo cobrado (`CommissionBasis.COLLECTED`).
    - [x] Paginación (50 por página, `src/lib/pagination.ts`) en clientes, cotizaciones y ventas; ventas con búsqueda por folio/cliente y filtro de estado (2026-10-08).
 5. Despliegue: Dockerfile de la app, `SESSION` en HTTPS (cookie `secure` ya activa en producción), respaldos de BD, limitador de login compartido (Redis) si hay varias instancias.
+
+## v1.4.0 — App móvil sin conexión (en desarrollo, NO desplegar hasta pruebas)
+Propuesta: `docs/propuesta-offline-sync.md` (5 usuarios, Android + iOS).
+- [x] Fase 0: núcleo de dominio puro `src/domain/` (dinero con decimal.js, precios, estados, moneda, complementos, formatos, PDF de cotización sin `fs`/BD). Rutas anteriores re-exportan; pruebas de pureza (`domain-purity`) y paridad Prisma.Decimal ↔ decimal.js (`domain-parity`).
+- [ ] Fase 1: infraestructura de sincronización (`src/modules/sync`, `/api/sync/*`, dispositivos, idempotencia).
