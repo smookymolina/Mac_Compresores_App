@@ -48,3 +48,6 @@ next-env.d.ts
 # Respaldos manuales de la BD (nunca subir)
 backup_*.sql
 respaldo_*.sql.gz
+mobile/dist
+mobile/android
+mobile/ios
