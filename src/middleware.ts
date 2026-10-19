@@ -6,7 +6,7 @@ const PORTAL = "/socios";
 
 // Rutas públicas del resto de la app (equivalen al matcher anterior, que excluía estos prefijos) + robots.txt.
 const INTERNAL_PUBLIC =
-  /^\/(login|recuperar|restablecer|invitacion|api\/cron|api\/compartir|manifest\.webmanifest|icon|apple-icon|_next\/static|_next\/image|brand|email-branding|favicon\.ico|robots\.txt)/;
+  /^\/(login|recuperar|restablecer|invitacion|api\/cron|api\/compartir|api\/sync|api\/app|manifest\.webmanifest|icon|apple-icon|_next\/static|_next\/image|brand|email-branding|favicon\.ico|robots\.txt)/;
 
 /** Cookie del socio (`__Secure-` con Path=/socios; `mac_partner` si COOKIE_SECURE=false). Solo presencia: la validación real es del servidor. */
 const PARTNER_COOKIES = ["__Secure-mac_partner", "mac_partner"];

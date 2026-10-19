@@ -66,6 +66,10 @@ model User {
   commissionEntries CommissionEntry[]
   salesTargets      SalesTarget[]
   partnersCreated   Partner[]           @relation("PartnerCreatedBy")
+
+  /// Autorizado para usar la app móvil (v1.4.0). Lo marca un administrador.
+  mobileAccess Boolean  @default(false)
+  devices      Device[]
 }
 
 model Session {
@@ -326,6 +330,11 @@ model Quote {
   updatedAt     DateTime    @updatedAt
   items         QuoteItem[]
   sale          Sale?
+  /// Origen de la captura (v1.4.0): web o app móvil sin conexión.
+  origin           QuoteOrigin @default(WEB)
+  deviceId         String?     @db.Uuid
+  offlineCreatedAt DateTime? // hora real de captura en el teléfono
+  catalogSeq       BigInt? // versión (SyncChange.seq) del catálogo que tenía el teléfono
 
   @@index([sellerId, status])
   @@index([customerId])
@@ -732,4 +741,85 @@ model PartnerActivity {
 
   @@index([partnerId, createdAt(sort: Desc)])
   @@index([type, createdAt])
+}
+
+// ───────────── App móvil y sincronización (v1.4.0) ─────────────
+
+enum QuoteOrigin {
+  WEB
+  MOBILE
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+}
+
+/// Teléfono registrado. El token solo se guarda como SHA-256; revocable.
+model Device {
+  id          String             @id @default(uuid()) @db.Uuid
+  userId      String             @db.Uuid
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  platform    DevicePlatform
+  appVersion  String
+  tokenHash   String             @unique
+  createdAt   DateTime           @default(now())
+  lastSeenAt  DateTime?
+  lastPullSeq BigInt             @default(0)
+  revokedAt   DateTime?
+  revokedById String?            @db.Uuid
+  commands    SyncCommand[]
+  folios      ReservedFolio[]
+
+  @@index([userId])
+}
+
+/// Bitácora de cambios para la sincronización. La llenan triggers de PostgreSQL (no escribir desde la app).
+/// Hijos (partidas, pagos, contactos) registran a su padre: Quote, Sale, Customer.
+model SyncChange {
+  seq       BigInt   @id @default(autoincrement())
+  entity    String
+  entityId  String
+  deleted   Boolean  @default(false)
+  changedAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}
+
+enum SyncCommandStatus {
+  APPLIED
+  REJECTED
+  CONFLICT
+}
+
+/// Comando recibido de un teléfono. El id lo genera el teléfono: reintentos devuelven el mismo resultado.
+model SyncCommand {
+  id           String            @id @db.Uuid
+  deviceId     String            @db.Uuid
+  device       Device            @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  userId       String            @db.Uuid
+  type         String
+  payload      Json
+  status       SyncCommandStatus
+  result       Json?
+  error        String?
+  capturedAt   DateTime
+  receivedAt   DateTime          @default(now())
+  resolvedAt   DateTime?
+  resolvedById String?           @db.Uuid
+
+  @@index([deviceId, receivedAt])
+  @@index([status])
+}
+
+/// Folio de cotización apartado por un teléfono para usarlo sin conexión (tomado de la secuencia de Quote.folio).
+model ReservedFolio {
+  folio     Int       @id
+  deviceId  String    @db.Uuid
+  device    Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+
+  @@index([deviceId, usedAt])
 }
