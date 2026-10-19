@@ -25,7 +25,7 @@ export async function loadCurrentUser(userId: string): Promise<CurrentUser | nul
 
 /**
  * Autentica una petición de la app móvil: `Authorization: Bearer <token>` + `X-Sync-Protocol`.
- * Lanza AppError FORBIDDEN si el token no existe, el dispositivo está revocado o el usuario
+ * Lanza AppError UNAUTHENTICATED (token inválido o revocado) o FORBIDDEN (usuario
  * ya no está activo o perdió el acceso móvil. Valida contra la BD en cada petición.
  */
 export async function authenticateDevice(req: Request): Promise<{ device: Device; user: CurrentUser }> {
@@ -33,9 +33,9 @@ export async function authenticateDevice(req: Request): Promise<{ device: Device
   if (proto !== String(SYNC_PROTOCOL)) throw new AppError("Actualiza la app para seguir sincronizando.", "CONFLICT");
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-  if (!token) throw new AppError("Sesión del dispositivo inválida.", "FORBIDDEN");
+  if (!token) throw new AppError("Sesión del dispositivo inválida.", "UNAUTHENTICATED");
   const device = await db.device.findUnique({ where: { tokenHash: hashToken(token) } });
-  if (!device || device.revokedAt) throw new AppError("Dispositivo revocado o desconocido.", "FORBIDDEN");
+  if (!device || device.revokedAt) throw new AppError("Dispositivo revocado o desconocido.", "UNAUTHENTICATED");
   const user = await loadCurrentUser(device.userId);
   if (!user) throw new AppError("Tu usuario no tiene acceso a la app móvil.", "FORBIDDEN");
   if (!device.lastSeenAt || Date.now() - device.lastSeenAt.getTime() > 60_000)
