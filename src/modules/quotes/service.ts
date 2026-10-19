@@ -9,7 +9,7 @@ import { customerScope } from "@/modules/customers/service";
 import { buildItemSnapshots, type RequestedItem } from "./pricing";
 import { currentExchangeRate } from "@/modules/products/service";
 import type { QuoteCurrency } from "./currency";
-import { notify, usersWithPermission } from "@/modules/notifications/service";
+import { notify, notifyWithEmail, usersWithPermission } from "@/modules/notifications/service";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { QUOTE_STATUS_LABEL, canTransition } from "./status";
 
@@ -117,8 +117,8 @@ async function requestDiscountApproval(user: CurrentUser, quoteId: string) {
   const q = await db.quote.findUniqueOrThrow({ where: { id: quoteId }, include: { customer: { select: { legalName: true } }, items: { select: { discountPct: true } } } });
   const pcts = [...new Set(q.items.filter((i) => !i.discountPct.isZero()).map((i) => fmtPct(i.discountPct)))];
   const admins = (await usersWithPermission("quotes.approve_discount")).map((u) => u.id).filter((id) => id !== user.id);
-  await notify(admins, {
-    kind: "quote.discount_request",
+  await notifyWithEmail(admins, {
+    kind: "quote.discount_request", eyebrow: "Autorización de descuento",
     title: `C-${q.folio}: descuento por autorizar`,
     body: `${user.name} pide ${pcts.join(", ")} de descuento (-${fmtMoney(q.discountTotal)}) para ${q.customer.legalName}.${q.discountNote ? ` Motivo: ${q.discountNote}` : ""}`,
     href: `/cotizaciones/${q.id}`,
@@ -193,8 +193,8 @@ export async function createQuote(user: CurrentUser, input: QuoteInput) {
 }
 
 async function notifyAssigned(user: CurrentUser, sellerId: string, id: string, folio: number) {
-  await notify([sellerId], {
-    kind: "quote.assigned", title: `C-${folio}: te asignaron una cotización`,
+  await notifyWithEmail([sellerId], {
+    kind: "quote.assigned", eyebrow: "Cotizaciones", title: `C-${folio}: te asignaron una cotización`,
     body: `${user.name} te asignó la cotización.`, href: `/cotizaciones/${id}`,
   });
 }
@@ -253,8 +253,8 @@ export async function decideDiscount(user: CurrentUser, id: string, approve: boo
   });
   const verb = approve ? "autorizó" : "rechazó";
   const admins = (await usersWithPermission("quotes.approve_discount")).map((u) => u.id);
-  await notify([...admins, q.seller.id].filter((uid) => uid !== user.id), {
-    kind: approve ? "quote.discount_approved" : "quote.discount_rejected",
+  await notifyWithEmail([...admins, q.seller.id].filter((uid) => uid !== user.id), {
+    kind: approve ? "quote.discount_approved" : "quote.discount_rejected", eyebrow: "Autorización de descuento",
     title: `C-${q.folio}: descuento ${approve ? "autorizado" : "rechazado"} por ${user.name}`,
     body: `${user.name} ${verb} el descuento de -${fmtMoney(q.discountTotal)} para ${q.customer.legalName} (vendedor: ${q.seller.name}).${comment ? ` Comentario: ${comment}` : ""}`,
     href: `/cotizaciones/${id}`,

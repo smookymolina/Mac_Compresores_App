@@ -1,10 +1,17 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+const sent = vi.hoisted(() => [] as { to: string; subject: string; html: string }[]);
+vi.mock("@/lib/mail", () => ({
+  isMailConfigured: () => true,
+  sendMail: async (m: { to: string; subject: string; html: string }) => { sent.push(m); },
+  companyReplyTo: () => "ventas@test",
+}));
 import { db } from "@/lib/db";
-import { ROLE_PERMISSIONS, type RoleCode } from "@/lib/auth/permissions";
+import { ROLE_PERMISSIONS, type Permission, type RoleCode } from "@/lib/auth/permissions";
 import { changeQuoteStatus, createQuote, decideDiscount, getQuote, updateQuote } from "@/modules/quotes/service";
 
 const tag = `v1319-${Date.now()}`;
-type U = { id: string; name: string; email: string; role: RoleCode; roleName: string; permissions: Set<string> };
+type U = { id: string; name: string; email: string; role: RoleCode; roleName: string; permissions: Set<Permission> };
 let admin1: U, admin2: U, seller: U, seller2: U, customerId: string, productId: string;
 
 async function mk(code: RoleCode, n: string): Promise<U> {
@@ -41,6 +48,7 @@ describe("asignar vendedor", () => {
     const q = await createQuote(admin1, { ...base(), sellerId: seller.id, items: [{ productId, quantity: "1", discountPct: "0" }] });
     expect(q.sellerId).toBe(seller.id);
     expect(await notes(seller, "quote.assigned")).toHaveLength(1);
+    expect(sent.some((m) => m.to === seller.email && m.subject.includes("te asignaron"))).toBe(true);
     await updateQuote(admin1, q.id, { ...base(), sellerId: seller2.id, items: [{ productId, quantity: "1", discountPct: "0" }] });
     expect((await getQuote(admin1, q.id)).seller.id).toBe(seller2.id);
   });
@@ -77,7 +85,14 @@ describe("autorización de descuento", () => {
     await expect(changeQuoteStatus(seller, q.id, "SENT")).rejects.toThrow(/autorización/);
     await expect(decideDiscount(seller, q.id, true)).rejects.toThrow(/Solo un administrador/);
 
+    for (const a of [admin1, admin2]) {
+      expect(sent.some((m) => m.to === a.email && m.subject.includes(`C-${q.folio}: descuento por autorizar`))).toBe(true);
+    }
     await decideDiscount(admin1, q.id, true, "OK");
+    // Correo de quién autorizó: al otro administrador y al vendedor (no a quien decidió).
+    const decided = sent.filter((m) => m.subject.includes(`C-${q.folio}: descuento autorizado por ${admin1.name}`)).map((m) => m.to);
+    expect(decided).toEqual(expect.arrayContaining([admin2.email, seller.email]));
+    expect(decided).not.toContain(admin1.email);
     const full = await getQuote(admin1, q.id);
     expect(full.discountStatus).toBe("APPROVED");
     expect(full.discountDecidedBy?.name).toBe(admin1.name);
