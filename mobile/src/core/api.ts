@@ -32,7 +32,13 @@ export interface RegisterResponse { token: string; deviceId: string; serverSeq: 
 export interface BootstrapPage { entity: SyncEntity; items: EntityRow[]; next: string | null; serverSeq?: string }
 export interface PulledChange { entity: SyncEntity; id: string; deleted: boolean; data: EntityRow | null }
 export interface PullResponse { changes: PulledChange[]; cursor: string; hasMore: boolean }
-export interface AppVersionInfo { latest: string; minimum: string; androidUrl: string | null; iosUrl: string | null; notes: string }
+/** `GET /api/app/version` (público). `androidUrl` es una página web, no el APK. */
+export interface AppVersionInfo {
+  latest: string; minimum: string; androidUrl: string | null; iosUrl: string | null; notes: string;
+  sha256?: string | null; size?: number | null; publishedAt?: string | null;
+}
+/** `POST /api/sync/app-download`: enlace firmado (relativo) al APK, válido 10 min. */
+export interface AppDownloadResponse { url: string; expiresAt: string }
 export interface FoliosResponse { folios: number[] }
 
 export type SyncCommandType =
@@ -151,6 +157,7 @@ export function createApiClient(opts: ApiClientOptions) {
   };
 
   return {
+    baseUrl: base,
     version: () => request<AppVersionInfo>("GET", "/api/app/version", { auth: false, protocol: false }),
     register: (input: RegisterInput) => request<RegisterResponse>("POST", "/api/sync/register", { body: input, auth: false }),
     logout: () => request<{ ok: true }>("POST", "/api/sync/logout"),
@@ -165,5 +172,7 @@ export function createApiClient(opts: ApiClientOptions) {
       .then((r) => (Array.isArray(r) ? r : r?.commands ?? [])),
     /** Datos bancarios, bloque del asesor y reglas de captura. */
     config: () => request<SyncConfig>("GET", "/api/sync/config"),
+    /** Enlace temporal de descarga del APK (Android). */
+    appDownload: () => request<AppDownloadResponse>("POST", "/api/sync/app-download", { body: {} }),
   };
 }

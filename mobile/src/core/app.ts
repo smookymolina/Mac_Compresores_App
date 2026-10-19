@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { OfflineError, UnauthorizedError, UpgradeError, createApiClient, type ApiClient, type SessionUser, type SyncEntity } from "./api";
+import { OfflineError, UnauthorizedError, UpgradeError, createApiClient, type ApiClient, type AppVersionInfo, type SessionUser, type SyncEntity } from "./api";
 import { API_URL, APP_VERSION, SYNC_INTERVAL_MS } from "./config";
 import { Session, prefsKV, secureKV, unlockWithBiometry, type PinResult } from "./session";
 import { createDefaultStore, type LocalStore } from "./store";
@@ -10,6 +10,7 @@ import { SalesService } from "./sales";
 import { InventoryService } from "./inventory";
 import { hasPermission, type LocalServiceOptions } from "./local";
 import type { AssetLoader } from "./pdf";
+import { absoluteUrl, stalePending, updateInfo, type StalePending, type UpdateInfo } from "./update";
 
 export type NetStatus = "online" | "offline" | "syncing";
 
@@ -34,8 +35,18 @@ export interface AppState {
   needsPin: boolean;
   /** Requiere PIN/huella para ver datos. */
   locked: boolean;
-  /** false si la última sincronización tiene más de 7 días (solo consulta). */
+  /** false si la última sincronización tiene más de 7 días o hay actualización obligatoria (solo consulta). */
   canCapture: boolean;
+  /** Motivo legible cuando `canCapture` es false. */
+  captureBlockedReason: string | null;
+  /** Versión instalada vs. publicada (`/api/app/version`). */
+  update: UpdateInfo;
+  /** Hay una versión más nueva publicada. */
+  updateAvailable: boolean;
+  /** La versión mínima publicada es mayor que la instalada: se envía el outbox y luego se bloquea la captura. */
+  updateRequired: boolean;
+  /** Cambios en el outbox con más de 24 h sin enviarse (null si no hay). */
+  stalePending: StalePending | null;
   /** El servidor exige una versión más nueva (409 upgrade). */
   upgradeRequired: boolean;
   /** Último error de sincronización legible (null si la última salió bien). */
@@ -58,11 +69,20 @@ export interface AppControllerOptions {
   now?: () => number;
   /** Imágenes del PDF (pruebas); por omisión `fetch` a `/brand/*`. */
   loadAsset?: AssetLoader;
+  /** Versión instalada (por omisión `APP_VERSION`). */
+  appVersion?: string;
+  /** "android" | "ios" | "web" (por omisión `Capacitor.getPlatform()`). */
+  platform?: () => string;
+  /** Abre una URL fuera de la app (por omisión `@capacitor/browser` en el teléfono, `window.open` en web). */
+  openUrl?: (url: string) => Promise<void>;
 }
+
+const REQUIRED_REASON = "Hay una actualización obligatoria. Instálala para volver a capturar.";
 
 const initial: AppState = {
   ready: false, status: "offline", pending: 0, pendingCount: 0, conflicts: [], issues: [], permissions: [], lastSyncAt: null, user: null, registered: false,
-  needsPin: false, locked: true, canCapture: false, upgradeRequired: false, error: null, progress: null,
+  needsPin: false, locked: true, canCapture: false, captureBlockedReason: null, upgradeRequired: false, error: null, progress: null,
+  update: updateInfo(APP_VERSION, null), updateAvailable: false, updateRequired: false, stalePending: null,
 };
 
 /** Estado global de la app (sin React). `useApp()` lo expone a la UI. */
@@ -76,17 +96,20 @@ export class AppController {
   readonly sales: SalesService;
   /** Inventario: `registerMovement`, `listBalances`, `listMovements`. */
   readonly inventory: InventoryService;
-  private state: AppState = initial;
+  private state: AppState;
+  private versionInfo: AppVersionInfo | null = null;
   private listeners = new Set<() => void>();
   private online = false;
   private timer: ReturnType<typeof setInterval> | null = null;
   private unsubNet: (() => void) | null = null;
 
   constructor(readonly o: AppControllerOptions) {
+    this.state = { ...initial, update: updateInfo(this.current, null) };
     this.engine = new SyncEngine({ api: o.api, store: o.store, onUnauthorized: () => o.session.wipe(), onProgress: (p) => this.set({ progress: p }) });
     const svc: LocalServiceOptions = {
       store: o.store, now: o.now, onChange: () => this.refresh(),
       beforeWrite: async () => { await this.engine.idle(); },
+      captureBlocked: () => (this.state.updateRequired ? REQUIRED_REASON : null),
     };
     this.quotes = new QuoteService(svc);
     this.customers = new CustomerService(svc);
@@ -103,6 +126,8 @@ export class AppController {
   shareQuotePdf = async (quoteId: string) => (await import("./pdf")).shareQuotePdf(this.o.store, quoteId, { loadAsset: this.o.loadAsset });
 
   get api() { return this.o.api; }
+  private get current() { return this.o.appVersion ?? APP_VERSION; }
+  private platform() { return this.o.platform?.() ?? Capacitor.getPlatform(); }
   get store() { return this.o.store; }
   get session() { return this.o.session; }
 
@@ -116,14 +141,23 @@ export class AppController {
   /** Recalcula usuario, pendientes, lastSyncAt y banderas desde el almacenamiento. */
   async refresh() {
     const { store, session } = this.o;
-    const [registered, hasPin, user, pending, lastSyncAt, capture, conflicts, issues] = await Promise.all([
+    const [registered, hasPin, user, pending, lastSyncAt, capture, conflicts, issues, oldest, savedVersion] = await Promise.all([
       session.isRegistered(), session.hasPin(), session.user(), store.pendingCount(), store.getMeta("lastSyncAt"),
-      this.quotes.canCapture(), this.quotes.listIssues(), listSyncIssues(store),
+      this.quotes.canCapture(), this.quotes.listIssues(), listSyncIssues(store), store.outbox(1), store.getMeta("appVersion"),
     ]);
+    if (!this.versionInfo && savedVersion) {
+      // Sin red al abrir: se usa la última versión conocida (una obligatoria sigue bloqueando la captura).
+      this.versionInfo = savedVersion;
+      const u = updateInfo(this.current, savedVersion);
+      this.set({ update: u, updateAvailable: u.available, updateRequired: u.required });
+    }
+    const now = this.o.now?.() ?? Date.now();
+    const blocked = this.state.updateRequired ? REQUIRED_REASON : !capture ? "Llevas demasiados días sin sincronizar. Solo puedes consultar hasta que sincronices." : null;
     this.set({
       registered, user, pending, pendingCount: pending, conflicts, issues, permissions: user?.permissions ?? [], lastSyncAt, needsPin: registered && !hasPin,
       locked: registered ? this.state.locked || !hasPin : false,
-      canCapture: capture,
+      canCapture: !blocked, captureBlockedReason: blocked,
+      stalePending: stalePending(oldest[0]?.queuedAt, pending, now),
     });
   }
 
@@ -152,12 +186,38 @@ export class AppController {
     this.set({ ready: false });
   }
 
+  /**
+   * Consulta `/api/app/version` (público, mejor esfuerzo). Actualiza `update`/`updateAvailable`;
+   * `updateRequired` solo se activa aquí si no hay nada por enviar (si no, `syncNow` envía el outbox primero).
+   */
+  async checkUpdate(): Promise<UpdateInfo> {
+    try {
+      const v = await this.o.api.version();
+      this.versionInfo = v;
+      await this.o.store.setMeta("appVersion", v);
+    } catch { /* sin red: se conserva lo último conocido */ }
+    const u = updateInfo(this.current, this.versionInfo);
+    this.set({ update: u, updateAvailable: u.available, ...(!u.required && { updateRequired: false }) });
+    if (u.required && !this.state.updateRequired && (await this.o.store.pendingCount()) === 0) {
+      this.set({ updateRequired: true });
+      await this.refresh();
+    }
+    return u;
+  }
+
   /** Sincroniza ya (no lanza: el resultado queda en `status`/`error`). */
   async syncNow(): Promise<void> {
-    if (!this.online || !(await this.o.session.isRegistered()) || this.state.upgradeRequired) return;
+    if (!this.online) return;
+    const u = await this.checkUpdate();
+    if (!(await this.o.session.isRegistered()) || this.state.upgradeRequired) {
+      if (u.required && !this.state.updateRequired) { this.set({ updateRequired: true }); await this.refresh(); }
+      return;
+    }
     this.set({ status: "syncing" });
     try {
       await this.engine.sync();
+      // Actualización obligatoria: enviar TODO el outbox antes de bloquear la captura.
+      if (u.required) await this.drainOutbox();
       this.set({ error: null });
     } catch (e) {
       if (e instanceof OfflineError) this.online = false;
@@ -165,9 +225,43 @@ export class AppController {
       if (e instanceof UnauthorizedError) this.set({ locked: false });
       this.set({ error: e instanceof Error ? e.message : "Error de sincronización." });
     } finally {
+      if (u.required) this.set({ updateRequired: true });
       this.set({ status: this.online ? "online" : "offline", progress: null });
       await this.refresh();
     }
+  }
+
+  /** Envía el outbox en lotes hasta vaciarlo o hasta que el servidor pida reintentar. */
+  private async drainOutbox() {
+    for (let i = 0; i < 20 && (await this.o.store.pendingCount()) > 0; i++) {
+      const r = await this.engine.push();
+      if (r.stopped || r.sent === 0) break;
+    }
+  }
+
+  /**
+   * Abre la descarga de la versión nueva.
+   * Android: pide un enlace firmado (`/api/sync/app-download`) y lo abre en el navegador del sistema
+   * (Android ofrece instalar encima; misma firma → se conservan los datos). iOS: `iosUrl`. Web: `window.open`.
+   */
+  async startUpdate(): Promise<void> {
+    const base = this.o.api.baseUrl;
+    const v = this.versionInfo ?? (await this.checkUpdate(), this.versionInfo);
+    const platform = this.platform();
+    let url: string | null = null;
+    if (platform === "ios") url = v?.iosUrl ?? null;
+    else if (platform === "android") {
+      try { url = (await this.o.api.appDownload()).url; } catch { url = v?.androidUrl ?? null; }
+    } else url = v?.androidUrl ?? null;
+    if (!url) throw new Error("No hay enlace de descarga. Pide la actualización a tu administrador.");
+    await this.openUrl(absoluteUrl(base, url), platform);
+  }
+
+  private async openUrl(url: string, platform: string) {
+    if (this.o.openUrl) return this.o.openUrl(url);
+    if (platform === "web") { window.open(url, "_blank", "noopener"); return; }
+    const { Browser } = await import("@capacitor/browser");
+    await Browser.open({ url });
   }
 
   async login(email: string, password: string, deviceName: string) {

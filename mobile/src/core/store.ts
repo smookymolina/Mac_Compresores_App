@@ -59,6 +59,8 @@ export interface MetaMap {
   provisionalSeq: number;
   /** Movimientos de inventario capturados en el teléfono (pendientes/rechazados y los últimos aplicados). */
   movements: import("./inventory").LocalMovement[];
+  /** Última respuesta de `/api/app/version` (para saber sin red si hay actualización obligatoria). */
+  appVersion: import("./api").AppVersionInfo;
 }
 export type MetaKey = keyof MetaMap;
 

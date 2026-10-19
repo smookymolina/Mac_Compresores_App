@@ -11,8 +11,8 @@ npm run typecheck && npm test && npm run build
 
 ## Android (proyecto nativo versionado en `android/`)
 
-Config: `minSdk 24`, `applicationId mx.com.maccompresores.campo`, versión `1.4.0` / `10400` (`android/app/build.gradle`;
-subir ambas en cada release). HTTP en claro **solo en debug** (`app/src/debug/res/xml/network_security_config.xml`);
+Config: `minSdk 24`, `applicationId mx.com.maccompresores.campo`, versión `1.4.0` / `10400` (`android/app/build.gradle` las calcula de
+`mobile/package.json`: solo se sube la versión ahí). HTTP en claro **solo en debug** (`app/src/debug/res/xml/network_security_config.xml`);
 release solo HTTPS. `allowBackup=false` + `data_extraction_rules.xml`: la BD local no se respalda en la nube.
 Permisos: INTERNET, ACCESS_NETWORK_STATE, USE_BIOMETRIC. Íconos: `node scripts/android-icons.mjs` (desde
 `../public/icons`, requiere `npm install` en la raíz por `sharp`). iOS: fase posterior (`mobile/ios` sigue ignorado).

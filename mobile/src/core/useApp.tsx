@@ -8,7 +8,7 @@ export function AppProvider({ controller, children }: { controller: AppControlle
 }
 
 export type UseApp = AppState
-  & Pick<AppController, "syncNow" | "login" | "setPin" | "unlock" | "unlockBiometric" | "lock" | "logout" | "quotes" | "customers" | "sales" | "inventory" | "quotePdf" | "shareQuotePdf">
+  & Pick<AppController, "syncNow" | "checkUpdate" | "startUpdate" | "login" | "setPin" | "unlock" | "unlockBiometric" | "lock" | "logout" | "quotes" | "customers" | "sales" | "inventory" | "quotePdf" | "shareQuotePdf">
   & { controller: AppController; /** ¿El usuario tiene el permiso? */ can: (permission: string) => boolean };
 
 /** Estado de la app + acciones. Requiere `<AppProvider>`. */
@@ -18,6 +18,8 @@ export function useApp(): UseApp {
   const state = useSyncExternalStore(c.subscribe, c.getState);
   const actions = useMemo(() => ({
     syncNow: () => c.syncNow(),
+    checkUpdate: () => c.checkUpdate(),
+    startUpdate: () => c.startUpdate(),
     login: (e: string, p: string, d: string) => c.login(e, p, d),
     setPin: (pin: string) => c.setPin(pin),
     unlock: (pin: string) => c.unlock(pin),

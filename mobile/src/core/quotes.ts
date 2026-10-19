@@ -204,6 +204,8 @@ export interface QuoteServiceOptions {
   onChange?: () => void | Promise<void>;
   /** Espera a que termine un push en curso antes de reescribir el outbox. */
   beforeWrite?: () => Promise<void>;
+  /** Motivo por el que la captura está bloqueada aunque haya sincronización reciente (p. ej. actualización obligatoria). */
+  captureBlocked?: () => string | null;
   now?: () => number;
   uuid?: () => string;
 }
@@ -228,6 +230,8 @@ export class QuoteService {
     return canCapture(last, this.now(), limit);
   }
   private async assertCapture() {
+    const blocked = this.o.captureBlocked?.();
+    if (blocked) throw new CaptureBlockedError(blocked);
     if (!(await this.canCapture())) throw new CaptureBlockedError();
   }
 

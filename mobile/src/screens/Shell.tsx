@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { APP_VERSION, API_URL, useApp, type SyncIssue } from "../core";
-import { Alert, Badge, Button, Card, Confirm, Facts } from "../ui/kit";
+import { API_URL, useApp, type SyncIssue } from "../core";
+import { Alert, AuthScreen, Badge, Button, Card, Confirm, Facts, errMsg } from "../ui/kit";
 import { timeAgo } from "../ui/format";
 import { CatalogList, ProductDetail } from "./Catalog";
 import { CustomerDetail, CustomerForm, CustomerList } from "./Customers";
@@ -58,11 +58,95 @@ function StatusBar() {
           Sincronizar ahora
         </Button>
       </div>
-      {!app.canCapture && (
-        <div className="bg-warn-soft px-4 py-2 text-sm text-warn" role="alert">Llevas más de 7 días sin sincronizar. Solo puedes consultar hasta que sincronices.</div>
+      {app.stalePending && (
+        <div className="bg-danger-soft px-4 py-2 text-sm font-medium text-danger" role="alert">
+          Tienes {app.stalePending.count} {app.stalePending.count === 1 ? "cambio" : "cambios"} sin enviar desde hace más de 24 h. Conéctate a internet.
+        </div>
       )}
+      {!app.canCapture && app.captureBlockedReason && (
+        <div className="bg-warn-soft px-4 py-2 text-sm text-warn" role="alert">{app.captureBlockedReason}</div>
+      )}
+      <UpdateBanner />
       {app.error && app.status !== "syncing" && <div className="bg-danger-soft px-4 py-2 text-sm text-danger">{app.error}</div>}
     </header>
+  );
+}
+
+const DISMISS_KEY = "update.dismissed";
+const readDismissed = () => { try { return localStorage.getItem(DISMISS_KEY); } catch { return null; } };
+
+/** «Nueva versión X disponible · Actualizar» (se puede ocultar; vuelve con la siguiente versión). */
+function UpdateBanner() {
+  const app = useApp();
+  const latest = app.update.latest;
+  const [dismissed, setDismissed] = useState(readDismissed);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (!app.updateAvailable || app.updateRequired || !latest || dismissed === latest) return null;
+  const dismiss = () => { try { localStorage.setItem(DISMISS_KEY, latest); } catch { /* sin almacenamiento */ } setDismissed(latest); };
+  const go = async () => { setBusy(true); setErr(null); try { await app.startUpdate(); } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); } };
+  return (
+    <div className="flex items-center gap-2 bg-info-soft px-4 py-1 text-sm text-info" role="status">
+      <p className="min-w-0 flex-1">Nueva versión {latest} disponible{err && <span className="block text-danger">{err}</span>}</p>
+      <Button variant="ghost" className="shrink-0 px-3 text-sm" busy={busy} onClick={() => void go()}>Actualizar</Button>
+      <button type="button" aria-label="Ocultar aviso de actualización" className="min-h-11 min-w-11 shrink-0 text-lg" onClick={dismiss}>×</button>
+    </div>
+  );
+}
+
+/** Pantalla completa «Actualización obligatoria»: primero se envían los pendientes, luego se instala. */
+function UpdateRequiredScreen({ onConsult }: { onConsult: () => void }) {
+  const app = useApp();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const n = app.pendingCount;
+  const go = async () => { setBusy(true); setErr(null); try { await app.startUpdate(); } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); } };
+  return (
+    <AuthScreen title="Actualización obligatoria" subtitle={`Tienes la versión ${app.update.current}; se requiere ${app.update.latest ?? "una más reciente"}.`}>
+      <div className="space-y-4">
+        {n > 0 ? (
+          <>
+            <Alert tone="warn">
+              Antes de actualizar hay que enviar {n} {n === 1 ? "cambio pendiente" : "cambios pendientes"}.
+              {app.status === "offline" ? " Conéctate a internet para enviarlos." : ""}
+            </Alert>
+            <Button className="w-full" busy={app.status === "syncing"} disabled={app.status === "offline"} onClick={() => void app.syncNow()}>Enviar pendientes</Button>
+          </>
+        ) : (
+          <>
+            <Alert tone="ok">Tus cambios ya se enviaron al servidor. Instala la actualización para volver a capturar; tus datos se conservan.</Alert>
+            <Button className="w-full" busy={busy} onClick={() => void go()}>Actualizar ahora</Button>
+          </>
+        )}
+        {app.update.notes && <p className="whitespace-pre-line text-sm text-muted">{app.update.notes}</p>}
+        {err && <Alert>{err}</Alert>}
+        <Button variant="secondary" className="w-full" onClick={onConsult}>Seguir consultando</Button>
+      </div>
+    </AuthScreen>
+  );
+}
+
+function AppInfo() {
+  const app = useApp();
+  const [msg, setMsg] = useState<{ tone: "ok" | "info" | "danger"; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const check = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const u = await app.checkUpdate();
+      if (!u.latest) setMsg({ tone: "danger", text: "No se pudo consultar. Revisa tu conexión." });
+      else if (!u.available) setMsg({ tone: "ok", text: "Tienes la versión más reciente." });
+      else { setMsg({ tone: "info", text: `Versión ${u.latest} disponible. Abriendo descarga…` }); await app.startUpdate(); }
+    } catch (e) { setMsg({ tone: "danger", text: errMsg(e) }); } finally { setBusy(false); }
+  };
+  return (
+    <Card title="Aplicación">
+      <Facts rows={[["Versión", app.update.current], ["Servidor", API_URL.replace(/^https?:\/\//, "")], ["Pendientes por enviar", String(app.pending)]]} />
+      <div className="mt-3 space-y-2">
+        <Button variant="secondary" className="w-full" busy={busy} onClick={() => void check()}>Buscar actualización</Button>
+        {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+      </div>
+    </Card>
   );
 }
 
@@ -108,9 +192,7 @@ function More({ onOpenIssue, onInventory, showInventory }: { onOpenIssue: (i: Sy
       </Card>
       <IssuesCard onOpen={onOpenIssue} />
       {showInventory && <Button variant="secondary" className="w-full" onClick={onInventory}>Inventario</Button>}
-      <Card title="Aplicación">
-        <Facts rows={[["Versión", APP_VERSION], ["Servidor", API_URL.replace(/^https?:\/\//, "")], ["Pendientes por enviar", String(app.pending)]]} />
-      </Card>
+      <AppInfo />
       <Button variant="secondary" className="w-full" onClick={() => app.lock()}>Bloquear ahora</Button>
       <Button variant="danger" className="w-full" onClick={() => setAsk(true)}>Cerrar sesión</Button>
       <Confirm
@@ -131,6 +213,7 @@ export function Shell() {
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
   const [view, setView] = useState<View>({ tab: "catalog" });
+  const [consulting, setConsulting] = useState(false);
 
   // Botón «atrás» de Android: cierra el detalle antes de salir.
   useEffect(() => {
@@ -167,6 +250,8 @@ export function Shell() {
     else if (i.entity === "Payment" && i.parentId) openSale(i.parentId);
     else setView({ tab: "inventory" });
   };
+
+  if (app.updateRequired && !consulting) return <UpdateRequiredScreen onConsult={() => setConsulting(true)} />;
 
   return (
     <div className="min-h-dvh overflow-x-hidden">

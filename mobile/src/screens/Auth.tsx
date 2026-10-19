@@ -195,23 +195,17 @@ export function InitialDownload() {
 
 export function UpgradeRequired() {
   const app = useApp();
-  const [url, setUrl] = useState<string | null>(null);
-  const [latest, setLatest] = useState<string | null>(null);
-  useEffect(() => {
-    app.controller.api.version().then((v) => {
-      setLatest(v.latest);
-      setUrl(/iPhone|iPad/.test(navigator.userAgent) ? v.iosUrl : v.androidUrl);
-    }, () => {});
-  }, [app.controller]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { void app.checkUpdate(); }, [app.controller]); // eslint-disable-line react-hooks/exhaustive-deps
+  const latest = app.update.latest;
+  const go = async () => { setBusy(true); setErr(null); try { await app.startUpdate(); } catch (e) { setErr(errMsg(e, "No se pudo abrir la descarga.")); } finally { setBusy(false); } };
   return (
     <AuthScreen title="Actualización requerida" subtitle={`Esta versión (${APP_VERSION}) ya no es compatible con el servidor.`}>
       <div className="space-y-4">
         <p className="text-ink">Instala la versión más reciente{latest ? ` (${latest})` : ""} para seguir sincronizando. Tus datos guardados no se pierden.</p>
-        {url ? (
-          <a href={url} target="_blank" rel="noreferrer" className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand px-4 font-medium text-white">Descargar actualización</a>
-        ) : (
-          <Alert tone="info">Pide el enlace de descarga a tu administrador.</Alert>
-        )}
+        <Button className="w-full" busy={busy} onClick={() => void go()}>Descargar actualización</Button>
+        {err && <Alert tone="info">{err}</Alert>}
       </div>
     </AuthScreen>
   );

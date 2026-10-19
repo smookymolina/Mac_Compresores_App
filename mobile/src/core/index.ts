@@ -14,3 +14,4 @@ export * from "./inventory";
 // pdf-lib va en su propio chunk: importar "./pdf" directo o usar controller.quotePdf/shareQuotePdf (carga diferida).
 export type { AssetLoader, BrandAsset } from "./pdf";
 export { AppProvider, useApp, type UseApp } from "./useApp";
+export * from "./update";
