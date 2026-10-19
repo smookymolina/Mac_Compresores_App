@@ -1,7 +1,7 @@
 import type { Prisma, SaleStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { pageArgs, paged } from "@/lib/pagination";
-import { audit } from "@/lib/audit";
+import { audit, deviceData, type SyncMeta } from "@/lib/audit";
 import { dec } from "@/lib/money";
 import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
@@ -55,7 +55,7 @@ export async function getSale(user: CurrentUser, id: string) {
  * marca la cotización (guardia de estado), copia la instantánea y descuenta inventario.
  * Doble procesamiento: lo impiden el UPDATE condicionado y la unicidad Sale.quoteId.
  */
-export async function convertQuoteToSale(user: CurrentUser, quoteId: string, warehouseId: string) {
+export async function convertQuoteToSale(user: CurrentUser, quoteId: string, warehouseId: string, meta: SyncMeta = {}) {
   const quote = await db.quote.findFirst({
     where: { AND: [{ id: quoteId }, quoteScope(user)] },
     include: { items: true },
@@ -94,7 +94,7 @@ export async function convertQuoteToSale(user: CurrentUser, quoteId: string, war
         });
       }
       await audit({ userId: user.id, action: "sale.confirm", entity: "Sale", entityId: sale.id,
-        data: { quoteFolio: quote.folio, total: quote.total.toString() } }, tx);
+        data: { quoteFolio: quote.folio, total: quote.total.toString(), ...deviceData(meta.deviceId, meta.capturedAt) } }, tx);
       return sale;
     });
     if (quote.sellerId !== user.id) {

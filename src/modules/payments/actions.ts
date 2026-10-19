@@ -4,19 +4,15 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { runAction, type ActionResult } from "@/lib/errors";
-import { decimalStr, optStr, uuid } from "@/lib/validation";
+import { uuid } from "@/lib/validation";
+import { paymentSchema } from "./input";
 import { registerPayment, voidPayment } from "./service";
 import { sendPaymentReminder } from "./reminder";
 
 export async function registerPaymentAction(saleId: string, _: ActionResult<unknown> | null, fd: FormData) {
   const res = await runAction(async () => {
     const user = await requirePermission("payments.write");
-    const d = z.object({
-      amount: decimalStr({ min: 0.01, scale: 2 }),
-      paidAt: z.coerce.date(),
-      method: z.enum(["TRANSFER", "CASH", "CARD", "CHECK", "OTHER"]),
-      reference: optStr,
-    }).parse({ amount: fd.get("amount"), paidAt: fd.get("paidAt"), method: fd.get("method"), reference: fd.get("reference") ?? undefined });
+    const d = paymentSchema.parse({ amount: fd.get("amount"), paidAt: fd.get("paidAt"), method: fd.get("method"), reference: fd.get("reference") ?? undefined });
     await registerPayment(user, uuid.parse(saleId), d);
   }, "Pago registrado.");
   if (res.ok) { revalidatePath(`/ventas/${saleId}`); revalidatePath("/ventas"); revalidatePath("/cobranza"); }

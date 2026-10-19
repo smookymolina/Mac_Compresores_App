@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { pageArgs, paged } from "@/lib/pagination";
-import { audit } from "@/lib/audit";
+import { audit, deviceData, type SyncMeta } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
 import { dec } from "@/lib/money";
@@ -87,7 +87,11 @@ export interface CustomerInput {
   address?: { street: string; city?: string; state?: string; zip?: string };
 }
 
-export async function saveCustomer(user: CurrentUser, input: CustomerInput, id?: string) {
+/**
+ * Crea (`id` vacío) o actualiza un cliente. La app móvil puede mandar `opts.createId` (UUID del teléfono):
+ * si ya existe ese cliente (reintento) se devuelve sin cambios.
+ */
+export async function saveCustomer(user: CurrentUser, input: CustomerInput, id?: string, opts: SyncMeta & { createId?: string } = {}) {
   const isManager = can(user, "quotes.read_all");
   const data = {
     legalName: input.legalName,
@@ -107,17 +111,28 @@ export async function saveCustomer(user: CurrentUser, input: CustomerInput, id?:
       if (!prev) throw new AppError("Cliente no encontrado.", "NOT_FOUND");
       if (!isManager && prev.ownerId && prev.ownerId !== user.id) throw new AppError("Cliente asignado a otro vendedor.", "FORBIDDEN");
       const c = await tx.customer.update({ where: { id }, data });
-      await audit({ userId: user.id, action: "customer.update", entity: "Customer", entityId: id }, tx);
+      await audit({ userId: user.id, action: "customer.update", entity: "Customer", entityId: id,
+        data: deviceData(opts.deviceId, opts.capturedAt) }, tx);
       return c;
+    }
+    if (opts.createId) {
+      const prev = await tx.customer.findUnique({ where: { id: opts.createId } });
+      if (prev) {
+        if (!(await tx.customer.findFirst({ where: { AND: [{ id: opts.createId }, customerScope(user)] }, select: { id: true } })))
+          throw new AppError("El identificador del cliente ya está en uso.", "CONFLICT");
+        return prev;
+      }
     }
     const c = await tx.customer.create({
       data: {
+        id: opts.createId,
         ...data,
         contacts: input.contact?.name ? { create: input.contact } : undefined,
         addresses: input.address?.street ? { create: input.address } : undefined,
       },
     });
-    await audit({ userId: user.id, action: "customer.create", entity: "Customer", entityId: c.id }, tx);
+    await audit({ userId: user.id, action: "customer.create", entity: "Customer", entityId: c.id,
+      data: deviceData(opts.deviceId, opts.capturedAt) }, tx);
     return c;
   });
 }

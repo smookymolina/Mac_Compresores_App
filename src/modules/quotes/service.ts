@@ -1,8 +1,8 @@
-import type { Prisma, QuoteStatus } from "@prisma/client";
+import type { Prisma, QuoteOrigin, QuoteStatus } from "@prisma/client";
 import type { QuoteComplement } from "@/modules/complements/match";
 import { db } from "@/lib/db";
 import { pageArgs, paged } from "@/lib/pagination";
-import { audit } from "@/lib/audit";
+import { audit, deviceData, type SyncMeta } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
 import { customerScope } from "@/modules/customers/service";
@@ -88,44 +88,94 @@ function itemRows(items: Awaited<ReturnType<typeof snapshots>>["items"]) {
   }));
 }
 
-export async function createQuote(user: CurrentUser, input: QuoteInput) {
+/** Datos extra de una cotización capturada en la app móvil (todos opcionales; la web no los usa). */
+export interface CreateQuoteOptions {
+  /** UUID generado en el teléfono: si ya existe (reintento), se devuelve esa cotización. */
+  id?: string;
+  origin?: QuoteOrigin;
+  deviceId?: string;
+  offlineCreatedAt?: Date;
+  catalogSeq?: bigint;
+  /** Folio apartado por `deviceId` (ReservedFolio sin usar); se marca usado en la misma transacción. */
+  folio?: number;
+}
+
+const isUniqueViolation = (e: unknown) =>
+  typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "P2002";
+
+async function existingQuote(user: CurrentUser, id: string, deviceId: string | undefined) {
+  const q = await db.quote.findUnique({ where: { id } });
+  if (!q) return null;
+  if (q.sellerId !== user.id || (q.deviceId ?? undefined) !== deviceId) throw new AppError("El identificador de la cotización ya está en uso.", "CONFLICT");
+  return q;
+}
+
+export async function createQuote(user: CurrentUser, input: QuoteInput, opts: CreateQuoteOptions = {}) {
+  if (opts.id) {
+    const prev = await existingQuote(user, opts.id, opts.deviceId);
+    if (prev) return prev;
+  }
+  if (opts.folio !== undefined && !opts.deviceId) throw new AppError("Folio apartado sin dispositivo.", "CONFLICT");
   const customer = await db.customer.findFirst({ where: { AND: [{ id: input.customerId }, customerScope(user)] } });
   if (!customer) throw new AppError("Cliente no encontrado.", "NOT_FOUND");
   const { items, totals, exchangeRate } = await snapshots(user, input.items, input.currency);
 
-  return db.$transaction(async (tx) => {
-    const quote = await tx.quote.create({
-      data: {
-        customerId: customer.id,
-        sellerId: user.id,
-        validUntil: input.validUntil,
-        notes: input.notes || null,
-        deliveryTime: input.deliveryTime || null,
-        warrantyMonths: input.warrantyMonths ?? null,
-        complements: input.complements as unknown as Prisma.InputJsonValue | undefined,
-        currency: input.currency ?? "MXN",
-        exchangeRate,
-        ...totals,
-        items: { create: itemRows(items) },
-      },
+  try {
+    return await db.$transaction(async (tx) => {
+      if (opts.folio !== undefined) {
+        const used = await tx.reservedFolio.updateMany({
+          where: { folio: opts.folio, deviceId: opts.deviceId, usedAt: null }, data: { usedAt: new Date() },
+        });
+        if (used.count === 0) throw new AppError(`El folio C-${opts.folio} no está apartado para este dispositivo o ya se usó.`, "CONFLICT");
+      }
+      const quote = await tx.quote.create({
+        data: {
+          id: opts.id,
+          folio: opts.folio,
+          origin: opts.origin,
+          deviceId: opts.deviceId ?? null,
+          offlineCreatedAt: opts.offlineCreatedAt ?? null,
+          catalogSeq: opts.catalogSeq ?? null,
+          customerId: customer.id,
+          sellerId: user.id,
+          validUntil: input.validUntil,
+          notes: input.notes || null,
+          deliveryTime: input.deliveryTime || null,
+          warrantyMonths: input.warrantyMonths ?? null,
+          complements: input.complements as unknown as Prisma.InputJsonValue | undefined,
+          currency: input.currency ?? "MXN",
+          exchangeRate,
+          ...totals,
+          items: { create: itemRows(items) },
+        },
+      });
+      await audit({ userId: user.id, action: "quote.create", entity: "Quote", entityId: quote.id,
+        data: { folio: quote.folio, total: totals.total.toString(), ...deviceData(opts.deviceId, opts.offlineCreatedAt) } }, tx);
+      return quote;
     });
-    await audit({ userId: user.id, action: "quote.create", entity: "Quote", entityId: quote.id,
-      data: { folio: quote.folio, total: totals.total.toString() } }, tx);
-    return quote;
-  });
+  } catch (e) {
+    // Dos reintentos simultáneos con el mismo id: el segundo devuelve lo que creó el primero.
+    if (opts.id && isUniqueViolation(e)) {
+      const prev = await existingQuote(user, opts.id, opts.deviceId);
+      if (prev) return prev;
+    }
+    throw e;
+  }
 }
 
-/** Solo borradores son editables; las partidas se reemplazan con nuevas instantáneas. */
-export async function updateQuote(user: CurrentUser, id: string, input: QuoteInput) {
+export async function updateQuote(user: CurrentUser, id: string, input: QuoteInput, opts: SyncMeta & { baseUpdatedAt?: Date } = {}) {
   const current = await getQuote(user, id);
   if (current.status !== "DRAFT") throw new AppError("Solo se pueden editar cotizaciones en borrador.", "CONFLICT");
+  // La app móvil manda la versión que editó; si la web la cambió después, es conflicto.
+  const lock = opts.baseUpdatedAt ?? current.updatedAt;
+  if (lock.getTime() !== current.updatedAt.getTime()) throw new AppError("La cotización cambió mientras la editabas. Recarga.", "CONFLICT");
   const customer = await db.customer.findFirst({ where: { AND: [{ id: input.customerId }, customerScope(user)] } });
   if (!customer) throw new AppError("Cliente no encontrado.", "NOT_FOUND");
   const { items, totals, exchangeRate } = await snapshots(user, input.items, input.currency);
 
   return db.$transaction(async (tx) => {
     const res = await tx.quote.updateMany({
-      where: { id, status: "DRAFT", updatedAt: current.updatedAt }, // bloqueo optimista
+      where: { id, status: "DRAFT", updatedAt: lock }, // bloqueo optimista
       data: { customerId: customer.id, validUntil: input.validUntil, notes: input.notes || null, deliveryTime: input.deliveryTime || null,
         warrantyMonths: input.warrantyMonths ?? null,
         complements: input.complements as unknown as Prisma.InputJsonValue | undefined,
@@ -135,11 +185,12 @@ export async function updateQuote(user: CurrentUser, id: string, input: QuoteInp
     await tx.quoteItem.deleteMany({ where: { quoteId: id } });
     await tx.quoteItem.createMany({ data: itemRows(items).map((r) => ({ ...r, quoteId: id })) });
     await audit({ userId: user.id, action: "quote.update", entity: "Quote", entityId: id,
-      data: { total: totals.total.toString() } }, tx);
+      data: { total: totals.total.toString(), ...deviceData(opts.deviceId, opts.capturedAt) } }, tx);
+    return tx.quote.findUniqueOrThrow({ where: { id }, select: { id: true, folio: true, updatedAt: true } });
   });
 }
 
-export async function changeQuoteStatus(user: CurrentUser, id: string, to: QuoteStatus) {
+export async function changeQuoteStatus(user: CurrentUser, id: string, to: QuoteStatus, meta: SyncMeta = {}) {
   const quote = await getQuote(user, id);
   if (!canTransition(quote.status, to)) {
     throw new AppError(`No se puede pasar de ${quote.status} a ${to}.`, "CONFLICT");
@@ -151,7 +202,7 @@ export async function changeQuoteStatus(user: CurrentUser, id: string, to: Quote
     const res = await tx.quote.updateMany({ where: { id, status: quote.status }, data: { status: to } });
     if (res.count === 0) throw new AppError("La cotización cambió de estado. Recarga.", "CONFLICT");
     await audit({ userId: user.id, action: "quote.status", entity: "Quote", entityId: id,
-      data: { from: quote.status, to } }, tx);
+      data: { from: quote.status, to, ...deviceData(meta.deviceId, meta.capturedAt) } }, tx);
   });
   // Si otra persona movió la cotización, el vendedor se entera.
   if (quote.seller.id !== user.id) {

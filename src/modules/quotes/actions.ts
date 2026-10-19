@@ -5,31 +5,14 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { emailQuote, logQuoteWhatsApp, shareQuoteLink } from "./email";
 import { normalizePhone } from "./phone";
-import { can, requirePermission } from "@/lib/auth/session";
-import { AppError } from "@/lib/errors";
-import { listPackages, savePackageFromQuote } from "@/modules/complements/service";
-import type { QuoteComplement } from "@/modules/complements/match";
-import { db } from "@/lib/db";
+import { requirePermission } from "@/lib/auth/session";
+import { quoteComplementSchema, quoteFieldsSchema, quoteItemSchema, quoteStatusSchema, resolveComplements } from "./input";
 import { runAction, type ActionResult } from "@/lib/errors";
-import { decimalStr, pctToFraction, uuid } from "@/lib/validation";
+import { uuid } from "@/lib/validation";
 import { convertQuoteToSale } from "@/modules/sales/service";
 import { changeQuoteStatus, createQuote, deleteQuote, updateQuote } from "./service";
 
-const itemSchema = z.object({
-  productId: uuid,
-  quantity: decimalStr({ min: 0.001, scale: 3 }),
-  discountPct: pctToFraction,
-  unitPrice: decimalStr({ min: 0, scale: 2 }).optional().or(z.literal("").transform(() => undefined)),
-  details: z.string().trim().max(4000).optional(),
-});
-
-const quoteSchema = z.object({
-  customerId: uuid,
-  validUntil: z.coerce.date(),
-  notes: z.string().trim().max(2000).optional(),
-  deliveryTime: z.string().trim().max(200).optional(),
-  currency: z.enum(["MXN", "USD"]).default("USD"),
-  warrantyMonths: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(60)]).optional(),
+const quoteSchema = quoteFieldsSchema.extend({
   complements: z
     .string()
     .transform((s, ctx) => {
@@ -40,12 +23,7 @@ const quoteSchema = z.object({
         return z.NEVER;
       }
     })
-    .pipe(z.array(z.object({
-      code: z.string().trim().min(1).max(40),
-      name: z.string().trim().max(120),
-      activities: z.array(z.string().trim().min(1).max(300)).max(60),
-      saveAs: z.object({ shared: z.boolean() }).optional(),
-    })).max(10)),
+    .pipe(z.array(quoteComplementSchema).max(10)),
   items: z
     .string()
     .transform((s, ctx) => {
@@ -56,7 +34,7 @@ const quoteSchema = z.object({
         return z.NEVER;
       }
     })
-    .pipe(z.array(itemSchema).min(1, "Agrega al menos una partida").max(200)),
+    .pipe(z.array(quoteItemSchema).min(1, "Agrega al menos una partida").max(200)),
 });
 
 export async function saveQuoteAction(id: string | undefined, _: ActionResult<unknown> | null, fd: FormData) {
@@ -73,24 +51,10 @@ export async function saveQuoteAction(id: string | undefined, _: ActionResult<un
       complements: fd.get("complements") ?? "[]",
       items: fd.get("items"),
     });
-    if (!can(user, "complements.manage")) {
-      // Solo ADMIN redacta complementos; los demás eligen paquetes y actividades del catálogo.
-      const catalog = new Map((await listPackages(false, true)).map((p) => [p.code, p.activities]));
-      // Lo que el administrador ya dejó en esta cotización también se conserva al editarla.
-      const prev = id ? ((await db.quote.findUnique({ where: { id }, select: { complements: true } }))?.complements as QuoteComplement[] | null) ?? [] : [];
-      for (const c of prev) catalog.set(c.code, [...(catalog.get(c.code) ?? []), ...c.activities]);
-      const ok = data.complements.every((c) => catalog.get(c.code)?.length !== undefined && c.activities.every((a) => catalog.get(c.code)!.includes(a)));
-      if (!ok) throw new AppError("Solo el administrador puede agregar complementos o actividades nuevas.", "FORBIDDEN");
-      data.complements = data.complements.map(({ saveAs: _, ...c }) => c);
-    } else {
-      // Personalizados marcados «Guardar en paquetes»: se registran en el catálogo y la cotización usa su clave.
-      data.complements = await Promise.all(data.complements.map(async ({ saveAs, ...c }) =>
-        saveAs && c.code.startsWith("PERSONALIZADO")
-          ? { ...c, code: await savePackageFromQuote(user, c, saveAs.shared, data.warrantyMonths ?? 3) }
-          : c));
-    }
-    if (id) await updateQuote(user, id, data);
-    else quoteId = (await createQuote(user, data)).id;
+    const complements = await resolveComplements(user, data.complements, id, data.warrantyMonths);
+    const input = { ...data, complements };
+    if (id) await updateQuote(user, id, input);
+    else quoteId = (await createQuote(user, input)).id;
   });
   if (res.ok) {
     revalidatePath("/cotizaciones");
@@ -99,12 +63,10 @@ export async function saveQuoteAction(id: string | undefined, _: ActionResult<un
   return res;
 }
 
-const statusSchema = z.enum(["SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CANCELLED"]);
-
 export async function changeQuoteStatusAction(id: string, _: ActionResult<unknown> | null, fd: FormData) {
   const res = await runAction(async () => {
     const user = await requirePermission("quotes.write");
-    await changeQuoteStatus(user, id, statusSchema.parse(fd.get("to")));
+    await changeQuoteStatus(user, id, quoteStatusSchema.parse(fd.get("to")));
   }, "Estado actualizado.");
   if (res.ok) revalidatePath(`/cotizaciones/${id}`);
   return res;

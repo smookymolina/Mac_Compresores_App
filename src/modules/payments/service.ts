@@ -1,7 +1,7 @@
 import "server-only";
 import type { PaymentMethod, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { audit } from "@/lib/audit";
+import { audit, deviceData, type SyncMeta } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { dec, type Dec } from "@/lib/money";
 import { assertCan, type CurrentUser } from "@/lib/auth/session";
@@ -31,7 +31,8 @@ export async function paidBySale(saleIds: string[]) {
 
 export async function registerPayment(
   user: CurrentUser, saleId: string,
-  input: { amount: string; paidAt: Date; method: PaymentMethod; reference?: string },
+  input: { amount: string; paidAt: Date; method: PaymentMethod; reference?: string; id?: string },
+  meta: SyncMeta = {},
 ) {
   assertCan(user, "payments.write");
   const amount = dec(input.amount);
@@ -39,16 +40,24 @@ export async function registerPayment(
   return db.$transaction(async (tx) => {
     // Bloquea la venta: dos pagos simultáneos no pueden rebasar el saldo.
     await tx.$queryRaw`SELECT id FROM "Sale" WHERE id = ${saleId}::uuid FOR UPDATE`;
+    if (input.id) {
+      // Reintento de la app móvil (id generado en el teléfono): se devuelve el pago ya registrado.
+      const prev = await tx.payment.findUnique({ where: { id: input.id } });
+      if (prev) {
+        if (prev.saleId !== saleId || prev.createdById !== user.id) throw new AppError("El identificador del pago ya está en uso.", "CONFLICT");
+        return prev;
+      }
+    }
     const sale = await tx.sale.findFirst({ where: { AND: [{ id: saleId }, saleScope(user)] }, include: { payments: true } });
     if (!sale) throw new AppError("Venta no encontrada.", "NOT_FOUND");
     if (sale.status !== "CONFIRMED") throw new AppError("Solo se registran pagos de ventas confirmadas.", "CONFLICT");
     const balance = sale.total.sub(paidOf(sale.payments));
     if (amount.gt(balance)) throw new AppError(`El importe rebasa el saldo pendiente (${balance.toFixed(2)}).`, "CONFLICT");
     const p = await tx.payment.create({
-      data: { saleId, amount, paidAt: input.paidAt, method: input.method, reference: input.reference, createdById: user.id },
+      data: { id: input.id, saleId, amount, paidAt: input.paidAt, method: input.method, reference: input.reference, createdById: user.id },
     });
     await audit({ userId: user.id, action: "payment.create", entity: "Sale", entityId: saleId,
-      data: { paymentId: p.id, amount: amount.toString(), method: input.method } }, tx);
+      data: { paymentId: p.id, amount: amount.toString(), method: input.method, ...deviceData(meta.deviceId, meta.capturedAt) } }, tx);
     return p;
   });
 }
