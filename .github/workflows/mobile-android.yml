@@ -1,0 +1,83 @@
+name: Mobile Android (MAC Campo)
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "URL HTTPS del ERP (vacío = variable de repo MOBILE_API_URL)"
+        required: false
+        type: string
+  push:
+    branches: [v1.4.0]
+    paths:
+      - "mobile/**"
+      - "src/domain/**"
+      - ".github/workflows/mobile-android.yml"
+
+concurrency:
+  group: mobile-android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      VITE_API_URL: ${{ inputs.api_url || vars.MOBILE_API_URL }}
+      HAS_SIGNING: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Versión
+        id: ver
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm test
+      - name: Build web
+        run: |
+          if [ -z "$VITE_API_URL" ]; then echo "::warning::VITE_API_URL vacío (define la variable MOBILE_API_URL o el input api_url)"; fi
+          npm run build
+      - run: npx cap sync android
+      - name: assembleDebug
+        working-directory: mobile/android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-campo-${{ steps.ver.outputs.version }}-debug
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      # Release firmado: solo si existen los 4 secretos. La llave se decodifica fuera del repo y se borra al final.
+      - name: assembleRelease (firmado)
+        if: env.HAS_SIGNING == 'true'
+        working-directory: mobile/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
+          ./gradlew assembleRelease --no-daemon
+          rm -f "$ANDROID_KEYSTORE_PATH"
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_SIGNING == 'true'
+        with:
+          name: mac-campo-${{ steps.ver.outputs.version }}-release
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error

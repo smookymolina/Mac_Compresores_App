@@ -49,5 +49,6 @@ next-env.d.ts
 backup_*.sql
 respaldo_*.sql.gz
 mobile/dist
-mobile/android
+# mobile/android se versiona (sus salidas de build las ignora mobile/android/.gitignore).
+# mobile/ios: fase posterior (requiere macOS/Xcode); se dejará de ignorar al generarlo.
 mobile/ios

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MAC Campo</string>
+    <string name="title_activity_main">MAC Campo</string>
+    <string name="package_name">mx.com.maccompresores.campo</string>
+    <string name="custom_url_scheme">mx.com.maccompresores.campo</string>
+</resources>
