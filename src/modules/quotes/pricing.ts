@@ -1,7 +1,6 @@
 import type { Currency, ProductKind, ProductLine, ProductStatus } from "@prisma/client";
 import { AppError } from "@/lib/errors";
 import { computeLine, dec, round2, sumLines, toMxn, type Dec, type LineAmounts } from "@/lib/money";
-import { MAX_DISCOUNT_WITHOUT_OVERRIDE } from "@/lib/auth/permissions";
 
 export interface CatalogProduct {
   id: string;
@@ -73,11 +72,7 @@ export function buildItemSnapshots(
 
     const discountPct = dec(r.discountPct);
     if (discountPct.lt(0) || discountPct.gte(1)) throw new AppError(`Partida ${idx + 1}: descuento inválido.`);
-    if (!opts.canOverridePrice && discountPct.gt(MAX_DISCOUNT_WITHOUT_OVERRIDE)) {
-      throw new AppError(
-        `Partida ${idx + 1}: el descuento máximo permitido es ${MAX_DISCOUNT_WITHOUT_OVERRIDE * 100}%.`,
-      );
-    }
+    // Sin tope por rol: el descuento de quien no es administrador lo autoriza un administrador (v1.3.20).
 
     const currency = p.currency ?? "MXN";
     const fx = currency === "USD" ? (opts.fx ?? null) : null;

@@ -110,6 +110,12 @@ describe("autorización de descuento", () => {
     expect((await getQuote(seller, q.id)).discountStatus).toBe("PENDING");
   });
 
+  it("ventas puede pedir más de 15% (lo autoriza un administrador)", async () => {
+    const q = await createQuote(seller, { ...base(), items: [{ productId, quantity: "1", discountPct: "0.25" }] });
+    expect(q.discountStatus).toBe("PENDING");
+    expect(q.discountTotal.toString()).toBe("250");
+  });
+
   it("rechazado: no se envía hasta quitar el descuento", async () => {
     const q = await createQuote(seller, { ...base(), items: [{ productId, quantity: "1", discountPct: "0.05" }] });
     await decideDiscount(admin2, q.id, false, "Margen bajo");

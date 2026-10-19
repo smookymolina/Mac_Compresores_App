@@ -15,8 +15,9 @@ export const pctToFraction = z
   .string()
   .trim()
   .default("0")
-  .transform((s) => (s === "" ? "0" : s))
-  .refine((s) => /^\d+(\.\d{1,2})?$/.test(s) && Number(s) <= 100, "Porcentaje inválido")
+  // Acepta «10», «10%», «10.5» y «10,5».
+  .transform((s) => s.replace(/\s*%$/, "").replace(",", ".") || "0")
+  .refine((s) => /^\d+(\.\d{1,2})?$/.test(s) && Number(s) <= 100, "Porcentaje inválido: escribe un número de 0 a 100, p. ej. 10 o 10.5")
   .transform((s) => (Number(s) / 100).toFixed(4));
 
 export const optStr = z.string().trim().max(300).optional().transform((v) => (v ? v : undefined));
