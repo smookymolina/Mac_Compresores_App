@@ -1,0 +1,87 @@
+[
+  {
+    "id": "00000000-0000-4000-8000-000000000101",
+    "type": "quote.create",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000100",
+      "folio": 1001,
+      "catalogSeq": "50",
+      "customerId": "00000000-0000-4000-8000-000000000010",
+      "validUntil": "2026-11-01T12:00:00.000Z",
+      "currency": "MXN",
+      "notes": "Nota",
+      "warrantyMonths": 6,
+      "complements": [
+        {
+          "code": "INST",
+          "name": "Instalación",
+          "activities": [
+            "Montaje"
+          ]
+        }
+      ],
+      "items": [
+        {
+          "productId": "00000000-0000-4000-8000-000000000001",
+          "quantity": "2",
+          "discountPct": "10",
+          "clientListPrice": "1200.00"
+        },
+        {
+          "productId": "00000000-0000-4000-8000-000000000002",
+          "quantity": "1.5",
+          "discountPct": "12.5",
+          "clientListPrice": "185.00",
+          "details": "x"
+        }
+      ],
+      "clientExchangeRate": "18.5000"
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000102",
+    "type": "quote.update",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "quoteId": "00000000-0000-4000-8000-000000000100",
+      "baseUpdatedAt": "2026-10-19T12:00:01.000Z",
+      "customerId": "00000000-0000-4000-8000-000000000010",
+      "validUntil": "2026-11-02T12:00:00.000Z",
+      "currency": "MXN",
+      "complements": [],
+      "items": [
+        {
+          "productId": "00000000-0000-4000-8000-000000000001",
+          "quantity": "1",
+          "discountPct": "15",
+          "unitPrice": "999.50"
+        }
+      ]
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000103",
+    "type": "quote.status",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "quoteId": "00000000-0000-4000-8000-000000000100",
+      "to": "SENT"
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000104",
+    "type": "quote.email",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "quoteId": "00000000-0000-4000-8000-000000000100",
+      "to": [
+        "a@b.mx"
+      ],
+      "cc": [
+        "c@d.mx"
+      ],
+      "message": "Hola"
+    }
+  }
+]
