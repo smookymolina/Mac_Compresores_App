@@ -22,6 +22,9 @@ jobs:
         run: |
           sudo systemctl start postgresql.service
           sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE USER mac WITH PASSWORD 'mac_ci' CREATEDB;" -c "CREATE DATABASE mac_compresores_test OWNER mac;"
+      # pdftotext (poppler-utils): lo usa la prueba de integración del PDF de cotización.
+      - name: poppler-utils
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
