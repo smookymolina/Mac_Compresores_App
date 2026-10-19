@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { uuid } from "@/lib/validation";
-import { revokeDevice, resolveSyncIssue, setMobileAccess } from "./admin";
+import { resolvePriceConflict, revokeDevice, resolveSyncIssue, setMobileAccess, type PriceResolution } from "./admin";
 
 export async function setMobileAccessAction(id: string, _: ActionResult<unknown> | null, fd: FormData) {
   const enabled = fd.get("mobileAccess") === "on";
@@ -31,5 +32,20 @@ export async function resolveSyncIssueAction(id: string, _: ActionResult<unknown
     await resolveSyncIssue(actor, uuid.parse(id));
   }, "Incidencia marcada como revisada.");
   if (res.ok) revalidatePath("/sincronizacion");
+  return res;
+}
+
+const RESOLVED: Record<PriceResolution, string> = {
+  server: "Cotización aplicada con los precios vigentes.",
+  client: "Cotización aplicada con los precios del teléfono.",
+  reject: "Operación rechazada.",
+};
+
+export async function resolvePriceConflictAction(id: string, mode: PriceResolution, _: ActionResult<unknown> | null, _fd: FormData) {
+  const res = await runAction(async () => {
+    const actor = await requirePermission(mode === "client" ? "quotes.override_price" : "users.manage");
+    await resolvePriceConflict(actor, uuid.parse(id), z.enum(["server", "client", "reject"]).parse(mode));
+  }, RESOLVED[mode] ?? "Listo.");
+  if (res.ok) { revalidatePath("/sincronizacion"); revalidatePath("/cotizaciones"); }
   return res;
 }

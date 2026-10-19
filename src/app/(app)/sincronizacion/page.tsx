@@ -1,10 +1,12 @@
 import { CheckCircle2, Smartphone } from "lucide-react";
-import { requirePagePermission } from "@/lib/auth/session";
+import { can, requirePagePermission } from "@/lib/auth/session";
 import { listDevices, listSyncIssues } from "@/modules/sync/admin";
-import { resolveSyncIssueAction, revokeDeviceAction } from "@/modules/sync/actions";
+import { resolvePriceConflictAction, resolveSyncIssueAction, revokeDeviceAction } from "@/modules/sync/actions";
+import type { PriceConflictResult } from "@/modules/sync/protocol";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, CardHeader, DataTable, EmptyState, PageHeader, type DataColumn } from "@/components/ui";
 import { fmtDateTime } from "@/lib/utils";
+import { fmtMoney } from "@/lib/money";
 
 export const metadata = { title: "Sincronización" };
 
@@ -30,8 +32,31 @@ const ISSUE_COLUMNS: DataColumn[] = [
   { id: "actions", header: "Acciones" },
 ];
 
+function PriceDiff({ c }: { c: PriceConflictResult }) {
+  return (
+    <div className="mt-2 grid gap-1 text-xs">
+      {c.items.length > 0 && (
+        <table className="w-full text-left">
+          <thead><tr className="text-muted"><th className="pr-2 font-medium">SKU</th><th className="pr-2 text-right font-medium">Teléfono</th><th className="text-right font-medium">Actual</th></tr></thead>
+          <tbody>
+            {c.items.map((it, n) => (
+              <tr key={`${it.productId}-${n}`}>
+                <td className="mono pr-2">{it.sku}</td>
+                <td className="pr-2 text-right tabular-nums">{fmtMoney(it.clientPrice)}</td>
+                <td className="text-right tabular-nums">{fmtMoney(it.serverPrice)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {c.exchangeRate && <p>Tipo de cambio: teléfono <span className="mono">{c.exchangeRate.client ?? "—"}</span> · actual <span className="mono">{c.exchangeRate.server ?? "—"}</span></p>}
+    </div>
+  );
+}
+
 export default async function SyncPage() {
-  await requirePagePermission("users.manage");
+  const actor = await requirePagePermission("users.manage");
+  const canOverride = can(actor, "quotes.override_price");
   const [devices, issues] = await Promise.all([listDevices(), listSyncIssues({ take: 100 })]);
   const active = devices.filter((d) => !d.revokedAt).length;
 
@@ -73,8 +98,19 @@ export default async function SyncPage() {
                 fmtDateTime(i.capturedAt), i.userName ?? "—",
                 <span key="t" className="mono text-xs">{i.type}</span>,
                 <Badge key="s" tone={i.status === "CONFLICT" ? "amber" : "red"}>{ISSUE_STATUS[i.status] ?? i.status}</Badge>,
-                i.error ?? "—",
-                <ActionForm key="r" action={resolveSyncIssueAction.bind(null, i.id)} submitLabel="Marcar como revisada" variant="secondary" size="sm" />,
+                <div key="e">{i.error ?? "—"}{i.priceConflict && <PriceDiff c={i.priceConflict} />}</div>,
+                i.priceConflict ? (
+                  <div key="r" className="flex flex-wrap gap-2">
+                    <ActionForm action={resolvePriceConflictAction.bind(null, i.id, "server")} submitLabel="Usar precios actuales" size="sm" />
+                    {canOverride && (
+                      <ActionForm action={resolvePriceConflictAction.bind(null, i.id, "client")} submitLabel="Respetar precios del teléfono" variant="secondary" size="sm" />
+                    )}
+                    <ActionForm action={resolvePriceConflictAction.bind(null, i.id, "reject")} submitLabel="Rechazar" variant="danger" size="sm"
+                      confirmText="Confirmo rechazar la operación" />
+                  </div>
+                ) : (
+                  <ActionForm key="r" action={resolveSyncIssueAction.bind(null, i.id)} submitLabel="Marcar como revisada" variant="secondary" size="sm" />
+                ),
               ],
               sort: [i.capturedAt.getTime(), i.userName, i.type, ISSUE_STATUS[i.status] ?? i.status, null, null],
             }))}

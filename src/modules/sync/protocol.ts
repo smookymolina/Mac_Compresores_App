@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { uuid } from "@/lib/validation";
+import { decimalStr, uuid } from "@/lib/validation";
 import { quoteComplementSchema, quoteFieldsSchema, quoteItemSchema, quoteStatusSchema } from "@/modules/quotes/input";
 import { addressSchema, contactSchema, customerSchema } from "@/modules/customers/input";
 import { paymentSchema } from "@/modules/payments/input";
@@ -19,8 +19,22 @@ export const commandEnvelope = z.object({
 
 const quotePayload = quoteFieldsSchema.extend({
   complements: z.array(quoteComplementSchema.omit({ saveAs: true })).max(10).default([]),
-  items: z.array(quoteItemSchema).min(1, "Agrega al menos una partida").max(200),
+  items: z.array(quoteItemSchema.extend({
+    /** Precio de lista unitario MXN (antes de descuento) que mostró el teléfono; ausente si la partida trae `unitPrice` manual. */
+    clientListPrice: decimalStr({ min: 0, scale: 2 }).optional(),
+  })).min(1, "Agrega al menos una partida").max(200),
+  /** TC USD→MXN que usó el teléfono. */
+  clientExchangeRate: decimalStr({ min: 0.0001, scale: 4 }).optional(),
 });
+
+export type SyncQuotePayload = z.infer<typeof quotePayload>;
+
+/** Resultado guardado en SyncCommand.result cuando un precio capturado sin red no se pudo respetar (§5.3). */
+export interface PriceConflictResult {
+  kind: "price";
+  items: { productId: string; sku: string; clientPrice: string; serverPrice: string }[];
+  exchangeRate?: { client: string | null; server: string | null };
+}
 
 const cmd = <T extends string, P extends z.ZodTypeAny>(type: T, payload: P) =>
   commandEnvelope.extend({ type: z.literal(type), payload });
@@ -47,6 +61,13 @@ export const syncCommandSchema = z.discriminatedUnion("type", [
   cmd("quote.status", z.object({ quoteId: uuid, to: quoteStatusSchema })),
   cmd("sale.convert", z.object({ quoteId: uuid, warehouseId: uuid })),
   cmd("payment.register", paymentSchema.extend({ id: uuid, saleId: uuid })),
+  /** Envía la cotización por correo con el PDF (mismo servicio y permiso que la web). */
+  cmd("quote.email", z.object({
+    quoteId: uuid,
+    to: z.array(z.string().trim().email("Correo inválido")).min(1, "Indica al menos un correo").max(5),
+    cc: z.array(z.string().trim().email("Correo inválido")).max(10).default([]),
+    message: z.string().trim().max(4000),
+  })),
 ]);
 
 export type SyncCommand = z.infer<typeof syncCommandSchema>;

@@ -7,6 +7,7 @@ import { AppError } from "@/lib/errors";
 import { can, type CurrentUser } from "@/lib/auth/session";
 import { customerScope } from "@/modules/customers/service";
 import { buildItemSnapshots, type RequestedItem } from "./pricing";
+import { computeLine, sumLines, type Dec } from "@/domain/money";
 import { currentExchangeRate } from "@/modules/products/service";
 import type { QuoteCurrency } from "./currency";
 import { notify } from "@/modules/notifications/service";
@@ -66,16 +67,32 @@ export interface QuoteInput {
   items: RequestedItem[];
 }
 
-async function snapshots(user: CurrentUser, items: RequestedItem[], currency: QuoteCurrency = "MXN") {
+/**
+ * Excepción puntual de precio para la app móvil (ventana de gracia, docs/propuesta-offline-sync.md §5.3):
+ * `prices` fija el precio unitario MXN de partidas concretas (por índice) sin conceder el permiso general
+ * de sobrescritura (la regla del 15 % de descuento sigue igual); `fx` sustituye el TC vigente.
+ */
+export interface PriceGrace {
+  prices: Map<number, Dec>;
+  fx?: Dec | null;
+}
+
+async function snapshots(user: CurrentUser, items: RequestedItem[], currency: QuoteCurrency = "MXN", grace?: PriceGrace) {
   const products = await db.product.findMany({ where: { id: { in: items.map((i) => i.productId) } } });
   const usesUsd = currency === "USD" || products.some((p) => p.currency === "USD");
-  const fx = usesUsd ? ((await currentExchangeRate())?.rate ?? null) : null;
+  const fx = usesUsd ? (grace?.fx ?? (await currentExchangeRate())?.rate ?? null) : null;
   if (currency === "USD" && !fx) throw new AppError("Captura el tipo de cambio USD antes de cotizar en dólares.");
-  const res = buildItemSnapshots(items, new Map(products.map((p) => [p.id, p])), {
+  const requested = grace?.prices.size ? items.map((i, idx) => (grace.prices.has(idx) ? { ...i, unitPrice: undefined } : i)) : items;
+  const res = buildItemSnapshots(requested, new Map(products.map((p) => [p.id, p])), {
     canOverridePrice: can(user, "quotes.override_price"),
     fx,
   });
-  return { ...res, exchangeRate: fx };
+  if (!grace?.prices.size) return { ...res, exchangeRate: fx };
+  const patched = res.items.map((it, idx) => {
+    const unitPrice = grace.prices.get(idx);
+    return unitPrice ? { ...it, unitPrice, ...computeLine({ quantity: it.quantity, unitPrice, discountPct: it.discountPct, taxRate: it.taxRate }) } : it;
+  });
+  return { items: patched, totals: sumLines(patched), exchangeRate: fx };
 }
 
 function itemRows(items: Awaited<ReturnType<typeof snapshots>>["items"]) {
@@ -98,6 +115,7 @@ export interface CreateQuoteOptions {
   catalogSeq?: bigint;
   /** Folio apartado por `deviceId` (ReservedFolio sin usar); se marca usado en la misma transacción. */
   folio?: number;
+  priceGrace?: PriceGrace;
 }
 
 const isUniqueViolation = (e: unknown) =>
@@ -118,7 +136,7 @@ export async function createQuote(user: CurrentUser, input: QuoteInput, opts: Cr
   if (opts.folio !== undefined && !opts.deviceId) throw new AppError("Folio apartado sin dispositivo.", "CONFLICT");
   const customer = await db.customer.findFirst({ where: { AND: [{ id: input.customerId }, customerScope(user)] } });
   if (!customer) throw new AppError("Cliente no encontrado.", "NOT_FOUND");
-  const { items, totals, exchangeRate } = await snapshots(user, input.items, input.currency);
+  const { items, totals, exchangeRate } = await snapshots(user, input.items, input.currency, opts.priceGrace);
 
   try {
     return await db.$transaction(async (tx) => {
@@ -163,7 +181,7 @@ export async function createQuote(user: CurrentUser, input: QuoteInput, opts: Cr
   }
 }
 
-export async function updateQuote(user: CurrentUser, id: string, input: QuoteInput, opts: SyncMeta & { baseUpdatedAt?: Date } = {}) {
+export async function updateQuote(user: CurrentUser, id: string, input: QuoteInput, opts: SyncMeta & { baseUpdatedAt?: Date; priceGrace?: PriceGrace } = {}) {
   const current = await getQuote(user, id);
   if (current.status !== "DRAFT") throw new AppError("Solo se pueden editar cotizaciones en borrador.", "CONFLICT");
   // La app móvil manda la versión que editó; si la web la cambió después, es conflicto.
@@ -171,7 +189,7 @@ export async function updateQuote(user: CurrentUser, id: string, input: QuoteInp
   if (lock.getTime() !== current.updatedAt.getTime()) throw new AppError("La cotización cambió mientras la editabas. Recarga.", "CONFLICT");
   const customer = await db.customer.findFirst({ where: { AND: [{ id: input.customerId }, customerScope(user)] } });
   if (!customer) throw new AppError("Cliente no encontrado.", "NOT_FOUND");
-  const { items, totals, exchangeRate } = await snapshots(user, input.items, input.currency);
+  const { items, totals, exchangeRate } = await snapshots(user, input.items, input.currency, opts.priceGrace);
 
   return db.$transaction(async (tx) => {
     const res = await tx.quote.updateMany({

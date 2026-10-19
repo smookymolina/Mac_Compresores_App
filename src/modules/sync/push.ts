@@ -8,17 +8,43 @@ import { changeQuoteStatus, createQuote, updateQuote } from "@/modules/quotes/se
 import { resolveComplements } from "@/modules/quotes/input";
 import { convertQuoteToSale } from "@/modules/sales/service";
 import { registerPayment } from "@/modules/payments/service";
+import { emailQuote } from "@/modules/quotes/email";
+import { audit } from "@/lib/audit";
+import { PriceConflictError, evaluatePriceGrace } from "./price-grace";
 import {
   MAX_PUSH_COMMANDS, commandEnvelope, syncCommandSchema,
-  type PushResult, type SyncCommand,
+  type PushResult, type SyncCommand, type SyncQuotePayload,
 } from "./protocol";
+
+/**
+ * Cómo tratar los precios que mostró el teléfono: `grace` = regla de §5.3 (respeta o CONFLICT);
+ * `server` = ignorarlos (precios vigentes); `client` = respetarlos todos (gerencia lo autorizó).
+ */
+export type PriceMode = "grace" | "server" | "client";
+
+/** Quita los campos del teléfono y calcula la excepción de precio (o lanza PriceConflictError). */
+async function quotePricing(user: CurrentUser, device: Device, c: { capturedAt: Date }, data: SyncQuotePayload, mode: PriceMode) {
+  const { clientExchangeRate: _fx, items, ...rest } = data;
+  const input = { ...rest, items: items.map(({ clientListPrice: _p, ...it }) => it) };
+  if (mode === "server") return { input };
+  const d = await evaluatePriceGrace(data, c.capturedAt, { force: mode === "client" });
+  if (!d) return { input };
+  if (d.kind === "conflict") throw new PriceConflictError(d.result);
+  const logGrace = async (quoteId: string) => {
+    if (!d.accepted.length && !d.exchangeRate) return;
+    await audit({ userId: user.id, action: "quote.price_grace", entity: "Quote", entityId: quoteId, data: {
+      mode, deviceId: device.id, capturedAt: c.capturedAt.toISOString(), items: d.accepted, ...(d.exchangeRate && { exchangeRate: d.exchangeRate }),
+    } });
+  };
+  return { input, priceGrace: d.grace, logGrace };
+}
 
 type Outcome = { status: "APPLIED" | "REJECTED" | "CONFLICT"; result?: Prisma.InputJsonObject; error?: string };
 
 const isUniqueViolation = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 
 /** Aplica un comando con el servicio existente (mismo permiso que la acción web). */
-async function apply(user: CurrentUser, device: Device, c: SyncCommand): Promise<Prisma.InputJsonObject> {
+export async function applyCommand(user: CurrentUser, device: Device, c: SyncCommand, priceMode: PriceMode = "grace"): Promise<Prisma.InputJsonObject> {
   const meta = { deviceId: device.id, capturedAt: c.capturedAt };
   switch (c.type) {
     case "customer.save": {
@@ -34,16 +60,20 @@ async function apply(user: CurrentUser, device: Device, c: SyncCommand): Promise
       assertCan(user, "quotes.write");
       const { id, folio, catalogSeq, ...data } = c.payload;
       const complements = await resolveComplements(user, data.complements, undefined, data.warrantyMonths);
-      const q = await createQuote(user, { ...data, complements }, {
-        id, folio, catalogSeq, origin: "MOBILE", deviceId: device.id, offlineCreatedAt: c.capturedAt,
+      const { input, priceGrace, logGrace } = await quotePricing(user, device, c, data, priceMode);
+      const q = await createQuote(user, { ...input, complements }, {
+        id, folio, catalogSeq, origin: "MOBILE", deviceId: device.id, offlineCreatedAt: c.capturedAt, priceGrace,
       });
+      await logGrace?.(q.id);
       return { id: q.id, folio: q.folio, total: q.total.toString(), updatedAt: q.updatedAt.toISOString() };
     }
     case "quote.update": {
       assertCan(user, "quotes.write");
       const { quoteId, baseUpdatedAt, ...data } = c.payload;
       const complements = await resolveComplements(user, data.complements, quoteId, data.warrantyMonths);
-      const q = await updateQuote(user, quoteId, { ...data, complements }, { ...meta, baseUpdatedAt });
+      const { input, priceGrace, logGrace } = await quotePricing(user, device, c, data, priceMode);
+      const q = await updateQuote(user, quoteId, { ...input, complements }, { ...meta, baseUpdatedAt, priceGrace });
+      await logGrace?.(q.id);
       return { id: q.id, folio: q.folio, updatedAt: q.updatedAt.toISOString() };
     }
     case "quote.status": {
@@ -61,6 +91,12 @@ async function apply(user: CurrentUser, device: Device, c: SyncCommand): Promise
       const { saleId, ...input } = c.payload;
       const p = await registerPayment(user, saleId, input, meta);
       return { id: p.id, saleId: p.saleId, amount: p.amount.toString() };
+    }
+    case "quote.email": {
+      assertCan(user, "quotes.write");
+      const { quoteId, ...input } = c.payload;
+      await emailQuote(user, quoteId, input);
+      return { id: quoteId, sentTo: input.to };
     }
   }
 }
@@ -116,11 +152,12 @@ export async function push(user: CurrentUser, device: Device, commands: unknown[
         o = { status: "REJECTED", error: `Datos inválidos${issue ? ` (${issue.path.join(".")}: ${issue.message})` : ""}.` };
       } else {
         try {
-          o = { status: "APPLIED", result: await apply(user, device, parsed.data) };
+          o = { status: "APPLIED", result: await applyCommand(user, device, parsed.data) };
         } catch (e) {
           // Una transición de estado imposible no es un conflicto que gerencia resuelva: se rechaza (§5.2).
           const conflict = e instanceof AppError && e.code === "CONFLICT" && parsed.data.type !== "quote.status";
-          if (e instanceof AppError) o = { status: conflict ? "CONFLICT" : "REJECTED", error: e.message };
+          if (e instanceof PriceConflictError) o = { status: "CONFLICT", error: e.message, result: e.result as unknown as Prisma.InputJsonObject };
+          else if (e instanceof AppError) o = { status: conflict ? "CONFLICT" : "REJECTED", error: e.message };
           else if (isUniqueViolation(e)) o = { status: "CONFLICT", error: "Ya existe un registro con esos datos únicos." };
           else throw e;
         }
