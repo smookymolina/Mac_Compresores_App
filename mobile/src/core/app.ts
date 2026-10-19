@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { OfflineError, UnauthorizedError, UpgradeError, createApiClient, type ApiClient, type SessionUser } from "./api";
+import { OfflineError, UnauthorizedError, UpgradeError, createApiClient, type ApiClient, type SessionUser, type SyncEntity } from "./api";
 import { API_URL, APP_VERSION, SYNC_INTERVAL_MS } from "./config";
 import { Session, canCapture, prefsKV, secureKV, unlockWithBiometry, type PinResult } from "./session";
 import { createDefaultStore, type LocalStore } from "./store";
@@ -26,6 +26,8 @@ export interface AppState {
   upgradeRequired: boolean;
   /** Último error de sincronización legible (null si la última salió bien). */
   error: string | null;
+  /** Progreso de la descarga inicial (null fuera del bootstrap). */
+  progress: { entity: SyncEntity; loaded: number } | null;
 }
 
 export interface NetworkAdapter {
@@ -44,7 +46,7 @@ export interface AppControllerOptions {
 
 const initial: AppState = {
   ready: false, status: "offline", pending: 0, lastSyncAt: null, user: null, registered: false,
-  needsPin: false, locked: true, canCapture: false, upgradeRequired: false, error: null,
+  needsPin: false, locked: true, canCapture: false, upgradeRequired: false, error: null, progress: null,
 };
 
 /** Estado global de la app (sin React). `useApp()` lo expone a la UI. */
@@ -57,7 +59,7 @@ export class AppController {
   private unsubNet: (() => void) | null = null;
 
   constructor(readonly o: AppControllerOptions) {
-    this.engine = new SyncEngine({ api: o.api, store: o.store, onUnauthorized: () => o.session.wipe() });
+    this.engine = new SyncEngine({ api: o.api, store: o.store, onUnauthorized: () => o.session.wipe(), onProgress: (p) => this.set({ progress: p }) });
   }
 
   get api() { return this.o.api; }
@@ -123,7 +125,7 @@ export class AppController {
       if (e instanceof UnauthorizedError) this.set({ locked: false });
       this.set({ error: e instanceof Error ? e.message : "Error de sincronización." });
     } finally {
-      this.set({ status: this.online ? "online" : "offline" });
+      this.set({ status: this.online ? "online" : "offline", progress: null });
       await this.refresh();
     }
   }
