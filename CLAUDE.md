@@ -4,7 +4,7 @@
 - Monolito modular: `src/modules/<dominio>/{service,actions,…}.ts`. Páginas en `src/app/(app)` solo componen UI.
   - `service.ts`: lógica de negocio + Prisma + autorización por objeto (scopes). Sin dependencias de React.
   - `actions.ts` ("use server"): Zod → `requirePermission` → servicio → `revalidatePath`. Envolver con `runAction`.
-- Dinero: `Prisma.Decimal` y helpers de `src/lib/money.ts`. Nunca `number` en cálculos; `Number()` solo para presentación.
+- Dinero: usa `src/domain/money.ts` (decimal.js, compatible con `Prisma.Decimal`). Nunca `number` en cálculos; `Number()` solo para presentación.
 - Precios de cotización se calculan en servidor desde el catálogo (`modules/quotes/pricing.ts`); partidas = instantánea.
 - Inventario: movimientos inmutables; correcciones con `REVERSAL`; salidas con UPDATE condicionado (`applyMovement`).
 - Operaciones críticas en `db.$transaction` con guardas de estado (`updateMany where status=…`) + auditoría (`audit()`).

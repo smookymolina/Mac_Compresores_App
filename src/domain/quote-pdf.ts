@@ -1,7 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
-import { dec, fmtMoney, fmtPct } from "@/lib/money";
-import { fmtDate } from "@/lib/utils";
-import { warrantyText, type QuoteComplement } from "@/modules/complements/match";
+import { dec, fmtMoney, fmtPct } from "./money";
+import { fmtDate } from "./format";
+import { warrantyText, type QuoteComplement } from "./complements";
 
 /**
  * Renderizador PURO del PDF de cotización (sin fs, BD ni env): recibe los datos ya presentados

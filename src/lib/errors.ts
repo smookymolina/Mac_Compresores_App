@@ -1,14 +1,7 @@
 import { ZodError } from "zod";
+import { AppError } from "@/domain/errors";
 
-/** Error de dominio con mensaje seguro para mostrar al usuario. */
-export class AppError extends Error {
-  constructor(
-    message: string,
-    public code: "FORBIDDEN" | "NOT_FOUND" | "CONFLICT" | "VALIDATION" | "UNAUTHENTICATED" = "VALIDATION",
-  ) {
-    super(message);
-  }
-}
+export { AppError };
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T; message?: string }
