@@ -33,6 +33,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "quote.status": "Cambio de estado de cotización",
   "quote.email": "Cotización enviada por correo",
   "quote.whatsapp": "Cotización enviada por WhatsApp",
+  "quote.discount_approve": "Descuento de cotización autorizado",
+  "quote.discount_reject": "Descuento de cotización rechazado",
   "sale.confirm": "Venta confirmada",
   "sale.cancel": "Venta cancelada",
   "sale.expenses": "Gastos de venta actualizados",

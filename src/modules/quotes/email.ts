@@ -9,7 +9,7 @@ import { warrantyText } from "@/modules/complements/match";
 import { fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 import { can, type CurrentUser } from "@/lib/auth/session";
-import { changeQuoteStatus, getQuote } from "./service";
+import { assertDiscountCleared, changeQuoteStatus, getQuote } from "./service";
 import { renderQuotePdf } from "./pdf";
 
 export const SENDABLE = new Set(["DRAFT", "SENT", "ACCEPTED"]);
@@ -55,6 +55,7 @@ export async function emailQuote(user: CurrentUser, id: string, input: { to: str
   if (!isMailConfigured()) throw new AppError("El envío de correos no está configurado. Contacta al administrador.");
   const q = await getQuote(user, id); // control de acceso por objeto
   if (!SENDABLE.has(q.status)) throw new AppError("Solo se pueden enviar cotizaciones en borrador, enviadas o aceptadas.", "CONFLICT");
+  assertDiscountCleared(q);
 
   const pdf = Buffer.from(await renderQuotePdf(q));
   const subject = `Cotización C-${q.folio} · MAC Compresores`;
@@ -82,6 +83,7 @@ export async function emailQuote(user: CurrentUser, id: string, input: { to: str
 export async function shareQuoteLink(user: CurrentUser, id: string) {
   const q = await getQuote(user, id);
   if (!SENDABLE.has(q.status)) throw new AppError("Solo se pueden enviar cotizaciones en borrador, enviadas o aceptadas.", "CONFLICT");
+  assertDiscountCleared(q);
   return createShareLink(`/api/compartir/cotizacion/${q.id}`, { t: "quote", id: q.id, u: user.id }, QUOTE_SHARE_TTL_MS);
 }
 
@@ -92,6 +94,7 @@ export async function shareQuoteLink(user: CurrentUser, id: string) {
 export async function logQuoteWhatsApp(user: CurrentUser, id: string, input: { phone: string | null; channel: "link" | "file" }) {
   const q = await getQuote(user, id);
   if (!SENDABLE.has(q.status)) throw new AppError("Solo se pueden enviar cotizaciones en borrador, enviadas o aceptadas.", "CONFLICT");
+  assertDiscountCleared(q);
   await audit({ userId: user.id, action: "quote.whatsapp", entity: "Quote", entityId: id, data: { phone: input.phone, channel: input.channel } });
   if (q.status === "DRAFT") await changeQuoteStatus(user, id, "SENT");
 }

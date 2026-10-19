@@ -13,7 +13,7 @@ import { db } from "@/lib/db";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, pctToFraction, uuid } from "@/lib/validation";
 import { convertQuoteToSale } from "@/modules/sales/service";
-import { changeQuoteStatus, createQuote, deleteQuote, updateQuote } from "./service";
+import { changeQuoteStatus, createQuote, decideDiscount, deleteQuote, updateQuote } from "./service";
 
 const itemSchema = z.object({
   productId: uuid,
@@ -29,6 +29,8 @@ const quoteSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
   deliveryTime: z.string().trim().max(200).optional(),
   currency: z.enum(["MXN", "USD"]).default("USD"),
+  sellerId: z.union([z.literal("").transform(() => undefined), uuid]).optional(),
+  discountNote: z.string().trim().max(500).optional(),
   warrantyMonths: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(60)]).optional(),
   complements: z
     .string()
@@ -69,6 +71,8 @@ export async function saveQuoteAction(id: string | undefined, _: ActionResult<un
       notes: fd.get("notes") ?? undefined,
       deliveryTime: fd.get("deliveryTime") ?? undefined,
       currency: fd.get("currency") ?? undefined,
+      sellerId: fd.get("sellerId") ?? undefined,
+      discountNote: fd.get("discountNote") ?? undefined,
       warrantyMonths: fd.get("warrantyMonths") ?? undefined,
       complements: fd.get("complements") ?? "[]",
       items: fd.get("items"),
@@ -172,6 +176,20 @@ export async function deleteQuoteAction(id: string, _: ActionResult<unknown> | n
   if (res.ok) {
     revalidatePath("/cotizaciones");
     redirect("/cotizaciones");
+  }
+  return res;
+}
+
+/** Un administrador autoriza o rechaza el descuento pedido por otro rol. */
+export async function decideDiscountAction(id: string, approve: boolean, _: ActionResult<unknown> | null, fd: FormData) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("quotes.approve_discount");
+    const comment = z.string().trim().max(500).optional().parse(fd.get("comment") ?? undefined);
+    await decideDiscount(user, uuid.parse(id), approve, comment);
+  }, approve ? "Descuento autorizado." : "Descuento rechazado.");
+  if (res.ok) {
+    revalidatePath(`/cotizaciones/${id}`);
+    revalidatePath("/cotizaciones");
   }
   return res;
 }

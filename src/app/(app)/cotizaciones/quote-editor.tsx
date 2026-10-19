@@ -140,15 +140,21 @@ function Complements({ options, selected, setSelected, canCustomize }: {
 }
 
 export function QuoteEditor({
-  action, customers, initial, canOverride, complementOptions, canCustomize = false,
+  action, customers, initial, canOverride, complementOptions, canCustomize = false, sellers, defaultSellerId, canApproveDiscount = false,
 }: {
   action: (prev: ActionResult<unknown> | null, fd: FormData) => Promise<ActionResult<unknown>>;
   customers: { id: string; legalName: string }[];
   initial?: {
     customerId: string; validUntil: string; notes: string; deliveryTime?: string; currency?: string;
     warrantyMonths?: number | null; complements: QuoteComplement[] | null; items: EditorItem[];
+    sellerId?: string; discountNote?: string;
   };
   canOverride: boolean;
+  /** Solo para administradores: permite asignar la cotización a otro vendedor. */
+  sellers?: { id: string; name: string }[];
+  defaultSellerId?: string;
+  /** Administrador: su descuento no necesita autorización. */
+  canApproveDiscount?: boolean;
   complementOptions: ComplementOption[];
   canCustomize?: boolean;
 }) {
@@ -200,6 +206,7 @@ export function QuoteEditor({
   const upd = (i: number, patch: Partial<EditorItem>) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const t = preview(items);
   const [globalDisc, setGlobalDisc] = useState("");
+  const hasDiscount = items.some((x) => Number(x.discountPct) > 0);
   const usd = (it: EditorItem) => (it.priceUsd ? ` (USD ${it.priceUsd})` : "");
   const detailsField = (it: EditorItem, i: number) => (
     <label className="block text-xs text-ink-soft">Actividades / alcance del trabajo (opcional)
@@ -219,6 +226,15 @@ export function QuoteEditor({
       <input type="hidden" name="items" value={JSON.stringify(items.map(({ productId, quantity, discountPct, unitPrice, details }) => ({ productId, quantity, discountPct, unitPrice, details })))} />
       <input type="hidden" name="complements" value={JSON.stringify(complements)} />
       <div className="grid gap-3 sm:grid-cols-5">
+        {sellers && (
+          <div className="sm:col-span-2">
+            <label className="label" htmlFor="sellerId">Vendedor asignado</label>
+            <select id="sellerId" name="sellerId" className="input" defaultValue={initial?.sellerId ?? defaultSellerId} aria-describedby="seller-hint">
+              {sellers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+            <p id="seller-hint" className="mt-1 text-xs text-ink-soft">La cotización aparece en la cartera y comisiones de este vendedor.</p>
+          </div>
+        )}
         <div className="sm:col-span-2">
           <label className="label" htmlFor="customerId">Cliente</label>
           <select id="customerId" name="customerId" className="input" defaultValue={initial?.customerId} required>
@@ -274,14 +290,24 @@ export function QuoteEditor({
         )}
       </div>
 
-      {items.length > 1 && (
+      <section aria-labelledby="discount-title" className="space-y-2 rounded-md border border-line p-3">
+        <h2 id="discount-title" className="label mb-0">Descuento (opcional)</h2>
         <div className="flex flex-wrap items-end gap-2">
-          <label className="text-xs text-ink-soft">Descuento general %
-            <input className="input num mt-1 w-28" inputMode="decimal" value={globalDisc} max={canOverride ? 99 : MAX_DISCOUNT} onChange={(e) => setGlobalDisc(e.target.value)} />
+          <label className="text-xs text-ink-soft">Descuento %
+            <input className="input num mt-1 w-28" inputMode="decimal" value={globalDisc} max={canOverride ? 99 : MAX_DISCOUNT} placeholder="0" onChange={(e) => setGlobalDisc(e.target.value)} />
           </label>
-          <button type="button" className="btn btn-secondary" disabled={globalDisc === ""} onClick={() => setItems((xs) => xs.map((x) => ({ ...x, discountPct: globalDisc })))}>Aplicar a todas las partidas</button>
+          <button type="button" className="btn btn-secondary" disabled={globalDisc === "" || items.length === 0} onClick={() => setItems((xs) => xs.map((x) => ({ ...x, discountPct: globalDisc })))}>Aplicar a todas las partidas</button>
         </div>
-      )}
+        <p className="text-xs text-ink-soft">También puedes poner un descuento distinto en cada partida.</p>
+        {!canApproveDiscount && hasDiscount && (
+          <div className="space-y-2">
+            <p role="status" className="rounded border border-warn bg-warn-soft p-2 text-sm">Este descuento necesita la autorización de un administrador. Al guardar se les avisa, y podrás enviar la cotización cuando uno lo autorice.</p>
+            <label className="block text-xs text-ink-soft">Motivo del descuento (lo ve el administrador)
+              <textarea name="discountNote" className="input mt-1" rows={2} maxLength={500} defaultValue={initial?.discountNote} placeholder="Ej. Cliente frecuente, compra por volumen…" />
+            </label>
+          </div>
+        )}
+      </section>
 
       {/* Móvil: partidas como tarjetas (la tabla de abajo es solo para md+) */}
       <ul className="divide-y divide-line rounded-md border border-line md:hidden">

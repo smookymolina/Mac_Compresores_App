@@ -6,7 +6,7 @@ import { AppError } from "@/lib/errors";
 import { uuid } from "@/lib/validation";
 import { getQuote } from "@/modules/quotes/service";
 import { QUOTE_STATUS_LABEL, QUOTE_TRANSITIONS } from "@/modules/quotes/status";
-import { changeQuoteStatusAction, convertToSaleAction, deleteQuoteAction, emailQuoteAction, logQuoteWhatsAppAction, shareQuoteLinkAction } from "@/modules/quotes/actions";
+import { changeQuoteStatusAction, convertToSaleAction, decideDiscountAction, deleteQuoteAction, emailQuoteAction, logQuoteWhatsAppAction, shareQuoteLinkAction } from "@/modules/quotes/actions";
 import { SENDABLE, suggestedPhone, suggestedRecipient } from "@/modules/quotes/email";
 import { companyReplyTo, isMailConfigured } from "@/lib/mail";
 import { shareUnavailableReason } from "@/lib/share";
@@ -32,8 +32,13 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const transitions = QUOTE_TRANSITIONS[q.status];
   const warehouses = q.status === "ACCEPTED" && can(user, "sales.create") ? await db.warehouse.findMany({ where: { active: true } }) : [];
 
-  const canSend = writable && SENDABLE.has(q.status);
-  const aside = (writable && transitions.length > 0) || warehouses.length > 0;
+  const approver = can(user, "quotes.approve_discount");
+  const discountBlocked = q.discountStatus === "PENDING" || q.discountStatus === "REJECTED";
+  const canSend = writable && SENDABLE.has(q.status) && !discountBlocked;
+  const showPdf = !discountBlocked || approver;
+  const decideDiscount = approver && q.discountStatus === "PENDING" && q.status === "DRAFT";
+  const aside = (writable && transitions.length > 0) || warehouses.length > 0 || decideDiscount;
+  const DISCOUNT_LABEL = { PENDING: "Pendiente de autorización", APPROVED: "Autorizado", REJECTED: "Rechazado" } as const;
   const total = `${fmtMoney(q.total)} ${q.currency}`;
   const suggestions: SendSuggestion[] = [
     { label: "Cliente", email: q.customer.email, phone: q.customer.phone },
@@ -50,15 +55,21 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
           ...(q.sale ? [{ label: "Venta", value: <Link className="text-accent-fg hover:underline" href={`/ventas/${q.sale.id}`}>Venta V-{q.sale.folio}</Link> }] : []),
           { label: "Cliente", value: q.customer.legalName },
           { label: "Vendedor", value: q.seller.name },
+          ...(q.discountStatus !== "NONE" ? [{ label: "Descuento", value: (
+            <span className={q.discountStatus === "APPROVED" ? "text-ok" : q.discountStatus === "REJECTED" ? "text-danger" : "text-warn"}>
+              {DISCOUNT_LABEL[q.discountStatus]}{q.discountDecidedBy && q.discountStatus !== "PENDING" ? ` por ${q.discountDecidedBy.name}` : ""}
+            </span>) }] : []),
           { label: "Vigente hasta", value: fmtDate(q.validUntil) },
           ...(q.deliveryTime ? [{ label: "Tiempo de entrega", value: q.deliveryTime }] : []),
           ...(q.warrantyMonths != null ? [{ label: "Garantía", value: warrantyText(q.warrantyMonths) }] : []),
         ]}
         actions={
           <>
-            <a className={btnClass("secondary")} href={`/api/cotizaciones/${q.id}/pdf`} target="_blank" rel="noopener" aria-label="Descargar PDF">
-              <Download size={16} strokeWidth={1.75} aria-hidden /> PDF
-            </a>
+            {showPdf && (
+              <a className={btnClass("secondary")} href={`/api/cotizaciones/${q.id}/pdf`} target="_blank" rel="noopener" aria-label="Descargar PDF">
+                <Download size={16} strokeWidth={1.75} aria-hidden /> PDF
+              </a>
+            )}
             {writable && q.status === "DRAFT" && <LinkButton variant="secondary" href={`/cotizaciones/${q.id}/editar`}>Editar</LinkButton>}
             {canSend && (
               <SendDialog
@@ -89,6 +100,15 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
           </>
         }
       />
+
+      {discountBlocked && q.status === "DRAFT" && (
+        <p role="status" className={`mb-4 rounded-md border p-3 text-sm ${q.discountStatus === "REJECTED" ? "border-danger bg-danger-soft" : "border-warn bg-warn-soft"}`}>
+          {q.discountStatus === "PENDING"
+            ? `El descuento de ${fmtMoney(q.discountTotal)} espera la autorización de un administrador. La cotización se podrá enviar cuando uno lo autorice.`
+            : `${q.discountDecidedBy?.name ?? "Un administrador"} rechazó el descuento. Edita la cotización para cambiarlo o quitarlo; al guardar se vuelve a pedir autorización.`}
+          {q.discountNote && <span className="mt-1 block text-ink-soft">Motivo: {q.discountNote}</span>}
+        </p>
+      )}
 
       <div className={aside ? "grid grid-cols-1 gap-4 lg:grid-cols-3" : undefined}>
         <Card className={aside ? "overflow-hidden lg:col-span-2" : "overflow-hidden"}>
@@ -158,6 +178,24 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         </Card>
 
         <div className="space-y-4">
+          {decideDiscount && (
+            <Card className="p-4">
+              <h3 className="mb-1 text-sm font-semibold">Autorizar descuento</h3>
+              <p className="mb-3 text-xs text-ink-soft">{q.seller.name} pide {fmtMoney(q.discountTotal)} de descuento. Basta con que un administrador decida; a los demás les llega el aviso.</p>
+              <ActionForm action={decideDiscountAction.bind(null, q.id, true)} submitLabel="Autorizar descuento">
+                <label className="block text-xs text-ink-soft">Comentario (opcional)
+                  <input name="comment" className="input mt-1" maxLength={500} />
+                </label>
+              </ActionForm>
+              <div className="mt-3">
+                <ActionForm action={decideDiscountAction.bind(null, q.id, false)} submitLabel="Rechazar descuento" variant="danger">
+                  <label className="block text-xs text-ink-soft">Motivo del rechazo (opcional)
+                    <input name="comment" className="input mt-1" maxLength={500} />
+                  </label>
+                </ActionForm>
+              </div>
+            </Card>
+          )}
           {writable && transitions.length > 0 && (
             <Card className="p-4">
               <ActionForm action={changeQuoteStatusAction.bind(null, q.id)} submitLabel="Cambiar estado" variant="secondary">

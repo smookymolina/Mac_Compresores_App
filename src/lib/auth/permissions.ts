@@ -10,6 +10,8 @@ export const PERMISSIONS = [
   "quotes.write",
   "quotes.delete",
   "quotes.override_price",
+  "quotes.assign_seller", // asignar la cotización a otro vendedor: solo ADMIN
+  "quotes.approve_discount", // autorizar descuentos de otros roles: solo ADMIN
   "inventory.read",
   "inventory.write",
   "sales.read_all",
