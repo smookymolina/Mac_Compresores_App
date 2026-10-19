@@ -92,8 +92,8 @@ Apple no permite instalar archivos sueltos. Requisitos:
 2. En `.env` de producción: `APP_DOWNLOAD_SECRET=$(openssl rand -hex 32)`. Sin él, `docker-compose.prod.yml` no arranca.
 3. Si hay nginx delante, permite subir el APK (hasta 150 MB) solo en esa ruta:
    ```nginx
-   location = /api/app/releases {
-       client_max_body_size 160m;
+   location ^~ /api/app/releases {
+       client_max_body_size 210m;   # APK ≤150 MB, IPA ≤200 MB
        proxy_request_buffering off;
        proxy_pass http://127.0.0.1:3000;   # el mismo upstream que "location /"
        proxy_set_header Host $host;
