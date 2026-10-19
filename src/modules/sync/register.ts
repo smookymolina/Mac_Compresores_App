@@ -30,7 +30,8 @@ export async function currentServerSeq(): Promise<bigint> {
 export async function registerDevice(raw: unknown, ip: string) {
   const input = registerSchema.parse(raw);
   const email = input.email.toLowerCase();
-  const rlKey = `sync-register:${ip}:${email}`;
+  // Por correo (como el login web): con ip+correo bastaba rotar IP o X-Forwarded-For para evadir el límite.
+  const rlKey = `sync-register:${email}`;
   if (await isLimited(rlKey, REGISTER_MAX)) throw new AppError("Demasiados intentos. Espera 15 minutos.", "FORBIDDEN");
 
   const found = await verifyCredentials(email, input.password);

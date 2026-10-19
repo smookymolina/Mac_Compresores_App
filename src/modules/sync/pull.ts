@@ -65,8 +65,10 @@ const loaders: Record<SyncEntity, (user: CurrentUser, s: Sel) => Promise<Row[]>>
       where: { AND: [idWhere(s), saleScope(user)] }, ...page(s),
       include: { items: { orderBy: { id: "asc" } }, payments: { orderBy: { paidAt: "asc" } }, customer: { select: { legalName: true } }, quote: { select: { folio: true } } },
     });
-    return rows.map(({ customer, quote, items, ...r }) => ({
-      id: r.id, data: { ...r, customerName: customer.legalName, quoteFolio: quote.folio, items: stripCost(user, items) },
+    // Gastos de la venta: solo quien los administra en la web (commissions.manage).
+    const expenses = can(user, "commissions.manage");
+    return rows.map(({ customer, quote, items, expenses: exp, ...r }) => ({
+      id: r.id, data: { ...r, ...(expenses && { expenses: exp }), customerName: customer.legalName, quoteFolio: quote.folio, items: stripCost(user, items) },
     }));
   },
 

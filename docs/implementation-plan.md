@@ -38,4 +38,6 @@
 ## v1.4.0 — App móvil sin conexión (en desarrollo, NO desplegar hasta pruebas)
 Propuesta: `docs/propuesta-offline-sync.md` (5 usuarios, Android + iOS).
 - [x] Fase 0: núcleo de dominio puro `src/domain/` (dinero con decimal.js, precios, estados, moneda, complementos, formatos, PDF de cotización sin `fs`/BD). Rutas anteriores re-exportan; pruebas de pureza (`domain-purity`) y paridad Prisma.Decimal ↔ decimal.js (`domain-parity`).
-- [ ] Fase 1: infraestructura de sincronización (`src/modules/sync`, `/api/sync/*`, dispositivos, idempotencia).
+- [x] Fase 1: infraestructura de sincronización — migración `offline_sync` (Device, SyncChange con triggers, SyncCommand, ReservedFolio, `User.mobileAccess`, `Quote.origin`); API `/api/sync/{register,logout,bootstrap,pull,push,folios}` y `/api/app/version`; push idempotente sobre los services; página Sincronización y casilla «App móvil». Pruebas locales: `docs/v1.4.0-pruebas-locales.md`.
+  - Pendiente: poda de `SyncChange` (requiere respuesta «cursor viejo → re-bootstrap» en el teléfono); fusión por campo en `customer.save` (fase 4); comando y su registro en transacciones separadas (reenvío tras caída a la mitad puede responder REJECTED en `quote.status`/`sale.convert`).
+- [ ] Fase 2: app móvil base (Capacitor), login + PIN, bootstrap y consulta sin conexión.
