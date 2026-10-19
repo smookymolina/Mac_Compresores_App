@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MemoryStore } from "../src/core/store";
 import { QuoteService, type LocalQuote } from "../src/core/quotes";
 import { uuid } from "./helpers";
+import { C1 as FC1, P1 as FP1, Q1, S1, W1, confirmedSale, fieldSetup } from "./field-setup";
 
 /**
  * Contrato teléfono → servidor: genera los comandos tal como los arma `QuoteService` y los compara con
@@ -45,5 +46,26 @@ describe("contrato de comandos móviles", () => {
     const cmds = (await store.outbox()).map((e) => e.cmd);
     expect(cmds.map((c) => c.type)).toEqual(["quote.create", "quote.update", "quote.status", "quote.email"]);
     await expect(JSON.stringify(cmds, null, 2) + "\n").toMatchFileSnapshot("../../tests/fixtures/mobile-commands.json");
+  });
+
+  it("customer.* / sale.convert / payment.register / inventory.movement (fixture mobile-commands-field.json)", async () => {
+    const { store, customers, sales, inventory } = await fieldSetup();
+    await store.put("Sale", [confirmedSale()]);
+    const c = await customers.createCustomer({ legalName: "Nuevo SA", rfc: "AAA010101AAA", email: "n@x.mx", paymentTermsDays: 15, creditLimit: "1000", contact: { name: "Ana", phone: "811" }, address: { street: "Av. Uno 123", city: "MTY" } });
+    await customers.updateCustomer(FC1, { phone: "8112345678", notes: "VIP" });
+    const withC = await customers.addContact(FC1, { name: "Luis", position: "Compras", email: "l@x.mx" });
+    await customers.removeContact(FC1, withC.contacts[0]!.id);
+    const withA = await customers.addAddress(FC1, { label: "Planta", street: "Calle 2 #45", city: "Apodaca", state: "NL", zip: "66600" });
+    await customers.removeAddress(FC1, withA.addresses[0]!.id);
+    await sales.convertQuote(Q1, W1);
+    await sales.registerPayment(S1, { amount: "100.5", method: "TRANSFER", paidAt: "2026-10-19", reference: "SPEI-1" });
+    await inventory.registerMovement({ productId: FP1, warehouseId: W1, type: "OUT", quantity: "2", reason: "Merma" });
+    const cmds = (await store.outbox()).map((e) => e.cmd);
+    expect(c.id).toBe(cmds[0]!.payload.id);
+    expect(cmds.map((x) => x.type)).toEqual([
+      "customer.save", "customer.save", "customer.contact.add", "customer.contact.remove", "customer.address.add", "customer.address.remove",
+      "sale.convert", "payment.register", "inventory.movement",
+    ]);
+    await expect(JSON.stringify(cmds, null, 2) + "\n").toMatchFileSnapshot("../../tests/fixtures/mobile-commands-field.json");
   });
 });

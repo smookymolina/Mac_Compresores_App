@@ -3,8 +3,12 @@ import { OfflineError, UnauthorizedError, UpgradeError, createApiClient, type Ap
 import { API_URL, APP_VERSION, SYNC_INTERVAL_MS } from "./config";
 import { Session, prefsKV, secureKV, unlockWithBiometry, type PinResult } from "./session";
 import { createDefaultStore, type LocalStore } from "./store";
-import { SyncEngine } from "./sync";
+import { SyncEngine, listSyncIssues, type SyncIssue } from "./sync";
 import { QuoteService, type LocalQuote } from "./quotes";
+import { CustomerService } from "./customers";
+import { SalesService } from "./sales";
+import { InventoryService } from "./inventory";
+import { hasPermission, type LocalServiceOptions } from "./local";
 import type { AssetLoader } from "./pdf";
 
 export type NetStatus = "online" | "offline" | "syncing";
@@ -18,6 +22,10 @@ export interface AppState {
   pendingCount: number;
   /** Cotizaciones con conflicto o rechazo (`_sync.state`), más recientes primero. */
   conflicts: LocalQuote[];
+  /** Conflictos/rechazos de todas las capturas (cotizaciones, clientes, ventas, pagos, movimientos). */
+  issues: SyncIssue[];
+  /** Permisos del usuario de la sesión (ver `can()`). */
+  permissions: string[];
   lastSyncAt: string | null;
   user: SessionUser | null;
   /** Hay token de dispositivo. Si es false → pantalla de alta (correo/contraseña). */
@@ -53,7 +61,7 @@ export interface AppControllerOptions {
 }
 
 const initial: AppState = {
-  ready: false, status: "offline", pending: 0, pendingCount: 0, conflicts: [], lastSyncAt: null, user: null, registered: false,
+  ready: false, status: "offline", pending: 0, pendingCount: 0, conflicts: [], issues: [], permissions: [], lastSyncAt: null, user: null, registered: false,
   needsPin: false, locked: true, canCapture: false, upgradeRequired: false, error: null, progress: null,
 };
 
@@ -62,6 +70,12 @@ export class AppController {
   readonly engine: SyncEngine;
   /** Cotizaciones locales: `createQuote`, `updateQuote`, `changeStatus`, `emailQuote`, `listQuotes`, `getQuote`, `buildQuote`. */
   readonly quotes: QuoteService;
+  /** Clientes: `createCustomer`, `updateCustomer`, `addContact`/`removeContact`, `addAddress`/`removeAddress`, `listCustomers`, `getCustomer`. */
+  readonly customers: CustomerService;
+  /** Ventas: `convertQuote`, `registerPayment`, `balance`, `previewStock`, `listSales`, `getSale`. */
+  readonly sales: SalesService;
+  /** Inventario: `registerMovement`, `listBalances`, `listMovements`. */
+  readonly inventory: InventoryService;
   private state: AppState = initial;
   private listeners = new Set<() => void>();
   private online = false;
@@ -70,11 +84,18 @@ export class AppController {
 
   constructor(readonly o: AppControllerOptions) {
     this.engine = new SyncEngine({ api: o.api, store: o.store, onUnauthorized: () => o.session.wipe(), onProgress: (p) => this.set({ progress: p }) });
-    this.quotes = new QuoteService({
+    const svc: LocalServiceOptions = {
       store: o.store, now: o.now, onChange: () => this.refresh(),
       beforeWrite: async () => { await this.engine.idle(); },
-    });
+    };
+    this.quotes = new QuoteService(svc);
+    this.customers = new CustomerService(svc);
+    this.sales = new SalesService(svc);
+    this.inventory = new InventoryService(svc);
   }
+
+  /** ¿El usuario de la sesión tiene el permiso? (p. ej. `customers.write`, `sales.create`, `payments.write`, `inventory.write`). */
+  can = (permission: string) => hasPermission(this.state.user, permission);
 
   /** PDF (bytes) de una cotización local. */
   quotePdf = async (quoteId: string) => (await import("./pdf")).quotePdf(this.o.store, quoteId, { loadAsset: this.o.loadAsset });
@@ -95,12 +116,12 @@ export class AppController {
   /** Recalcula usuario, pendientes, lastSyncAt y banderas desde el almacenamiento. */
   async refresh() {
     const { store, session } = this.o;
-    const [registered, hasPin, user, pending, lastSyncAt, capture, conflicts] = await Promise.all([
+    const [registered, hasPin, user, pending, lastSyncAt, capture, conflicts, issues] = await Promise.all([
       session.isRegistered(), session.hasPin(), session.user(), store.pendingCount(), store.getMeta("lastSyncAt"),
-      this.quotes.canCapture(), this.quotes.listIssues(),
+      this.quotes.canCapture(), this.quotes.listIssues(), listSyncIssues(store),
     ]);
     this.set({
-      registered, user, pending, pendingCount: pending, conflicts, lastSyncAt, needsPin: registered && !hasPin,
+      registered, user, pending, pendingCount: pending, conflicts, issues, permissions: user?.permissions ?? [], lastSyncAt, needsPin: registered && !hasPin,
       locked: registered ? this.state.locked || !hasPin : false,
       canCapture: capture,
     });

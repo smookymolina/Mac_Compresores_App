@@ -1,5 +1,10 @@
-import { ResyncError, SYNC_ENTITIES, UnauthorizedError, UpgradeError, type ApiClient, type CommandState, type EntityRow, type PulledChange, type PushResult, type SyncEntity } from "./api";
-import type { LocalQuote, QuoteSync } from "./quotes";
+import { dec } from "@domain/money";
+import { ResyncError, SYNC_ENTITIES, UnauthorizedError, UpgradeError, type ApiClient, type CommandState, type EntityRow, type PulledChange, type PushResult, type SaleConvertResult, type SyncCommand, type SyncEntity } from "./api";
+import type { LocalCustomer } from "./customers";
+import { balanceId, getMovements, recomputeBalance, saveMovements, withPending, type LocalMovement } from "./inventory";
+import type { EntitySync } from "./local";
+import { quoteFolioLabel, type LocalQuote, type QuoteSync } from "./quotes";
+import { isPendingSale, pendingSaleId, saleFolioLabel, type LocalPayment, type LocalSale } from "./sales";
 import type { LocalStore, OutboxEntry } from "./store";
 
 /** Mínimo de folios apartados sin usar; por debajo se piden `FOLIO_BLOCK` más. */
@@ -101,27 +106,55 @@ export class SyncEngine {
     return sum;
   }
 
+  /** Aplica el resultado de un comando a su entidad local (`_sync`, reversa optimista, venta confirmada…). */
   private async applyResult(entry: OutboxEntry, r: PushResult | CommandState) {
-    const p = entry.cmd.payload as { id?: string; quoteId?: string };
-    if (!entry.cmd.type.startsWith("quote.")) return;
-    const qid = entry.cmd.type === "quote.create" ? p.id : p.quoteId;
-    if (!qid) return;
-    const q = await this.o.store.get<LocalQuote>("Quote", qid);
-    if (!q) return;
-    const prev: QuoteSync = q._sync ?? { state: "applied", commandId: null, onServer: true };
-    let next: QuoteSync;
-    if (r.status === "APPLIED") {
-      // Solo el último comando de la cotización la deja «aplicada».
-      const onServer = prev.onServer || entry.cmd.type === "quote.create";
-      next = prev.commandId === entry.cmd.id
-        ? { ...prev, state: "applied", onServer, error: undefined, conflict: undefined }
-        : { ...prev, onServer };
-    } else if (r.status === "REJECTED") {
-      next = { ...prev, state: "rejected", commandId: entry.cmd.id, commandType: entry.cmd.type, error: r.error ?? "Rechazado por el servidor.", conflict: undefined };
-    } else {
-      next = { ...prev, state: "conflict", commandId: entry.cmd.id, commandType: entry.cmd.type, conflict: r.result ?? null, ...(r.error && { error: r.error }) };
+    const { store } = this.o;
+    const cmd = entry.cmd;
+    const p = cmd.payload as Record<string, string | undefined>;
+    const ok = r.status === "APPLIED";
+    switch (cmd.type) {
+      case "quote.create": case "quote.update": case "quote.status": case "quote.email": {
+        const q = await store.get<LocalQuote>("Quote", (cmd.type === "quote.create" ? p.id : p.quoteId) ?? "");
+        if (q) await store.put("Quote", [{ ...q, _sync: nextSync(q._sync, cmd, r) }]);
+        return;
+      }
+      case "customer.save": case "customer.contact.add": case "customer.contact.remove": case "customer.address.add": case "customer.address.remove": {
+        const c = await store.get<LocalCustomer>("Customer", (cmd.type === "customer.save" ? p.id : p.customerId) ?? "");
+        if (!c) return;
+        const row: LocalCustomer = { ...c, _sync: nextSync(c._sync, cmd, r) };
+        // Alta de contacto/dirección: aplicada → sin marca; rechazada/conflicto → se retira de la vista local.
+        const fix = <T extends { id: string; _sync?: EntitySync }>(list: T[] = []) =>
+          ok ? list.map(({ _sync: _s, ...x }) => (x.id === p.id ? x : { ...x, ...(_s && { _sync: _s }) }) as T) : list.filter((x) => x.id !== p.id);
+        if (cmd.type === "customer.contact.add") row.contacts = fix(c.contacts);
+        if (cmd.type === "customer.address.add") row.addresses = fix(c.addresses);
+        await store.put("Customer", [row]);
+        return;
+      }
+      case "sale.convert": {
+        const sale = await store.get<LocalSale>("Sale", pendingSaleId(p.quoteId ?? ""));
+        if (!sale) return;
+        const res = ok ? (r.result as SaleConvertResult | undefined) : undefined;
+        await store.put("Sale", [{ ...sale, _sync: nextSync(sale._sync, cmd, r), ...(res?.saleId && { serverSaleId: res.saleId, folio: res.folio ?? sale.folio }) }]);
+        return;
+      }
+      case "payment.register": {
+        const sale = await store.get<LocalSale>("Sale", p.saleId ?? "");
+        if (!sale) return;
+        const payments = (sale.payments ?? []).map((x) => (x.id === p.id && x._sync ? { ...x, _sync: nextSync(x._sync, cmd, r) } : x));
+        await store.put("Sale", [{ ...sale, payments }]);
+        return;
+      }
+      case "inventory.movement": {
+        const list = await getMovements(store);
+        const m = list.find((x) => x.id === p.id);
+        if (!m) return;
+        m._sync = nextSync(m._sync, cmd, r);
+        await saveMovements(store, list);
+        // Aplicado: ya es parte de la existencia del servidor; rechazado/conflicto: se revierte (deja de sumarse).
+        await recomputeBalance(store, m.productId, m.warehouseId, ok ? dec(m.delta) : undefined);
+        return;
+      }
     }
-    await this.o.store.put("Quote", [{ ...q, _sync: next }]);
   }
 
   /** Pasos de mejor esfuerzo tras el pull: no hacen fallar la sincronización (salvo 401/409 upgrade). */
@@ -137,22 +170,43 @@ export class SyncEngine {
   async pollConflicts() {
     const { api, store } = this.o;
     if (!api.commands) return;
-    const rows = (await store.list<"Quote", LocalQuote>("Quote")).filter((q) => q._sync?.state === "conflict" && q._sync.commandId);
-    if (!rows.length) return;
-    const states = await api.commands(rows.map((q) => q._sync!.commandId!));
-    const byCmd = new Map(states.map((s) => [s.id, s]));
-    for (const q of rows) {
-      const s = byCmd.get(q._sync!.commandId!);
-      if (!s) continue;
-      const fresh = await store.get<LocalQuote>("Quote", q.id);
-      if (!fresh?._sync) continue;
-      const sync: QuoteSync = s.status === "APPLIED"
-        ? { ...fresh._sync, state: "applied", onServer: true, error: undefined, conflict: undefined }
-        : s.status === "REJECTED"
-          ? { ...fresh._sync, state: "rejected", error: s.error ?? "Rechazado por gerencia.", conflict: undefined }
-          : { ...fresh._sync, conflict: s.result ?? fresh._sync.conflict };
-      await store.put("Quote", [{ ...fresh, _sync: sync }]);
+    const handlers = new Map<string, (s: CommandState) => Promise<void>>();
+    const isConflict = (x?: EntitySync) => x?.state === "conflict" && !!x.commandId;
+    for (const entity of ["Quote", "Customer"] as const) {
+      for (const row of await store.list<typeof entity, EntityRow & { _sync?: EntitySync }>(entity)) {
+        if (!isConflict(row._sync)) continue;
+        handlers.set(row._sync!.commandId!, async (s) => {
+          const fresh = await store.get<EntityRow & { _sync?: EntitySync }>(entity, row.id);
+          if (fresh?._sync) await store.put(entity, [{ ...fresh, _sync: resolvedSync(fresh._sync, s) }]);
+        });
+      }
     }
+    for (const sale of await store.list<"Sale", LocalSale>("Sale")) {
+      if (isConflict(sale._sync)) handlers.set(sale._sync!.commandId!, async (s) => {
+        const fresh = await store.get<LocalSale>("Sale", sale.id);
+        if (!fresh?._sync) return;
+        const res = s.status === "APPLIED" ? (s.result as SaleConvertResult | undefined) : undefined;
+        await store.put("Sale", [{ ...fresh, _sync: resolvedSync(fresh._sync, s), ...(res?.saleId && { serverSaleId: res.saleId, folio: res.folio ?? fresh.folio }) }]);
+      });
+      for (const pay of sale.payments ?? []) {
+        if (isConflict(pay._sync)) handlers.set(pay._sync!.commandId!, async (s) => {
+          const fresh = await store.get<LocalSale>("Sale", sale.id);
+          if (!fresh) return;
+          await store.put("Sale", [{ ...fresh, payments: (fresh.payments ?? []).map((x) => (x.id === pay.id && x._sync ? { ...x, _sync: resolvedSync(x._sync, s) } : x)) }]);
+        });
+      }
+    }
+    for (const m of await getMovements(store)) {
+      // Al aplicarse más tarde, la existencia real llega en el siguiente pull.
+      if (isConflict(m._sync)) handlers.set(m._sync.commandId!, async (s) => {
+        const list = await getMovements(store);
+        const x = list.find((y) => y.id === m.id);
+        if (x) { x._sync = resolvedSync(x._sync, s); await saveMovements(store, list); }
+      });
+    }
+    if (!handlers.size) return;
+    const states = await api.commands([...handlers.keys()]);
+    for (const s of states) await handlers.get(s.id)?.(s);
   }
 
   async fetchConfig() {
@@ -176,8 +230,8 @@ export class SyncEngine {
   /** Descarga inicial: borra entidades, baja todo paginado y luego aplica pull desde serverSeq. */
   async bootstrap(): Promise<SyncResult> {
     const { api, store } = this.o;
-    // Cotizaciones capturadas en el teléfono que el servidor aún no confirma: sobreviven al re-bootstrap.
-    const local = (await store.list<"Quote", LocalQuote>("Quote")).filter((q) => q._sync && q._sync.state !== "applied");
+    // Capturas del teléfono que el servidor aún no confirma: sobreviven al re-bootstrap.
+    const local = await unconfirmedRows(store);
     await store.clear();
     await store.deleteMeta("cursor");
     let serverSeq: string | null = null;
@@ -188,16 +242,24 @@ export class SyncEngine {
         const page = await api.bootstrap(entity, after, this.o.bootstrapPageSize);
         // El primer serverSeq (capturado antes de leer nada) es el menor: lo que cambie después llega por pull.
         if (serverSeq === null && page.serverSeq !== undefined) serverSeq = String(page.serverSeq);
-        await store.put(entity, entity === "Quote" ? await mergeQuotes(store, page.items) : page.items);
+        await putMerged(store, entity, page.items);
         loaded += page.items.length;
         this.o.onProgress?.({ entity, loaded });
         after = page.next ?? undefined;
       } while (after);
     }
-    for (const q of local) {
-      const server = await store.get("Quote", q.id);
-      await store.put("Quote", [server ? mergeQuote(server, q) : q]);
+    for (const [entity, row] of local) {
+      if (entity === "Sale" && isPendingSale(row as LocalSale)) {
+        // Venta pendiente: si el servidor ya tiene la venta de esa cotización, se descarta.
+        if ((await store.list("Sale", { where: { quoteId: String(row.quoteId) } })).length) continue;
+        await store.put("Sale", [row]);
+        continue;
+      }
+      const server = await store.get(entity, row.id);
+      await store.put(entity, [server ? mergeRow(entity, server, row) : row]);
     }
+    const keys = new Map((await getMovements(store)).filter((m) => m._sync.state === "pending").map((m) => [balanceId(m.productId, m.warehouseId), m]));
+    for (const m of keys.values()) await recomputeBalance(store, m.productId, m.warehouseId);
     const seq = serverSeq ?? "0";
     await store.setMeta("serverSeq", seq);
     await store.setMeta("cursor", seq);
@@ -233,10 +295,7 @@ export async function applyChanges(store: LocalStore, changes: PulledChange[]) {
   }
   // El servidor ya deduplica por entidad+id dentro de una página, así que el orden entre grupos no importa.
   for (const [e, ids] of dels) await store.delete(e, ids);
-  for (const [e, list] of puts) {
-    const rows = list.map((c) => ({ ...c.data!, id: c.id }));
-    await store.put(e, e === "Quote" ? await mergeQuotes(store, rows) : rows);
-  }
+  for (const [e, list] of puts) await putMerged(store, e, list.map((c) => ({ ...c.data!, id: c.id })));
 }
 
 /**
@@ -255,8 +314,79 @@ export function mergeQuote(server: EntityRow, local: LocalQuote | null): EntityR
   return { ...server, _sync: sync };
 }
 
-async function mergeQuotes(store: LocalStore, rows: EntityRow[]): Promise<EntityRow[]> {
+/** Venta del servidor + pagos capturados en el teléfono que aún no llegan (pendientes/rechazados/en conflicto). */
+export function mergeSale(server: EntityRow, local: LocalSale | null): EntityRow {
+  const have = new Set(((server.payments as LocalPayment[] | undefined) ?? []).map((x) => x.id));
+  const keep = (local?.payments ?? []).filter((x) => x._sync && x._sync.state !== "applied" && !have.has(x.id));
+  return keep.length ? { ...server, payments: [...((server.payments as LocalPayment[] | undefined) ?? []), ...keep] } : server;
+}
+
+/** Fila del servidor combinada con la local (mismo id). */
+export function mergeRow(entity: SyncEntity, server: EntityRow, local: EntityRow | null, movements: LocalMovement[] = []): EntityRow {
+  if (entity === "Quote" || entity === "Customer") return mergeQuote(server, local as LocalQuote | null);
+  if (entity === "Sale") return mergeSale(server, local as LocalSale | null);
+  if (entity === "StockBalance") return withPending(server, movements);
+  return server;
+}
+
+/** Upsert de filas del servidor respetando capturas locales; una Sale del servidor reemplaza la venta pendiente de su cotización. */
+async function putMerged(store: LocalStore, entity: SyncEntity, rows: EntityRow[]) {
+  if (!["Quote", "Customer", "Sale", "StockBalance"].includes(entity)) return store.put(entity, rows);
+  const movements = entity === "StockBalance" ? await getMovements(store) : [];
   const out: EntityRow[] = [];
-  for (const r of rows) out.push(mergeQuote(r, await store.get<LocalQuote>("Quote", r.id)));
+  for (const r of rows) out.push(mergeRow(entity, r, await store.get(entity, r.id), movements));
+  await store.put(entity, out);
+  if (entity === "Sale") {
+    const pend = rows.filter((r) => typeof r.quoteId === "string").map((r) => pendingSaleId(r.quoteId as string)).filter((id) => !rows.some((r) => r.id === id));
+    if (pend.length) await store.delete("Sale", pend);
+  }
+}
+
+/** Filas con capturas sin confirmar (para conservarlas en un re-bootstrap). */
+async function unconfirmedRows(store: LocalStore): Promise<[SyncEntity, EntityRow][]> {
+  const out: [SyncEntity, EntityRow][] = [];
+  for (const e of ["Quote", "Customer"] as const) {
+    for (const r of await store.list<typeof e, EntityRow & { _sync?: EntitySync }>(e)) if (r._sync && r._sync.state !== "applied") out.push([e, r]);
+  }
+  for (const s of await store.list<"Sale", LocalSale>("Sale")) {
+    if (isPendingSale(s) || (s.payments ?? []).some((x) => x._sync && x._sync.state !== "applied")) out.push(["Sale", s]);
+  }
   return out;
 }
+
+/** `_sync` tras el resultado de un comando en el push. Solo el último comando de la entidad la deja «aplicada». */
+export function nextSync(prev: EntitySync | undefined, cmd: SyncCommand, r: PushResult | CommandState): EntitySync {
+  const p: EntitySync = prev ?? { state: "applied", commandId: null, onServer: true };
+  if (r.status === "APPLIED") {
+    const onServer = p.onServer || cmd.type === "quote.create" || cmd.type === "customer.save" || cmd.type === "sale.convert" || cmd.type === "payment.register" || cmd.type === "inventory.movement";
+    return p.commandId === cmd.id ? { ...p, state: "applied", onServer, error: undefined, conflict: undefined } : { ...p, onServer };
+  }
+  if (r.status === "REJECTED") return { ...p, state: "rejected", commandId: cmd.id, commandType: cmd.type, error: r.error ?? "Rechazado por el servidor.", conflict: undefined };
+  return { ...p, state: "conflict", commandId: cmd.id, commandType: cmd.type, conflict: r.result ?? null, ...(r.error && { error: r.error }) };
+}
+
+/** `_sync` tras consultar un comando en conflicto (`/api/sync/commands`). */
+export function resolvedSync(prev: EntitySync, s: CommandState): EntitySync {
+  if (s.status === "APPLIED") return { ...prev, state: "applied", onServer: true, error: undefined, conflict: undefined };
+  if (s.status === "REJECTED") return { ...prev, state: "rejected", error: s.error ?? "Rechazado por gerencia.", conflict: undefined };
+  return { ...prev, conflict: s.result ?? prev.conflict };
+}
+
+export type SyncIssueEntity = "Quote" | "Customer" | "Sale" | "Payment" | "InventoryMovement";
+/** Captura con conflicto o rechazo pendiente de revisar (cualquier entidad). */
+export interface SyncIssue { entity: SyncIssueEntity; id: string; /** Venta del pago. */ parentId?: string; label: string; sync: EntitySync }
+
+/** Conflictos y rechazos de todas las capturas locales. */
+export async function listSyncIssues(store: LocalStore): Promise<SyncIssue[]> {
+  const bad = (x?: EntitySync): x is EntitySync => x?.state === "conflict" || x?.state === "rejected";
+  const out: SyncIssue[] = [];
+  for (const q of await store.list<"Quote", LocalQuote>("Quote", { orderBy: "updatedAt", desc: true })) if (bad(q._sync)) out.push({ entity: "Quote", id: q.id, label: quoteFolioLabel(q), sync: q._sync });
+  for (const c of await store.list<"Customer", LocalCustomer>("Customer")) if (bad(c._sync)) out.push({ entity: "Customer", id: c.id, label: c.legalName, sync: c._sync });
+  for (const s of await store.list<"Sale", LocalSale>("Sale")) {
+    if (bad(s._sync)) out.push({ entity: "Sale", id: s.id, label: saleFolioLabel(s), sync: s._sync });
+    for (const x of s.payments ?? []) if (bad(x._sync)) out.push({ entity: "Payment", id: x.id, parentId: s.id, label: `Pago ${x.amount} · ${saleFolioLabel(s)}`, sync: x._sync });
+  }
+  for (const m of await getMovements(store)) if (bad(m._sync)) out.push({ entity: "InventoryMovement", id: m.id, label: `${m.type} ${m.quantity} · ${m.sku}`, sync: m._sync });
+  return out;
+}
+

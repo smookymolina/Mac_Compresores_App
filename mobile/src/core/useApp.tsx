@@ -8,8 +8,8 @@ export function AppProvider({ controller, children }: { controller: AppControlle
 }
 
 export type UseApp = AppState
-  & Pick<AppController, "syncNow" | "login" | "setPin" | "unlock" | "unlockBiometric" | "lock" | "logout" | "quotes" | "quotePdf" | "shareQuotePdf">
-  & { controller: AppController };
+  & Pick<AppController, "syncNow" | "login" | "setPin" | "unlock" | "unlockBiometric" | "lock" | "logout" | "quotes" | "customers" | "sales" | "inventory" | "quotePdf" | "shareQuotePdf">
+  & { controller: AppController; /** ¿El usuario tiene el permiso? */ can: (permission: string) => boolean };
 
 /** Estado de la app + acciones. Requiere `<AppProvider>`. */
 export function useApp(): UseApp {
@@ -25,8 +25,12 @@ export function useApp(): UseApp {
     lock: () => c.lock(),
     logout: () => c.logout(),
     quotes: c.quotes,
+    customers: c.customers,
+    sales: c.sales,
+    inventory: c.inventory,
     quotePdf: c.quotePdf,
     shareQuotePdf: c.shareQuotePdf,
   }), [c]);
-  return { ...state, ...actions, controller: c };
+  const can = useMemo(() => { const set = new Set(state.permissions); return (p: string) => set.has(p); }, [state.permissions]);
+  return { ...state, ...actions, can, controller: c };
 }

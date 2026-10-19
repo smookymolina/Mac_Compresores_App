@@ -57,6 +57,8 @@ export interface MetaMap {
   folios: number[];
   /** Consecutivo del folio provisional `P-<iniciales>-<n>`. */
   provisionalSeq: number;
+  /** Movimientos de inventario capturados en el teléfono (pendientes/rechazados y los últimos aplicados). */
+  movements: import("./inventory").LocalMovement[];
 }
 export type MetaKey = keyof MetaMap;
 

@@ -1,0 +1,122 @@
+[
+  {
+    "id": "00000000-0000-4000-8000-000000000103",
+    "type": "customer.save",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000100",
+      "legalName": "Nuevo SA",
+      "paymentTermsDays": 15,
+      "rfc": "AAA010101AAA",
+      "email": "n@x.mx",
+      "creditLimit": "1000.00",
+      "contact": {
+        "name": "Ana",
+        "phone": "811"
+      },
+      "address": {
+        "street": "Av. Uno 123",
+        "city": "MTY"
+      }
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000104",
+    "type": "customer.save",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "legalName": "Cliente Demo SA",
+      "paymentTermsDays": 30,
+      "rfc": "XAXX010101000",
+      "email": "a@b.mx",
+      "phone": "8112345678",
+      "creditLimit": "50000.00",
+      "notes": "VIP",
+      "baseUpdatedAt": "2026-10-01T00:00:00.000Z",
+      "changedFields": [
+        "phone",
+        "notes"
+      ]
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000106",
+    "type": "customer.contact.add",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "customerId": "00000000-0000-4000-8000-000000000010",
+      "id": "00000000-0000-4000-8000-000000000105",
+      "name": "Luis",
+      "position": "Compras",
+      "email": "l@x.mx"
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000107",
+    "type": "customer.contact.remove",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "customerId": "00000000-0000-4000-8000-000000000010",
+      "contactId": "00000000-0000-4000-8000-000000000105"
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000109",
+    "type": "customer.address.add",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "customerId": "00000000-0000-4000-8000-000000000010",
+      "id": "00000000-0000-4000-8000-000000000108",
+      "label": "Planta",
+      "street": "Calle 2 #45",
+      "city": "Apodaca",
+      "state": "NL",
+      "zip": "66600"
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000110",
+    "type": "customer.address.remove",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "customerId": "00000000-0000-4000-8000-000000000010",
+      "addressId": "00000000-0000-4000-8000-000000000108"
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000111",
+    "type": "sale.convert",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "quoteId": "00000000-0000-4000-8000-000000000060",
+      "warehouseId": "00000000-0000-4000-8000-000000000050"
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000113",
+    "type": "payment.register",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000112",
+      "saleId": "00000000-0000-4000-8000-000000000070",
+      "amount": "100.50",
+      "paidAt": "2026-10-19",
+      "method": "TRANSFER",
+      "reference": "SPEI-1"
+    }
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000115",
+    "type": "inventory.movement",
+    "capturedAt": "2026-10-19T12:00:00.000Z",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000114",
+      "productId": "00000000-0000-4000-8000-000000000001",
+      "warehouseId": "00000000-0000-4000-8000-000000000050",
+      "type": "OUT",
+      "quantity": "2",
+      "reason": "Merma"
+    }
+  }
+]

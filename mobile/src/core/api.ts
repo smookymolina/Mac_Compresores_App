@@ -35,7 +35,10 @@ export interface PullResponse { changes: PulledChange[]; cursor: string; hasMore
 export interface AppVersionInfo { latest: string; minimum: string; androidUrl: string | null; iosUrl: string | null; notes: string }
 export interface FoliosResponse { folios: number[] }
 
-export type SyncCommandType = "customer.save" | "quote.create" | "quote.update" | "quote.status" | "quote.email" | "sale.convert" | "payment.register";
+export type SyncCommandType =
+  | "customer.save" | "customer.contact.add" | "customer.contact.remove" | "customer.address.add" | "customer.address.remove"
+  | "quote.create" | "quote.update" | "quote.status" | "quote.email"
+  | "sale.convert" | "payment.register" | "inventory.movement";
 /** Comando del outbox (fase 3). `id` = UUID generado en el teléfono (idempotencia). */
 export interface SyncCommand<P = Record<string, unknown>> { id: string; type: SyncCommandType; capturedAt: string; payload: P }
 export type PushStatus = "APPLIED" | "REJECTED" | "CONFLICT" | "retry";
@@ -45,6 +48,13 @@ export interface PushResponse { results: PushResult[] }
 export interface CommandState { id: string; status: "APPLIED" | "REJECTED" | "CONFLICT"; result?: unknown; error?: string | null; resolvedAt?: string | null }
 /** Conflicto de precio de `quote.create`/`quote.update`. */
 export interface PriceConflict { kind: "price"; items: { productId: string; sku: string; clientPrice: string; serverPrice: string }[] }
+/** Conflicto de `customer.save`: el RFC ya existe en otro cliente. */
+export interface DuplicateRfcConflict { kind: "duplicate_rfc"; rfc: string }
+/** Conflicto de `sale.convert` / `inventory.movement`: existencia insuficiente. */
+export interface StockConflict { kind: "stock"; warehouseId: string; items: { productId: string; sku: string; requested: string; available: string }[] }
+export type SyncConflict = PriceConflict | DuplicateRfcConflict | StockConflict;
+/** Resultado APPLIED de `sale.convert`. */
+export interface SaleConvertResult { saleId: string; folio: number }
 /** `GET /api/sync/config`. */
 export interface SyncConfig {
   bankInfo: string[];
