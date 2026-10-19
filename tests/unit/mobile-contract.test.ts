@@ -43,3 +43,52 @@ describe("contrato móvil → syncCommandSchema", () => {
     expect(byType("quote.email").payload).toEqual({ quoteId: "00000000-0000-4000-8000-000000000100", to: ["a@b.mx"], cc: ["c@d.mx"], message: "Hola" });
   });
 });
+
+/** Comandos de campo (clientes, ventas, cobranza, inventario) de `mobile/test/contract.test.ts`. */
+const fieldRaw = JSON.parse(readFileSync(path.resolve(__dirname, "../fixtures/mobile-commands-field.json"), "utf8")) as unknown[];
+const field = fieldRaw.map((c) => syncCommandSchema.parse(c));
+type Cmd = (typeof field)[number];
+const fieldOf = <T extends Cmd["type"]>(t: T) => field.filter((c) => c.type === t) as Extract<Cmd, { type: T }>[];
+
+describe("contrato móvil (campo) → syncCommandSchema", () => {
+  it("todos los comandos de campo son válidos", () => {
+    expect(field.map((c) => c.type)).toEqual([
+      "customer.save", "customer.save", "customer.contact.add", "customer.contact.remove",
+      "customer.address.add", "customer.address.remove", "sale.convert", "payment.register", "inventory.movement",
+    ]);
+  });
+
+  it("customer.save: alta con contacto/dirección; edición con changedFields + baseUpdatedAt", () => {
+    const [create, edit] = fieldOf("customer.save").map((c) => c.payload);
+    expect(create!.changedFields).toBeUndefined();
+    expect(create!.creditLimit).toBe("1000.00");
+    expect(create!.contact).toMatchObject({ name: "Ana" });
+    expect(create!.address).toMatchObject({ street: "Av. Uno 123" });
+    expect(edit!.changedFields).toEqual(["phone", "notes"]);
+    expect(edit!.baseUpdatedAt).toEqual(new Date("2026-10-01T00:00:00.000Z"));
+  });
+
+  it("changedFields fuera de la lista blanca (p. ej. active) se rechaza", () => {
+    const edit = fieldRaw[1] as { payload: Record<string, unknown> };
+    expect(syncCommandSchema.safeParse({ ...edit, payload: { ...edit.payload, changedFields: ["active"] } }).success).toBe(false);
+  });
+
+  it("contactos y direcciones", () => {
+    expect(fieldOf("customer.contact.add")[0]!.payload).toMatchObject({ name: "Luis", position: "Compras" });
+    expect(fieldOf("customer.contact.remove")[0]!.payload.contactId).toBe(fieldOf("customer.contact.add")[0]!.payload.id);
+    expect(fieldOf("customer.address.add")[0]!.payload).toMatchObject({ label: "Planta", zip: "66600" });
+    expect(fieldOf("customer.address.remove")[0]!.payload.addressId).toBe(fieldOf("customer.address.add")[0]!.payload.id);
+  });
+
+  it("sale.convert / payment.register (decimales string) / inventory.movement", () => {
+    expect(Object.keys(fieldOf("sale.convert")[0]!.payload).sort()).toEqual(["quoteId", "warehouseId"]);
+    const p = fieldOf("payment.register")[0]!.payload;
+    expect(p.amount).toBe("100.50");
+    expect(p.paidAt).toEqual(new Date("2026-10-19"));
+    const m = fieldOf("inventory.movement")[0]!.payload;
+    expect(m).toMatchObject({ type: "OUT", quantity: "2" });
+    const pay = fieldRaw[7] as { payload: Record<string, unknown> };
+    expect(syncCommandSchema.safeParse({ ...pay, payload: { ...pay.payload, amount: "1.005" } }).success).toBe(false);
+    expect(syncCommandSchema.safeParse({ ...pay, payload: { ...pay.payload, amount: "0" } }).success).toBe(false);
+  });
+});
