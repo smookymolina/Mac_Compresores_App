@@ -9,6 +9,8 @@ const config: CapacitorConfig = {
     CapacitorSQLite: {
       androidIsEncryption: true,
       iosIsEncryption: true,
+      // iOS: la BD vive en Library/CapacitorDatabase (no en Documents); el plugin marca esa carpeta con
+      // isExcludedFromBackup al crearla → no se respalda en iCloud ni aparece en la app Archivos.
       iosDatabaseLocation: "Library/CapacitorDatabase",
       iosKeychainPrefix: "mac-campo",
       androidBiometric: { biometricAuth: false },

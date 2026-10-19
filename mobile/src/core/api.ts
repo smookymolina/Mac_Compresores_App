@@ -36,8 +36,13 @@ export interface PullResponse { changes: PulledChange[]; cursor: string; hasMore
 export interface AppVersionInfo {
   latest: string; minimum: string; androidUrl: string | null; iosUrl: string | null; notes: string;
   sha256?: string | null; size?: number | null; publishedAt?: string | null;
+  /** IPA publicado para iOS (instalación OTA). `null`/ausente = no hay; se usa `latest`/`iosUrl`. */
+  ios?: { latest: string; minimum?: string | null; notes?: string | null; publishedAt?: string | null } | null;
 }
-/** `POST /api/sync/app-download`: enlace firmado (relativo) al APK, válido 10 min. */
+/**
+ * `POST /api/sync/app-download`: Android → enlace firmado (relativo) al APK, válido 10 min.
+ * iOS (`{platform:"ios"}`) → `itms-services://?action=download-manifest&url=…` (404 si no hay IPA publicado).
+ */
 export interface AppDownloadResponse { url: string; expiresAt: string }
 export interface FoliosResponse { folios: number[] }
 
@@ -173,6 +178,6 @@ export function createApiClient(opts: ApiClientOptions) {
     /** Datos bancarios, bloque del asesor y reglas de captura. */
     config: () => request<SyncConfig>("GET", "/api/sync/config"),
     /** Enlace temporal de descarga del APK (Android). */
-    appDownload: () => request<AppDownloadResponse>("POST", "/api/sync/app-download", { body: {} }),
+    appDownload: (platform?: "android" | "ios") => request<AppDownloadResponse>("POST", "/api/sync/app-download", { body: platform ? { platform } : {} }),
   };
 }

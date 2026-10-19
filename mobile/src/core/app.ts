@@ -10,7 +10,7 @@ import { SalesService } from "./sales";
 import { InventoryService } from "./inventory";
 import { hasPermission, type LocalServiceOptions } from "./local";
 import type { AssetLoader } from "./pdf";
-import { absoluteUrl, stalePending, updateInfo, type StalePending, type UpdateInfo } from "./update";
+import { absoluteUrl, isSystemUrl, stalePending, updateInfo, versionFor, type StalePending, type UpdateInfo } from "./update";
 
 export type NetStatus = "online" | "offline" | "syncing";
 
@@ -75,6 +75,8 @@ export interface AppControllerOptions {
   platform?: () => string;
   /** Abre una URL fuera de la app (por omisión `@capacitor/browser` en el teléfono, `window.open` en web). */
   openUrl?: (url: string) => Promise<void>;
+  /** Navega el WebView (por omisión `window.location.assign`); Capacitor pasa los esquemas no web (`itms-services:`) al sistema. */
+  navigate?: (url: string) => void;
 }
 
 const REQUIRED_REASON = "Hay una actualización obligatoria. Instálala para volver a capturar.";
@@ -148,7 +150,7 @@ export class AppController {
     if (!this.versionInfo && savedVersion) {
       // Sin red al abrir: se usa la última versión conocida (una obligatoria sigue bloqueando la captura).
       this.versionInfo = savedVersion;
-      const u = updateInfo(this.current, savedVersion);
+      const u = updateInfo(this.current, versionFor(this.platform(), savedVersion));
       this.set({ update: u, updateAvailable: u.available, updateRequired: u.required });
     }
     const now = this.o.now?.() ?? Date.now();
@@ -196,7 +198,7 @@ export class AppController {
       this.versionInfo = v;
       await this.o.store.setMeta("appVersion", v);
     } catch { /* sin red: se conserva lo último conocido */ }
-    const u = updateInfo(this.current, this.versionInfo);
+    const u = updateInfo(this.current, versionFor(this.platform(), this.versionInfo));
     this.set({ update: u, updateAvailable: u.available, ...(!u.required && { updateRequired: false }) });
     if (u.required && !this.state.updateRequired && (await this.o.store.pendingCount()) === 0) {
       this.set({ updateRequired: true });
@@ -242,15 +244,18 @@ export class AppController {
   /**
    * Abre la descarga de la versión nueva.
    * Android: pide un enlace firmado (`/api/sync/app-download`) y lo abre en el navegador del sistema
-   * (Android ofrece instalar encima; misma firma → se conservan los datos). iOS: `iosUrl`. Web: `window.open`.
+   * (Android ofrece instalar encima; misma firma → se conservan los datos).
+   * iOS: pide `{platform:"ios"}` → `itms-services://…` (instalación OTA Ad Hoc/Enterprise); si no hay IPA
+   * publicado (404) o falla, usa `iosUrl` (p. ej. enlace de TestFlight). Web: `window.open`.
    */
   async startUpdate(): Promise<void> {
     const base = this.o.api.baseUrl;
     const v = this.versionInfo ?? (await this.checkUpdate(), this.versionInfo);
     const platform = this.platform();
     let url: string | null = null;
-    if (platform === "ios") url = v?.iosUrl ?? null;
-    else if (platform === "android") {
+    if (platform === "ios") {
+      try { url = (await this.o.api.appDownload("ios")).url; } catch { url = v?.iosUrl ?? null; }
+    } else if (platform === "android") {
       try { url = (await this.o.api.appDownload()).url; } catch { url = v?.androidUrl ?? null; }
     } else url = v?.androidUrl ?? null;
     if (!url) throw new Error("No hay enlace de descarga. Pide la actualización a tu administrador.");
@@ -258,6 +263,8 @@ export class AppController {
   }
 
   private async openUrl(url: string, platform: string) {
+    // itms-services:// no lo abre SFSafariViewController: se navega el WebView y Capacitor lo entrega a iOS.
+    if (isSystemUrl(url)) { (this.o.navigate ?? ((u: string) => window.location.assign(u)))(url); return; }
     if (this.o.openUrl) return this.o.openUrl(url);
     if (platform === "web") { window.open(url, "_blank", "noopener"); return; }
     const { Browser } = await import("@capacitor/browser");

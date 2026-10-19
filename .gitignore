@@ -49,9 +49,15 @@ next-env.d.ts
 backup_*.sql
 respaldo_*.sql.gz
 mobile/dist
-# mobile/android se versiona (sus salidas de build las ignora mobile/android/.gitignore).
-# mobile/ios: fase posterior (requiere macOS/Xcode); se dejará de ignorar al generarlo.
-mobile/ios
+# mobile/android y mobile/ios se versionan (sus salidas de build las ignoran mobile/android/.gitignore y mobile/ios/.gitignore).
+mobile/ios/**/DerivedData/
+mobile/ios/**/xcuserdata/
+mobile/ios/App/build/
+mobile/ios/App/Pods/
+mobile/ios/App/App/public/
+mobile/ios/**/.build/
+*.ipa
+*.xcarchive
 
 # APK publicados de la app móvil (los sube el administrador; no se versionan)
 /releases/

@@ -7,7 +7,7 @@ import { createApiClient, type SyncCommand } from "../src/core/api";
 import { AppController } from "../src/core/app";
 import { MemoryStore } from "../src/core/store";
 import { Session, memoryKV } from "../src/core/session";
-import { compareSemver, stalePending, updateInfo } from "../src/core/update";
+import { compareSemver, isSystemUrl, stalePending, updateInfo, versionFor } from "../src/core/update";
 import { mockFetch, uuid } from "./helpers";
 
 const version = (latest: string, minimum: string) => ({
@@ -15,7 +15,7 @@ const version = (latest: string, minimum: string) => ({
 });
 const cmd = (n: number): SyncCommand => ({ id: uuid(n), type: "quote.status", capturedAt: "2026-10-19T00:00:00Z", payload: { quoteId: "q", status: "SENT" } });
 
-async function setup(routes: Parameters<typeof mockFetch>[0], o: { now?: () => number; platform?: string; pending?: number } = {}) {
+async function setup(routes: Parameters<typeof mockFetch>[0], o: { now?: () => number; platform?: string; pending?: number; navigate?: (u: string) => void } = {}) {
   const f = mockFetch({ "/api/sync/pull": (u) => ({ body: { changes: [], cursor: u.searchParams.get("cursor"), hasMore: false } }), ...routes });
   let session: Session;
   const api = createApiClient({ baseUrl: "https://erp.test", getToken: () => session.getToken(), fetch: f.fetch });
@@ -26,7 +26,7 @@ async function setup(routes: Parameters<typeof mockFetch>[0], o: { now?: () => n
   for (let i = 1; i <= (o.pending ?? 0); i++) await store.enqueue(cmd(i));
   session = new Session({ api, store, secure: memoryKV({ "device.token": "t" }), prefs: memoryKV(), platform: "ANDROID", appVersion: "1.4.0", iterations: 1000 });
   await session.setPin("1234");
-  const app = new AppController({ api, store, session, appVersion: "1.4.0", now: o.now, intervalMs: 3_600_000, platform: () => o.platform ?? "android" });
+  const app = new AppController({ api, store, session, appVersion: "1.4.0", now: o.now, intervalMs: 3_600_000, platform: () => o.platform ?? "android", navigate: o.navigate });
   return { app, store, f };
 }
 
@@ -89,11 +89,56 @@ describe("actualizaciones", () => {
     expect(browserOpen).toHaveBeenCalledWith({ url: "https://erp.test/api/app/download/android?t=abc" });
   });
 
-  it("startUpdate (iOS) abre iosUrl", async () => {
+  it("startUpdate (iOS) sin IPA publicado (404) abre iosUrl", async () => {
     browserOpen.mockClear();
-    const { app } = await setup({ "/api/app/version": () => version("1.5.0", "1.0.0") }, { platform: "ios" });
+    const navigate = vi.fn();
+    const { app, f } = await setup({
+      "/api/app/version": () => version("1.5.0", "1.0.0"),
+      "/api/sync/app-download": () => ({ status: 404, body: { error: "No hay IPA" } }),
+    }, { platform: "ios", navigate });
     await app.startUpdate();
+    const dl = f.calls.find((c) => c.url.pathname === "/api/sync/app-download");
+    expect(JSON.parse(String(dl?.init.body))).toEqual({ platform: "ios" });
     expect(browserOpen).toHaveBeenCalledWith({ url: "https://apps.apple.com/x" });
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("startUpdate (iOS) con IPA: navega a itms-services (no Browser.open)", async () => {
+    browserOpen.mockClear();
+    const navigate = vi.fn();
+    const itms = "itms-services://?action=download-manifest&url=https%3A%2F%2Ferp.test%2Fapi%2Fapp%2Fmanifest.plist%3Ft%3Dabc";
+    const { app, f } = await setup({
+      "/api/app/version": () => version("1.5.0", "1.0.0"),
+      "/api/sync/app-download": (_u, init) => ({ body: JSON.parse(String(init.body)).platform === "ios" ? { url: itms, expiresAt: "2026-10-19T12:10:00Z" } : { url: "/apk" } }),
+    }, { platform: "ios", navigate });
+    await app.startUpdate();
+    expect(navigate).toHaveBeenCalledWith(itms);
+    expect(browserOpen).not.toHaveBeenCalled();
+    expect((f.calls.find((c) => c.url.pathname === "/api/sync/app-download")?.init.headers as Record<string, string>).Authorization).toBe("Bearer t");
+  });
+
+  it("checkUpdate en iOS compara contra ios.latest si existe", async () => {
+    const withIos = (ios: unknown) => ({ body: { ...version("1.6.0", "1.5.0").body, ios } });
+    let r = await setup({ "/api/app/version": () => withIos({ latest: "1.4.0" }) }, { platform: "ios" });
+    let u = await r.app.checkUpdate();
+    expect(u).toMatchObject({ latest: "1.4.0", available: false, required: false });
+    r = await setup({ "/api/app/version": () => withIos({ latest: "1.4.2", minimum: "1.4.1", notes: "iOS" }) }, { platform: "ios" });
+    u = await r.app.checkUpdate();
+    expect(u).toMatchObject({ latest: "1.4.2", available: true, required: true, notes: "iOS" });
+    r = await setup({ "/api/app/version": () => withIos(null) }, { platform: "ios" });
+    expect(await r.app.checkUpdate()).toMatchObject({ latest: "1.6.0", available: true, required: true });
+    r = await setup({ "/api/app/version": () => withIos({ latest: "1.4.0" }) }, { platform: "android" });
+    expect(await r.app.checkUpdate()).toMatchObject({ latest: "1.6.0", required: true });
+  });
+
+  it("versionFor / isSystemUrl", () => {
+    const v = { latest: "2.0.0", minimum: "1.9.0", notes: "a", ios: { latest: "1.8.0" } };
+    expect(versionFor("android", v)).toBe(v);
+    expect(versionFor("ios", v)).toEqual({ latest: "1.8.0", minimum: "1.8.0", notes: "a" });
+    expect(versionFor("ios", { ...v, ios: null })).toMatchObject({ latest: "2.0.0", minimum: "1.9.0" });
+    expect(isSystemUrl("itms-services://?action=download-manifest&url=x")).toBe(true);
+    expect(isSystemUrl("https://testflight.apple.com/join/x")).toBe(false);
+    expect(isSystemUrl("/api/app/download")).toBe(false);
   });
 });
 

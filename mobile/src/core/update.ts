@@ -34,6 +34,24 @@ export function updateInfo(current: string, v: { latest?: string | null; minimum
   };
 }
 
+type VersionLike = { latest?: string | null; minimum?: string | null; notes?: string | null; ios?: { latest?: string | null; minimum?: string | null; notes?: string | null } | null };
+
+/**
+ * Versión publicada que aplica a la plataforma. En iOS, si el servidor publica `ios` (IPA propio),
+ * se compara contra `ios.latest`; el mínimo es `ios.minimum` (o el general), acotado a `ios.latest`
+ * para no exigir una versión que aún no existe en iOS.
+ */
+export function versionFor<V extends VersionLike>(platform: string, v: V | null): VersionLike | null {
+  if (!v || platform !== "ios" || !v.ios?.latest) return v;
+  const latest = v.ios.latest;
+  let minimum = v.ios.minimum ?? v.minimum ?? null;
+  if (minimum && compareSemver(minimum, latest) > 0) minimum = latest;
+  return { latest, minimum, notes: v.ios.notes ?? v.notes ?? "" };
+}
+
+/** URL que debe abrir el sistema (instalación OTA `itms-services:` u otro esquema no web), no un navegador embebido. */
+export const isSystemUrl = (url: string) => /^[a-z][a-z0-9+.-]*:/i.test(url) && !/^https?:/i.test(url);
+
 export const STALE_PENDING_MS = 24 * 3600_000;
 export interface StalePending { count: number; since: string }
 
