@@ -12,6 +12,7 @@ import {
 } from "../core";
 import { Alert, Badge, Button, Card, Confirm, Empty, Facts, Field, Loading, SearchBox, useAsync, useDebounced } from "../ui/kit";
 import { money, qty, quoteStatus, str } from "../ui/format";
+import { ConvertToSale } from "./Sales";
 
 const PAGE = 50;
 const INPUT = "min-h-11 w-full rounded-md border border-[var(--border-input)] bg-panel px-3 text-base text-ink placeholder:text-muted focus:border-brand focus:outline-none";
@@ -101,35 +102,6 @@ export function QuoteList({ onOpen, onNew }: { onOpen: (id: string) => void; onN
   );
 }
 
-// ---------- Incidencias (Más) ----------
-
-export function IssuesCard({ onOpen }: { onOpen: (id: string) => void }) {
-  const { conflicts, pendingCount } = useApp();
-  return (
-    <Card title="Pendientes / incidencias">
-      <p className="text-sm text-muted">{pendingCount === 0 ? "No hay cambios por enviar." : `${pendingCount} ${pendingCount === 1 ? "cambio" : "cambios"} por enviar al sincronizar.`}</p>
-      {conflicts.length === 0 ? (
-        <p className="mt-2 text-sm text-muted">Sin incidencias.</p>
-      ) : (
-        <ul className="mt-2 divide-y divide-line">
-          {conflicts.map((q) => (
-            <li key={q.id}>
-              <button type="button" onClick={() => onOpen(q.id)} className="block min-h-11 w-full py-2 text-left">
-                <span className="flex items-center justify-between gap-2">
-                  <FolioLabel q={q} className="min-w-0 text-sm font-medium text-accent-fg" />
-                  <SyncBadge q={q} />
-                </span>
-                <span className="block truncate text-sm text-ink">{q.customerName}</span>
-                {q._sync?.error && <span className="block text-xs text-danger">{q._sync.error}</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
 // ---------- Detalle ----------
 
 const STATUS_ACTION: Partial<Record<QuoteStatus, string>> = {
@@ -177,7 +149,7 @@ function SyncBlock({ q }: { q: LocalQuote }) {
   );
 }
 
-export function QuoteDetail({ id, notice, onEdit }: { id: string; notice?: string; onEdit: (id: string) => void }) {
+export function QuoteDetail({ id, notice, onEdit, onOpenSale }: { id: string; notice?: string; onEdit: (id: string) => void; onOpenSale: (id: string, notice?: string) => void }) {
   const app = useApp();
   const r = useAsync(async () => {
     const q = await app.quotes.getQuote(id);
@@ -299,6 +271,8 @@ export function QuoteDetail({ id, notice, onEdit }: { id: string; notice?: strin
         )}
         {own && q.status === "DRAFT" && <Button className="w-full" disabled={!app.canCapture} onClick={() => onEdit(id)}>Editar</Button>}
       </div>
+
+      {(q.status === "ACCEPTED" || q.status === "CONVERTED") && app.can("sales.create") && <ConvertToSale quoteId={q.id} accepted={q.status === "ACCEPTED"} onOpenSale={onOpenSale} />}
 
       {next.length > 0 && (
         <Card title="Cambiar estado">

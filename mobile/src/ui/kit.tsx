@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
 
+/** Clase de input/select/textarea (misma que `Field`). */
+export const INPUT = "min-h-11 w-full rounded-md border border-[var(--border-input)] bg-panel px-3 text-base text-ink placeholder:text-muted focus:border-brand focus:outline-none";
+export const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Ocurrió un error.");
+
 type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "danger"; busy?: boolean };
 
 const VARIANT = {
@@ -123,7 +127,7 @@ export function SearchBox({ value, onChange, placeholder, label }: { value: stri
 }
 
 /** Diálogo de confirmación modal. */
-export function Confirm({ open, title, body, confirmLabel, onConfirm, onCancel }: { open: boolean; title: string; body: ReactNode; confirmLabel: string; onConfirm: () => void; onCancel: () => void }) {
+export function Confirm({ open, title, body, confirmLabel, onConfirm, onCancel, tone = "danger" }: { open: boolean; title: string; body: ReactNode; confirmLabel: string; onConfirm: () => void; onCancel: () => void; tone?: "danger" | "primary" }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -138,7 +142,7 @@ export function Confirm({ open, title, body, confirmLabel, onConfirm, onCancel }
         <div className="mt-2 text-sm text-muted">{body}</div>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
-          <Button variant="danger" onClick={onConfirm}>{confirmLabel}</Button>
+          <Button variant={tone} onClick={onConfirm}>{confirmLabel}</Button>
         </div>
       </div>
     </dialog>
