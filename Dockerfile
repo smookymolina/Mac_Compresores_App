@@ -28,6 +28,8 @@ COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/node_modules/.prisma ./node_modules/.prisma
+# APK de la app móvil (volumen ./releases en docker compose).
+RUN mkdir -p /app/releases && chown node:node /app/releases
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \

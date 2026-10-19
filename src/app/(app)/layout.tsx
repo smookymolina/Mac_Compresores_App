@@ -2,6 +2,7 @@ import { LogOut } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import type { Permission } from "@/lib/auth/permissions";
 import { logoutAction } from "@/modules/auth/actions";
+import { userHasMobileAccess } from "@/modules/sync/app-download";
 import { AppShell } from "@/components/shell/app-shell";
 import type { NavItem } from "@/components/shell/nav-links";
 
@@ -23,7 +24,9 @@ const NAV: (NavItem & { anyOf: Permission[] })[] = [
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const items = NAV.filter((n) => n.anyOf.some((p) => user.permissions.has(p))).map(({ href, label, icon, group }) => ({ href, label, icon, group }));
+  const items: NavItem[] = NAV.filter((n) => n.anyOf.some((p) => user.permissions.has(p))).map(({ href, label, icon, group }) => ({ href, label, icon, group }));
+  // Descarga de la app móvil: solo para quien tiene el acceso móvil activado.
+  if (await userHasMobileAccess(user.id)) items.push({ href: "/app", label: "App móvil", icon: "app", group: "" });
 
   return (
     <AppShell

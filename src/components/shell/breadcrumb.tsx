@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const LABELS: Record<string, string> = {
   dashboard: "Dashboard", cotizaciones: "Cotizaciones", ventas: "Ventas", clientes: "Clientes",
   productos: "Productos y precios", inventario: "Inventario", comisiones: "Comisiones",
-  usuarios: "Usuarios", sincronizacion: "Sincronización", "socios-admin": "Socios", ajustes: "Ajustes", historial: "Historial", auditoria: "Auditoría", cobranza: "Cobranza", reportes: "Reportes", avisos: "Avisos", nueva: "Nueva", nuevo: "Nuevo", editar: "Editar", importar: "Importar CSV",
+  usuarios: "Usuarios", sincronizacion: "Sincronización", app: "App móvil", "socios-admin": "Socios", ajustes: "Ajustes", historial: "Historial", auditoria: "Auditoría", cobranza: "Cobranza", reportes: "Reportes", avisos: "Avisos", nueva: "Nueva", nuevo: "Nuevo", editar: "Editar", importar: "Importar CSV",
 };
 
 /** Ruta derivada de la URL; los identificadores (UUID) se muestran como "Detalle". */

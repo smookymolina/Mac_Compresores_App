@@ -39,6 +39,10 @@ services:
       BANK_INFO: ${BANK_INFO:-}
       PARTNER_TOKEN_SECRET: ${PARTNER_TOKEN_SECRET:-}
       PARTNER_TOTP_KEY: ${PARTNER_TOTP_KEY:-}
+      # APK de la app móvil (últimas 3 versiones) y firma de sus enlaces de descarga (obligatoria).
+      MOBILE_RELEASES_DIR: /app/releases
+      APP_DOWNLOAD_SECRET: ${APP_DOWNLOAD_SECRET:?Define APP_DOWNLOAD_SECRET en .env (openssl rand -hex 32)}
+    volumes: ["./releases:/app/releases"]
     ports: ["127.0.0.1:3080:3000"]
     depends_on: { migrate: { condition: service_completed_successfully } }
   # Respaldo diario de la BD en ./backups (03:00 de México; conserva BACKUP_KEEP_DAYS días).

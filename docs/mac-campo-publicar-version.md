@@ -82,3 +82,23 @@ Apple no permite instalar archivos sueltos. Requisitos:
 - **Ad Hoc** (recomendado): registrar los UDID de los iPhone e instalar desde un enlace del hosting; el certificado se renueva cada año.
 - **TestFlight** (alternativa): invitación por correo; cada build caduca a los 90 días.
 - En iOS el aviso de actualización solo abre el enlace (campo **Enlace iOS** en «Versiones de la app»).
+
+## Preparar el servidor (una sola vez)
+
+1. Carpeta de versiones con permisos para el usuario del contenedor (uid 1000):
+   ```bash
+   mkdir -p releases && sudo chown 1000:1000 releases
+   ```
+2. En `.env` de producción: `APP_DOWNLOAD_SECRET=$(openssl rand -hex 32)`. Sin él, `docker-compose.prod.yml` no arranca.
+3. Si hay nginx delante, permite subir el APK (hasta 150 MB) solo en esa ruta:
+   ```nginx
+   location = /api/app/releases {
+       client_max_body_size 160m;
+       proxy_request_buffering off;
+       proxy_pass http://127.0.0.1:3000;   # el mismo upstream que "location /"
+       proxy_set_header Host $host;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+   }
+   ```
+4. Mientras no haya un APK publicado, la app recibe «sin versión publicada» al buscar actualización; es normal.

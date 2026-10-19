@@ -74,6 +74,7 @@ export function middleware(req: NextRequest) {
 }
 
 // Se evalúa todo salvo los estáticos con hash; el filtrado fino vive en la función.
+// /api/app/releases (subida de APK hasta 150 MB) queda fuera: el middleware recortaría el cuerpo a 10 MB. Valida sesión él mismo.
 export const config = {
-  matcher: ["/((?!_next/static).*)"],
+  matcher: ["/((?!_next/static|api/app/releases).*)"],
 };

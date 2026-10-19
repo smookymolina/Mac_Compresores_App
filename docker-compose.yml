@@ -49,6 +49,11 @@ services:
       CRON_SECRET: ${CRON_SECRET:-}
       SHARE_SECRET: ${SHARE_SECRET:-}
       BANK_INFO: ${BANK_INFO:-}
+      # APK de la app móvil (se conservan las últimas 3) y firma de sus enlaces de descarga (vacío = aleatorio por proceso, solo desarrollo).
+      MOBILE_RELEASES_DIR: /app/releases
+      APP_DOWNLOAD_SECRET: ${APP_DOWNLOAD_SECRET:-}
+    volumes:
+      - ./releases:/app/releases
     ports:
       - "${APP_PORT:-3080}:3000"
     depends_on:

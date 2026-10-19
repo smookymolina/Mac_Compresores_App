@@ -52,3 +52,6 @@ mobile/dist
 # mobile/android se versiona (sus salidas de build las ignora mobile/android/.gitignore).
 # mobile/ios: fase posterior (requiere macOS/Xcode); se dejará de ignorar al generarlo.
 mobile/ios
+
+# APK publicados de la app móvil (los sube el administrador; no se versionan)
+/releases/

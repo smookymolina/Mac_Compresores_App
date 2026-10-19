@@ -10,8 +10,14 @@ import { ActionForm } from "@/components/action-form";
 import { Badge, Card, CardHeader, DataTable, EmptyState, PageHeader, SelectField, type DataColumn } from "@/components/ui";
 import { fmtDateTime } from "@/lib/utils";
 import { fmtMoney } from "@/lib/money";
+import { mobileAppVersion } from "@/modules/sync/version";
+import { compareVersions } from "@/modules/sync/semver";
+import { ReleaseForm } from "./release-form";
 
 export const metadata = { title: "Sincronización" };
+
+const fmtSize = (n: number) => `${(n / (1024 * 1024)).toLocaleString("es-MX", { maximumFractionDigits: 1 })} MB`;
+const STALE_MS = 24 * 3_600_000;
 
 const PLATFORM: Record<string, string> = { ANDROID: "Android", IOS: "iOS" };
 const ISSUE_STATUS: Record<string, string> = { REJECTED: "Rechazado", CONFLICT: "Conflicto" };
@@ -92,16 +98,34 @@ function ConflictDetail({ c, warehouse }: { c: ConflictResult; warehouse: string
 export default async function SyncPage() {
   const actor = await requirePagePermission("users.manage");
   const canOverride = can(actor, "quotes.override_price");
-  const [devices, issues, warehouses] = await Promise.all([
+  const [devices, issues, warehouses, app] = await Promise.all([
     listDevices(), listSyncIssues({ take: 100 }),
     listWarehouses().then((ws) => ws.filter((w) => w.active)),
+    mobileAppVersion(),
   ]);
+  const now = Date.now();
   const active = devices.filter((d) => !d.revokedAt).length;
 
   return (
     <>
       <PageHeader title="Sincronización" subtitle="Teléfonos con la app móvil y operaciones que el servidor no pudo aplicar." />
       <div className="grid grid-cols-1 gap-4">
+        <Card className="overflow-hidden">
+          <CardHeader title="Versiones de la app" description="Publica el APK de Android. Los teléfonos lo descargan desde aquí al sincronizar; se conservan las últimas 3 versiones." />
+          {app.publishedAt ? (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-b border-line px-4 py-3 text-sm sm:grid-cols-5">
+              <div><dt className="text-xs text-muted">Publicada</dt><dd className="mono">{app.latest}</dd></div>
+              <div><dt className="text-xs text-muted">Mínima</dt><dd className="mono">{app.minimum}</dd></div>
+              <div><dt className="text-xs text-muted">Fecha</dt><dd>{fmtDateTime(new Date(app.publishedAt))}</dd></div>
+              <div><dt className="text-xs text-muted">Tamaño</dt><dd>{app.size != null ? fmtSize(app.size) : "—"}</dd></div>
+              <div className="min-w-0"><dt className="text-xs text-muted">SHA-256</dt><dd className="mono truncate" title={app.sha256 ?? undefined}>{app.sha256 ? `${app.sha256.slice(0, 12)}…` : "—"}</dd></div>
+              {app.notes && <div className="col-span-2 sm:col-span-5"><dt className="text-xs text-muted">Notas</dt><dd className="whitespace-pre-line break-words">{app.notes}</dd></div>}
+            </dl>
+          ) : (
+            <p className="border-b border-line px-4 py-3 text-sm text-muted">Aún no se ha publicado ningún APK.</p>
+          )}
+          <ReleaseForm latest={app.latest} minimum={app.minimum} iosUrl={app.iosUrl ?? ""} />
+        </Card>
         <Card className="overflow-hidden">
           <CardHeader title="Dispositivos" description={`${active} activos de ${devices.length} registrados. Revocar cierra la sesión del teléfono.`} />
           <DataTable mobileCards
@@ -114,7 +138,15 @@ export default async function SyncPage() {
                 d.user.name, <span key="n" className="break-words">{d.name}</span>, PLATFORM[d.platform] ?? d.platform,
                 <span key="v" className="mono">{d.appVersion}</span>,
                 d.lastSeenAt ? fmtDateTime(d.lastSeenAt) : "Nunca",
-                d.revokedAt ? <Badge key="s" tone="red">Revocado</Badge> : <Badge key="s" tone="green">Activo</Badge>,
+                d.revokedAt ? <Badge key="s" tone="red">Revocado</Badge> : (
+                  <div key="s" className="flex flex-wrap gap-1">
+                    <Badge tone="green">Activo</Badge>
+                    {compareVersions(d.appVersion, app.minimum) < 0 && <Badge tone="amber">Desactualizada</Badge>}
+                    {d.lastSeenAt && now - d.lastSeenAt.getTime() > STALE_MS && (
+                      <Badge tone="amber">Sin sincronizar hace {Math.floor((now - d.lastSeenAt.getTime()) / 3_600_000)} h</Badge>
+                    )}
+                  </div>
+                ),
                 d.revokedAt ? "" : (
                   <ActionForm key="r" action={revokeDeviceAction.bind(null, d.id)} submitLabel="Revocar" variant="danger" size="sm"
                     confirmText={`Confirmo revocar «${d.name}»`} />
