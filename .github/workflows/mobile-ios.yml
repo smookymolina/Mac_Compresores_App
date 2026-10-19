@@ -157,6 +157,8 @@ jobs:
       - name: Limpiar llavero y perfil
         if: always()
         run: |
-          if [ -n "${KEYCHAIN:-}" ]; then security delete-keychain "$KEYCHAIN" || true; fi
+          KEYCHAIN="${KEYCHAIN:-$RUNNER_TEMP/mac-campo.keychain-db}"
+          if [ -f "$KEYCHAIN" ]; then security delete-keychain "$KEYCHAIN" || true; fi
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/profile.mobileprovision" "$RUNNER_TEMP/profile.plist"
           if [ -n "${PROFILE_UUID:-}" ]; then rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"; fi
           rm -rf "$HOME/.appstoreconnect/private_keys" "$RUNNER_TEMP/App.xcarchive" "$RUNNER_TEMP/export" "$RUNNER_TEMP/ExportOptions.plist"

@@ -42,7 +42,9 @@ type VersionLike = { latest?: string | null; minimum?: string | null; notes?: st
  * para no exigir una versión que aún no existe en iOS.
  */
 export function versionFor<V extends VersionLike>(platform: string, v: V | null): VersionLike | null {
-  if (!v || platform !== "ios" || !v.ios?.latest) return v;
+  if (!v || platform !== "ios") return v;
+  // Sin IPA propio ni enlace (TestFlight) no hay nada que instalar en iOS: no se exige actualizar.
+  if (!v.ios?.latest) return (v as { iosUrl?: string | null }).iosUrl ? v : { ...v, minimum: null };
   const latest = v.ios.latest;
   let minimum = v.ios.minimum ?? v.minimum ?? null;
   if (minimum && compareSemver(minimum, latest) > 0) minimum = latest;

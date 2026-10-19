@@ -135,7 +135,9 @@ describe("actualizaciones", () => {
     const v = { latest: "2.0.0", minimum: "1.9.0", notes: "a", ios: { latest: "1.8.0" } };
     expect(versionFor("android", v)).toBe(v);
     expect(versionFor("ios", v)).toEqual({ latest: "1.8.0", minimum: "1.8.0", notes: "a" });
-    expect(versionFor("ios", { ...v, ios: null })).toMatchObject({ latest: "2.0.0", minimum: "1.9.0" });
+    // Sin IPA ni enlace iOS no se exige actualizar; con TestFlight (iosUrl) sí aplica el mínimo general.
+    expect(versionFor("ios", { ...v, ios: null })).toMatchObject({ latest: "2.0.0", minimum: null });
+    expect(versionFor("ios", { ...v, ios: null, iosUrl: "https://testflight.apple.com/join/x" })).toMatchObject({ minimum: "1.9.0" });
     expect(isSystemUrl("itms-services://?action=download-manifest&url=x")).toBe(true);
     expect(isSystemUrl("https://testflight.apple.com/join/x")).toBe(false);
     expect(isSystemUrl("/api/app/download")).toBe(false);
