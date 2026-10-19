@@ -17,6 +17,9 @@ export const ACTION_LABEL: Record<string, string> = {
   "user.invite_resent": "Invitación reenviada",
   "user.invite_mail_failed": "Falló el envío de la invitación",
   "user.signatures": "Firmas actualizadas",
+  "user.mobile_access": "Acceso a app móvil modificado",
+  "device.revoke": "Dispositivo revocado",
+  "sync.issue_resolved": "Incidencia de sincronización revisada",
   "customer.create": "Cliente creado",
   "customer.update": "Cliente modificado",
   "customer.contact.add": "Contacto agregado",
@@ -69,6 +72,8 @@ export const ACTION_LABEL: Record<string, string> = {
 
 export const ENTITY_LABEL: Record<string, string> = {
   User: "Usuario",
+  Device: "Dispositivo",
+  SyncCommand: "Comando de sincronización",
   Customer: "Cliente",
   Product: "Producto",
   ExchangeRate: "Tipo de cambio",
@@ -87,7 +92,7 @@ export const ENTITY_LABEL: Record<string, string> = {
 };
 
 const FIELD_LABEL: Record<string, string> = {
-  email: "Correo", name: "Nombre", folio: "Folio", quoteFolio: "Cotización", status: "Estado",
+  email: "Correo", devicesRevoked: "Dispositivos revocados", name: "Nombre", folio: "Folio", quoteFolio: "Cotización", status: "Estado",
   total: "Total", amount: "Monto", balance: "Saldo", rate: "Tipo de cambio", priceFrom: "Precio anterior",
   priceTo: "Precio nuevo", from: "De", to: "Para", cc: "Copia", recipients: "Destinatarios", auto: "Automático",
   roleId: "Rol", roleFrom: "Rol anterior", roleTo: "Rol nuevo", active: "Activo", invited: "Invitado por correo",

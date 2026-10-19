@@ -15,6 +15,7 @@ const NAV: (NavItem & { anyOf: Permission[] })[] = [
   { href: "/inventario", label: "Inventario", icon: "inventory", group: "Catálogo y almacén", anyOf: ["inventory.read"] },
   { href: "/comisiones", label: "Comisiones", icon: "commissions", group: "Gestión", anyOf: ["commissions.read_all", "commissions.read_own"] },
   { href: "/usuarios", label: "Usuarios", icon: "users", group: "Gestión", anyOf: ["users.manage"] },
+  { href: "/sincronizacion", label: "Sincronización", icon: "sync", group: "Gestión", anyOf: ["users.manage"] },
   { href: "/socios-admin", label: "Socios", icon: "partners", group: "Gestión", anyOf: ["partners.manage"] },
   { href: "/reportes", label: "Reportes", icon: "reports", group: "Gestión", anyOf: ["reports.export"] },
   { href: "/auditoria", label: "Auditoría", icon: "audit", group: "Gestión", anyOf: ["audit.read"] },

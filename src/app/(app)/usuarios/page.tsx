@@ -1,6 +1,7 @@
 import { requirePagePermission } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { listUsers } from "@/modules/users/service";
+import { setMobileAccessAction } from "@/modules/sync/actions";
 import { createUserAction, deleteUserAction, resendInvitationAction, updateUserAction, updateUserSignaturesAction } from "@/modules/users/actions";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, CardHeader, Field, PageHeader, SelectField } from "@/components/ui";
@@ -27,6 +28,7 @@ export default async function UsersPage() {
                     <Badge tone="blue">{u.role.name}</Badge>
                     {!u.active && <Badge tone="red">Inactivo</Badge>}
                     {u.invitePending && <Badge tone="amber">Invitación pendiente</Badge>}
+                    {u.mobileAccess && <Badge tone="green">App móvil</Badge>}
                   </summary>
                   {u.invitePending && u.active && (
                     <div className="mt-3 rounded-md border border-line bg-panel-2 p-3">
@@ -44,6 +46,17 @@ export default async function UsersPage() {
                     </div>
                     <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm sm:min-h-0"><input type="checkbox" className="size-5 sm:size-4" name="active" defaultChecked={u.active} /> Activo</label>
                   </ActionForm>
+                  <div className="mt-4 rounded-md border border-line p-3">
+                    <p className="mb-2 text-sm font-semibold">App móvil</p>
+                    <p className="mb-3 text-sm text-ink-soft">
+                      Permite iniciar sesión y sincronizar desde la app del teléfono. Al quitar el acceso se revocan todos sus dispositivos.
+                    </p>
+                    <ActionForm action={setMobileAccessAction.bind(null, u.id)} submitLabel="Guardar acceso" variant="secondary">
+                      <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm sm:min-h-0">
+                        <input type="checkbox" className="size-5 sm:size-4" name="mobileAccess" defaultChecked={u.mobileAccess} /> Acceso a la app móvil
+                      </label>
+                    </ActionForm>
+                  </div>
                   <div className="mt-4 rounded-md border border-line p-3">
                     <p className="mb-2 text-sm font-semibold">Firmas</p>
                     <p className="mb-3 text-sm text-ink-soft">
