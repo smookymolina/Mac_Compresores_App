@@ -5,7 +5,7 @@ import { Session, prefsKV, secureKV, unlockWithBiometry, type PinResult } from "
 import { createDefaultStore, type LocalStore } from "./store";
 import { SyncEngine } from "./sync";
 import { QuoteService, type LocalQuote } from "./quotes";
-import { quotePdf, shareQuotePdf, type AssetLoader } from "./pdf";
+import type { AssetLoader } from "./pdf";
 
 export type NetStatus = "online" | "offline" | "syncing";
 
@@ -77,9 +77,9 @@ export class AppController {
   }
 
   /** PDF (bytes) de una cotización local. */
-  quotePdf = (quoteId: string) => quotePdf(this.o.store, quoteId, { loadAsset: this.o.loadAsset });
+  quotePdf = async (quoteId: string) => (await import("./pdf")).quotePdf(this.o.store, quoteId, { loadAsset: this.o.loadAsset });
   /** Guarda el PDF en caché y abre la hoja de compartir del sistema. */
-  shareQuotePdf = (quoteId: string) => shareQuotePdf(this.o.store, quoteId, { loadAsset: this.o.loadAsset });
+  shareQuotePdf = async (quoteId: string) => (await import("./pdf")).shareQuotePdf(this.o.store, quoteId, { loadAsset: this.o.loadAsset });
 
   get api() { return this.o.api; }
   get store() { return this.o.store; }

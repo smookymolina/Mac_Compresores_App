@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { fmtDate } from "@domain/format";
-import { useApp, type EntityRow } from "../core";
+import { quoteFolioLabel, useApp, type EntityRow, type LocalQuote } from "../core";
 import { Alert, Badge, Button, Card, Empty, Facts, Loading, SearchBox, useAsync, useDebounced } from "../ui/kit";
 import { money, quoteStatus, quoteTotal, saleStatus, str } from "../ui/format";
 
@@ -54,13 +54,13 @@ type Address = { id: string; label: string; street: string; city?: string | null
 const tel = (v: string | null) => (v ? <a className="text-accent-fg underline" href={`tel:${v.replace(/[^\d+]/g, "")}`}>{v}</a> : null);
 const mail = (v: string | null) => (v ? <a className="break-all text-accent-fg underline" href={`mailto:${v}`}>{v}</a> : null);
 
-export function CustomerDetail({ id }: { id: string }) {
-  const { controller, lastSyncAt } = useApp();
+export function CustomerDetail({ id, onOpenQuote, onNewQuote }: { id: string; onOpenQuote: (id: string) => void; onNewQuote: (customerId: string) => void }) {
+  const { controller, lastSyncAt, canCapture } = useApp();
   const store = controller.store;
   const r = useAsync(async () => {
     const [c, quotes, sales] = await Promise.all([
       store.get("Customer", id),
-      store.list<"Quote", EntityRow>("Quote", { where: { customerId: id }, orderBy: "updatedAt", desc: true }),
+      store.list<"Quote", LocalQuote>("Quote", { where: { customerId: id }, orderBy: "updatedAt", desc: true }),
       store.list<"Sale", EntityRow>("Sale", { where: { customerId: id }, orderBy: "folio", desc: true }),
     ]);
     return { c, quotes, sales };
@@ -80,6 +80,8 @@ export function CustomerDetail({ id }: { id: string }) {
         <h1 className="text-lg font-semibold text-ink">{str(c.legalName)}</h1>
         {c.active === false && <div className="mt-1"><Badge tone="warn">Inactivo</Badge></div>}
       </div>
+      <Button className="w-full" disabled={!canCapture || c.active === false} onClick={() => onNewQuote(c.id)}>Nueva cotización</Button>
+      {!canCapture && <p className="text-xs text-warn">Sincroniza para volver a cotizar.</p>}
       <Card title="Datos">
         <Facts rows={[
           ["RFC", str(c.rfc)],
@@ -118,12 +120,14 @@ export function CustomerDetail({ id }: { id: string }) {
         {quotes.length === 0 ? <p className="text-sm text-muted">Sin cotizaciones.</p> : (
           <ul className="divide-y divide-line text-sm">
             {quotes.map((q) => (
-              <li key={q.id} className="flex items-center justify-between gap-3 py-2">
+              <li key={q.id}>
+                <button type="button" onClick={() => onOpenQuote(q.id)} className="flex min-h-11 w-full items-center justify-between gap-3 py-2 text-left">
                 <span className="min-w-0">
-                  <span className="font-medium text-ink">C-{str(q.folio)}</span>
+                  <span className="font-medium text-accent-fg">{quoteFolioLabel(q)}</span>
                   <span className="block text-muted">{quoteStatus(q.status)}{q.createdAt ? ` · ${fmtDate(String(q.createdAt))}` : ""}</span>
                 </span>
-                <span className="shrink-0 font-medium tabular-nums text-ink">{quoteTotal(q)}</span>
+                <span className="shrink-0 font-medium tabular-nums text-ink">{quoteTotal(q as unknown as Record<string, unknown>)}</span>
+                </button>
               </li>
             ))}
           </ul>
