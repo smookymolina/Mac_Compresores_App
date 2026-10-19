@@ -209,6 +209,14 @@ cómo continuar. Si a futuro prefieren evitarlo, se puede subir a Play en modo *
   antes de seguir capturando. Nunca se pierde lo capturado.
 - Cambios que solo afectan reglas del servidor (precios, permisos, validaciones) **no requieren** reinstalar nada.
 
+### 6.2 bis iPhone / iPad (iOS)
+El mismo código Capacitor genera la app de iOS, pero Apple **no permite instalar archivos sueltos** como el APK. Para 5 usuarios:
+- **Requisito**: cuenta Apple Developer (USD 99/año) y compilar en macOS (Mac propia o runner macOS de GitHub Actions).
+- **Opción recomendada — Ad Hoc**: se registran los UDID de los iPhone de los usuarios (hasta 100 por año) y se instala desde un
+  enlace del propio hosting (`itms-services`). No caduca mientras el certificado esté vigente (1 año; se renueva).
+- **Alternativa — TestFlight**: los usuarios instalan la app TestFlight y aceptan la invitación por correo. Más simple, pero cada build caduca a los 90 días.
+- La auto-actualización de §6.2 en iOS solo **avisa** y abre el enlace de descarga (iOS no deja instalar desde la app).
+
 ### 6.3 Llave de firma (importante)
 - Android solo permite actualizar una app encima de otra si **ambas están firmadas con la misma llave**. Si la llave se pierde,
   cada usuario tendría que desinstalar (y perder lo no sincronizado) para instalar la nueva.
@@ -235,7 +243,8 @@ cómo continuar. Si a futuro prefieren evitarlo, se puede subir a Play en modo *
 | 3. Cotizaciones offline | Crear y editar, PDF, compartir, folios por bloque, cola de correo, reglas de precio | 2–3 semanas |
 | 4. Clientes, cobranza y ventas | Alta y edición de clientes, pagos, ventas pendientes, inventario de almacén, bandeja de conflictos en la web | 2–3 semanas |
 | 5. Piloto y entrega | APK firmado, descarga desde el hosting, auto-actualización, guía de instalación; 2–3 usuarios reales 2 semanas y ajustes | 2 semanas |
-| **Total** | | **≈ 10–12 semanas** con un desarrollador (sin publicación en tienda) |
+| 5 bis. iOS | Build iOS, certificados, distribución Ad Hoc/TestFlight, pruebas en iPhone | +1 semana |
+| **Total** | | **≈ 11–13 semanas** con un desarrollador (sin publicación en tienda) |
 
 \* Estimación de referencia. Se puede entregar por fases: al terminar la fase 3 los vendedores ya cotizan sin internet.
 
@@ -250,7 +259,7 @@ cómo continuar. Si a futuro prefieren evitarlo, se puede subir a Play en modo *
 ## 10. Costos y operación
 
 - **Hosting**: el mismo. Solo se suman algunas tablas y un poco de tráfico. El catálogo completo se descarga una vez (~3–5 MB) y después solo los cambios.
-- **Sin tienda**: no hay cuenta de Google Play ni costo de publicación; el APK se descarga del propio hosting (§6). Para pocos usuarios la carga extra del servidor es mínima.
+- **Sin tienda (Android)**: no hay cuenta de Google Play ni costo de publicación; **iOS**: cuenta Apple Developer USD 99/año (§6.2 bis); el APK se descarga del propio hosting (§6). Para pocos usuarios la carga extra del servidor es mínima.
 - **Respaldos**: los actuales cubren todo. El teléfono no es respaldo: lo que no se ha sincronizado solo existe ahí, y la app avisa si hay pendientes de más de 24 h.
 - **Actualizaciones**: el servidor acepta las dos últimas versiones del protocolo; una app más vieja recibe «actualiza».
 
@@ -261,7 +270,7 @@ cómo continuar. Si a futuro prefieren evitarlo, se puede subir a Play en modo *
 3. **Ventas sin conexión**: ¿se permiten como «pendiente de confirmar», o la venta se confirma solo con red y sin conexión solo se cotiza y cobra?
 4. **Tiempo máximo sin sincronizar** antes de bloquear capturas. Propuesta: 7 días.
 5. **Quién usa la app**: VENTAS y GERENCIA seguro. ¿ALMACÉN también (entradas y salidas en bodega sin red)?
-6. **Dispositivos y usuarios**: ¿cuántos usuarios y quiénes? ¿Teléfonos propios o de la empresa? ¿Android mínimo? (Propuesta: Android 10 o superior.) ¿Se aprueba cada teléfono nuevo (§4.4)? Nota: iPhone **no** permite instalar apps fuera de la App Store/TestFlight; si algún usuario usa iPhone, para él se usaría TestFlight o la web.
+6. **Dispositivos y usuarios** (confirmado: **5 usuarios, Android e iOS**): ¿quiénes y con qué rol? ¿Teléfonos propios o de la empresa? ¿Android mínimo? (Propuesta: Android 10 o superior.) ¿Se aprueba cada teléfono nuevo (§4.4)? Para iOS: ¿Ad Hoc o TestFlight? (§6.2 bis).
 7. **Pagos en efectivo sin conexión**: ¿requieren foto del comprobante? (Se puede adjuntar y subir al sincronizar.)
 
 ## 12. Riesgos y cómo se mitigan
