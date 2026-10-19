@@ -3,14 +3,18 @@ import { Prisma, type Device } from "@prisma/client";
 import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { assertCan, type CurrentUser } from "@/lib/auth/session";
-import { saveCustomer } from "@/modules/customers/service";
+import { addAddress, addContact, removeAddress, removeContact, saveCustomer } from "@/modules/customers/service";
+import { registerMovement } from "@/modules/inventory/service";
+import { quoteScope } from "@/modules/quotes/service";
 import { changeQuoteStatus, createQuote, updateQuote } from "@/modules/quotes/service";
 import { resolveComplements } from "@/modules/quotes/input";
 import { convertQuoteToSale } from "@/modules/sales/service";
 import { registerPayment } from "@/modules/payments/service";
 import { emailQuote } from "@/modules/quotes/email";
 import { audit } from "@/lib/audit";
+import { dec } from "@/lib/money";
 import { PriceConflictError, evaluatePriceGrace } from "./price-grace";
+import { SyncConflictError, stockConflict, stockShortages } from "./conflicts";
 import {
   MAX_PUSH_COMMANDS, commandEnvelope, syncCommandSchema,
   type PushResult, type SyncCommand, type SyncQuotePayload,
@@ -41,7 +45,24 @@ async function quotePricing(user: CurrentUser, device: Device, c: { capturedAt: 
 
 type Outcome = { status: "APPLIED" | "REJECTED" | "CONFLICT"; result?: Prisma.InputJsonObject; error?: string };
 
+/** Tolerancia del reloj del teléfono hacia el futuro. */
+const MAX_CLOCK_SKEW_MS = 5 * 60_000;
+
 const isUniqueViolation = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+
+const isRfcViolation = (e: unknown) => isUniqueViolation(e)
+  && JSON.stringify((e as Prisma.PrismaClientKnownRequestError).meta?.target ?? "").includes("rfc");
+
+/** Venta ya creada desde la cotización (visible para el usuario): reintento idempotente por `quoteId`. */
+async function existingSale(user: CurrentUser, quoteId: string) {
+  const q = await db.quote.findFirst({ where: { AND: [{ id: quoteId }, quoteScope(user)] }, select: { sale: { select: { id: true, folio: true } } } });
+  return q?.sale ?? null;
+}
+
+/** Error de `applyMovement` por salida mayor a la existencia (UPDATE condicionado). */
+const isStockError = (e: unknown) => e instanceof AppError && e.code === "CONFLICT" && e.message.startsWith("Existencia insuficiente");
+
+const saleResult = (s: { id: string; folio: number }, quoteId: string) => ({ id: s.id, saleId: s.id, folio: s.folio, quoteId });
 
 /** Aplica un comando con el servicio existente (mismo permiso que la acción web). */
 export async function applyCommand(user: CurrentUser, device: Device, c: SyncCommand, priceMode: PriceMode = "grace"): Promise<Prisma.InputJsonObject> {
@@ -49,12 +70,56 @@ export async function applyCommand(user: CurrentUser, device: Device, c: SyncCom
   switch (c.type) {
     case "customer.save": {
       assertCan(user, "customers.write");
-      const { id, contact, address, ...input } = c.payload;
+      const { id, contact, address, changedFields, baseUpdatedAt, ...input } = c.payload;
       const exists = await db.customer.findUnique({ where: { id }, select: { id: true } });
-      const saved = exists
-        ? await saveCustomer(user, input, id, meta)
-        : await saveCustomer(user, { ...input, contact, address }, undefined, { ...meta, createId: id });
-      return { id: saved.id, updatedAt: saved.updatedAt.toISOString() };
+      try {
+        const saved = exists
+          ? await saveCustomer(user, input, id, { ...meta, changedFields, baseUpdatedAt })
+          : await saveCustomer(user, { ...input, contact, address }, undefined, { ...meta, createId: id });
+        return { id: saved.id, updatedAt: saved.updatedAt.toISOString() };
+      } catch (e) {
+        if (!isRfcViolation(e) || !input.rfc) throw e;
+        throw new SyncConflictError(`Ya existe otro cliente con el RFC ${input.rfc.toUpperCase()}.`, { kind: "duplicate_rfc", rfc: input.rfc.toUpperCase() });
+      }
+    }
+    case "customer.contact.add": {
+      assertCan(user, "customers.write");
+      const { customerId, id, ...contact } = c.payload;
+      const ct = await addContact(user, customerId, contact, { ...meta, id });
+      return { id: ct.id, customerId };
+    }
+    case "customer.contact.remove": {
+      assertCan(user, "customers.write");
+      await removeContact(user, c.payload.customerId, c.payload.contactId, { ...meta, idempotent: true });
+      return { id: c.payload.contactId, customerId: c.payload.customerId, removed: true };
+    }
+    case "customer.address.add": {
+      assertCan(user, "customers.write");
+      const { customerId, id, ...address } = c.payload;
+      const a = await addAddress(user, customerId, address, { ...meta, id });
+      return { id: a.id, customerId };
+    }
+    case "customer.address.remove": {
+      assertCan(user, "customers.write");
+      await removeAddress(user, c.payload.customerId, c.payload.addressId, { ...meta, idempotent: true });
+      return { id: c.payload.addressId, customerId: c.payload.customerId, removed: true };
+    }
+    case "inventory.movement": {
+      assertCan(user, "inventory.write");
+      const { id, ...input } = c.payload;
+      if (!(await db.warehouse.findFirst({ where: { id: input.warehouseId, active: true }, select: { id: true } })))
+        throw new AppError("Almacén inválido.");
+      try {
+        const mv = await registerMovement(user, input, { ...meta, id });
+        return { id: mv.id, productId: mv.productId, warehouseId: mv.warehouseId, quantity: mv.quantity.toString() };
+      } catch (e) {
+        if (!isStockError(e)) throw e;
+        const q = dec(input.quantity);
+        const out = input.type === "OUT" ? q.abs() : q.neg();
+        const items = out.gt(0) ? await stockShortages(input.warehouseId, [{ productId: input.productId, quantity: out }]) : [];
+        if (items.length) throw stockConflict(input.warehouseId, items);
+        throw e;
+      }
     }
     case "quote.create": {
       assertCan(user, "quotes.write");
@@ -83,14 +148,34 @@ export async function applyCommand(user: CurrentUser, device: Device, c: SyncCom
     }
     case "sale.convert": {
       assertCan(user, "sales.create");
-      const s = await convertQuoteToSale(user, c.payload.quoteId, c.payload.warehouseId, meta);
-      return { id: s.id, folio: s.folio, quoteId: c.payload.quoteId };
+      const { quoteId, warehouseId } = c.payload;
+      const prev = await existingSale(user, quoteId);
+      if (prev) return saleResult(prev, quoteId);
+      try {
+        return saleResult(await convertQuoteToSale(user, quoteId, warehouseId, meta), quoteId);
+      } catch (e) {
+        if (!(e instanceof AppError) || e.code !== "CONFLICT") throw e;
+        const again = await existingSale(user, quoteId);
+        if (again) return saleResult(again, quoteId);
+        if (!isStockError(e)) throw e;
+        const items = await db.quoteItem.findMany({ where: { quoteId, kind: "PRODUCT", productId: { not: null } }, select: { productId: true, quantity: true } });
+        const short = await stockShortages(warehouseId, items.map((i) => ({ productId: i.productId!, quantity: dec(i.quantity) })));
+        if (short.length) throw stockConflict(warehouseId, short);
+        throw e;
+      }
     }
     case "payment.register": {
       assertCan(user, "payments.write");
       const { saleId, ...input } = c.payload;
-      const p = await registerPayment(user, saleId, input, meta);
-      return { id: p.id, saleId: p.saleId, amount: p.amount.toString() };
+      try {
+        const p = await registerPayment(user, saleId, input, meta);
+        return { id: p.id, saleId: p.saleId, amount: p.amount.toString() };
+      } catch (e) {
+        // Un pago no lo resuelve gerencia: se rechaza para que el vendedor lo corrija (p. ej. importe mayor al saldo).
+        if (e instanceof AppError && e.code === "CONFLICT")
+          throw new AppError(`Pago no registrado: ${e.message}${/saldo/.test(e.message) ? " Corrige el importe y vuelve a capturarlo." : ""}`);
+        throw e;
+      }
     }
     case "quote.email": {
       assertCan(user, "quotes.write");
@@ -139,6 +224,11 @@ export async function push(user: CurrentUser, device: Device, commands: unknown[
       continue;
     }
     const { id } = env.data;
+    // Reloj del teléfono adelantado: no se acepta una hora de captura futura (se audita la original).
+    const now = new Date();
+    const skewed = env.data.capturedAt.getTime() > now.getTime() + MAX_CLOCK_SKEW_MS;
+    const capturedAtClient = env.data.capturedAt;
+    if (skewed) env.data.capturedAt = now;
     try {
       const prev = await db.syncCommand.findUnique({ where: { id } });
       if (prev) {
@@ -151,12 +241,17 @@ export async function push(user: CurrentUser, device: Device, commands: unknown[
         const issue = parsed.error.issues[0];
         o = { status: "REJECTED", error: `Datos inválidos${issue ? ` (${issue.path.join(".")}: ${issue.message})` : ""}.` };
       } else {
+        if (skewed) {
+          parsed.data.capturedAt = now;
+          await audit({ userId: user.id, action: "sync.captured_at_clamped", entity: "SyncCommand", entityId: id,
+            data: { deviceId: device.id, type: parsed.data.type, capturedAtClient: capturedAtClient.toISOString(), capturedAt: now.toISOString() } });
+        }
         try {
           o = { status: "APPLIED", result: await applyCommand(user, device, parsed.data) };
         } catch (e) {
           // Una transición de estado imposible no es un conflicto que gerencia resuelva: se rechaza (§5.2).
           const conflict = e instanceof AppError && e.code === "CONFLICT" && parsed.data.type !== "quote.status";
-          if (e instanceof PriceConflictError) o = { status: "CONFLICT", error: e.message, result: e.result as unknown as Prisma.InputJsonObject };
+          if (e instanceof SyncConflictError) o = { status: "CONFLICT", error: e.message, result: e.result as unknown as Prisma.InputJsonObject };
           else if (e instanceof AppError) o = { status: conflict ? "CONFLICT" : "REJECTED", error: e.message };
           else if (isUniqueViolation(e)) o = { status: "CONFLICT", error: "Ya existe un registro con esos datos únicos." };
           else throw e;

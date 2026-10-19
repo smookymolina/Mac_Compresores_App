@@ -1,12 +1,13 @@
 import type { MovementType } from "@prisma/client";
 import { db, type Tx } from "@/lib/db";
 import { searchKey } from "@/lib/search-text";
-import { audit } from "@/lib/audit";
+import { audit, deviceData, type SyncMeta } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { dec, type Dec } from "@/lib/money";
 import type { CurrentUser } from "@/lib/auth/session";
 
 interface MovementArgs {
+  id?: string;
   productId: string;
   warehouseId: string;
   type: MovementType;
@@ -45,17 +46,27 @@ export async function applyMovement(tx: Tx, m: MovementArgs) {
   return tx.inventoryMovement.create({ data: m });
 }
 
+/** `opts.id` (app móvil): UUID del movimiento; si ya existe (reintento) se devuelve sin volver a aplicarlo. */
 export async function registerMovement(
   user: CurrentUser,
   input: { productId: string; warehouseId: string; type: "IN" | "OUT" | "ADJUST"; quantity: string; reason: string },
+  opts: SyncMeta & { id?: string } = {},
 ) {
   let q = dec(input.quantity);
   if (input.type === "IN" && q.lte(0)) throw new AppError("Una entrada debe ser positiva.");
   if (input.type === "OUT") q = q.abs().neg();
   return db.$transaction(async (tx) => {
-    const mv = await applyMovement(tx, { ...input, quantity: q, userId: user.id });
+    if (opts.id) {
+      const prev = await tx.inventoryMovement.findUnique({ where: { id: opts.id } });
+      if (prev) {
+        if (prev.userId !== user.id || prev.productId !== input.productId || prev.warehouseId !== input.warehouseId)
+          throw new AppError("El identificador del movimiento ya está en uso.", "CONFLICT");
+        return prev;
+      }
+    }
+    const mv = await applyMovement(tx, { ...input, id: opts.id, quantity: q, userId: user.id });
     await audit({ userId: user.id, action: `inventory.${input.type.toLowerCase()}`, entity: "InventoryMovement",
-      entityId: mv.id, data: { quantity: q.toString() } }, tx);
+      entityId: mv.id, data: { quantity: q.toString(), ...deviceData(opts.deviceId, opts.capturedAt) } }, tx);
     return mv;
   });
 }

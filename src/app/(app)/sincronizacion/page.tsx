@@ -1,10 +1,13 @@
 import { CheckCircle2, Smartphone } from "lucide-react";
 import { can, requirePagePermission } from "@/lib/auth/session";
 import { listDevices, listSyncIssues } from "@/modules/sync/admin";
-import { resolvePriceConflictAction, resolveSyncIssueAction, revokeDeviceAction } from "@/modules/sync/actions";
-import type { PriceConflictResult } from "@/modules/sync/protocol";
+import {
+  rejectSyncConflictAction, resolvePriceConflictAction, resolveSyncIssueAction, retrySyncConflictAction, revokeDeviceAction,
+} from "@/modules/sync/actions";
+import type { ConflictResult, PriceConflictResult, StockConflictResult } from "@/modules/sync/protocol";
+import { listWarehouses } from "@/modules/inventory/service";
 import { ActionForm } from "@/components/action-form";
-import { Badge, Card, CardHeader, DataTable, EmptyState, PageHeader, type DataColumn } from "@/components/ui";
+import { Badge, Card, CardHeader, DataTable, EmptyState, PageHeader, SelectField, type DataColumn } from "@/components/ui";
 import { fmtDateTime } from "@/lib/utils";
 import { fmtMoney } from "@/lib/money";
 
@@ -54,10 +57,45 @@ function PriceDiff({ c }: { c: PriceConflictResult }) {
   );
 }
 
+const fmtQty = (s: string) => Number(s).toLocaleString("es-MX", { maximumFractionDigits: 3 });
+
+function StockDiff({ c, warehouse }: { c: StockConflictResult; warehouse: string | null }) {
+  return (
+    <div className="mt-2 grid gap-1 text-xs">
+      <p>Almacén: <span className="font-medium">{warehouse ?? "—"}</span></p>
+      <table className="w-full text-left">
+        <thead><tr className="text-muted"><th className="pr-2 font-medium">SKU</th><th className="pr-2 text-right font-medium">Pedido</th><th className="text-right font-medium">Disponible</th></tr></thead>
+        <tbody>
+          {c.items.map((it) => (
+            <tr key={it.productId}>
+              <td className="mono pr-2">{it.sku}</td>
+              <td className="pr-2 text-right tabular-nums">{fmtQty(it.requested)}</td>
+              <td className="text-right tabular-nums">{fmtQty(it.available)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ConflictDetail({ c, warehouse }: { c: ConflictResult; warehouse: string | null }) {
+  if (c.kind === "price") return <PriceDiff c={c} />;
+  if (c.kind === "stock") return <StockDiff c={c} warehouse={warehouse} />;
+  return (
+    <p className="mt-2 text-xs">
+      RFC <span className="mono">{c.rfc}</span> ya está registrado en otro cliente. Al rechazar, el vendedor recibe el aviso para usar el cliente existente.
+    </p>
+  );
+}
+
 export default async function SyncPage() {
   const actor = await requirePagePermission("users.manage");
   const canOverride = can(actor, "quotes.override_price");
-  const [devices, issues] = await Promise.all([listDevices(), listSyncIssues({ take: 100 })]);
+  const [devices, issues, warehouses] = await Promise.all([
+    listDevices(), listSyncIssues({ take: 100 }),
+    listWarehouses().then((ws) => ws.filter((w) => w.active)),
+  ]);
   const active = devices.filter((d) => !d.revokedAt).length;
 
   return (
@@ -98,19 +136,12 @@ export default async function SyncPage() {
                 fmtDateTime(i.capturedAt), i.userName ?? "—",
                 <span key="t" className="mono text-xs">{i.type}</span>,
                 <Badge key="s" tone={i.status === "CONFLICT" ? "amber" : "red"}>{ISSUE_STATUS[i.status] ?? i.status}</Badge>,
-                <div key="e">{i.error ?? "—"}{i.priceConflict && <PriceDiff c={i.priceConflict} />}</div>,
-                i.priceConflict ? (
-                  <div key="r" className="flex flex-wrap gap-2">
-                    <ActionForm action={resolvePriceConflictAction.bind(null, i.id, "server")} submitLabel="Usar precios actuales" size="sm" />
-                    {canOverride && (
-                      <ActionForm action={resolvePriceConflictAction.bind(null, i.id, "client")} submitLabel="Respetar precios del teléfono" variant="secondary" size="sm" />
-                    )}
-                    <ActionForm action={resolvePriceConflictAction.bind(null, i.id, "reject")} submitLabel="Rechazar" variant="danger" size="sm"
-                      confirmText="Confirmo rechazar la operación" />
-                  </div>
-                ) : (
-                  <ActionForm key="r" action={resolveSyncIssueAction.bind(null, i.id)} submitLabel="Marcar como revisada" variant="secondary" size="sm" />
-                ),
+                <div key="e">
+                  {i.error ?? "—"}
+                  {i.conflict && <ConflictDetail c={i.conflict} warehouse={i.warehouseName} />}
+                  {i.conflict && i.device.revokedAt && <p className="mt-2 text-xs text-danger">Dispositivo revocado: solo se puede rechazar.</p>}
+                </div>,
+                <IssueActions key="r" i={i} warehouses={warehouses} canOverride={canOverride} />,
               ],
               sort: [i.capturedAt.getTime(), i.userName, i.type, ISSUE_STATUS[i.status] ?? i.status, null, null],
             }))}
@@ -118,5 +149,44 @@ export default async function SyncPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+type Issue = Awaited<ReturnType<typeof listSyncIssues>>[number];
+
+function IssueActions({ i, warehouses, canOverride }: { i: Issue; warehouses: { id: string; code: string; name: string }[]; canOverride: boolean }) {
+  if (!i.conflict) {
+    return i.status === "CONFLICT" ? (
+      <div className="flex flex-wrap gap-2">
+        {!i.device.revokedAt && <ActionForm action={retrySyncConflictAction.bind(null, i.id)} submitLabel="Reintentar" size="sm" />}
+        <ActionForm action={resolveSyncIssueAction.bind(null, i.id)} submitLabel="Marcar como revisada" variant="secondary" size="sm" />
+      </div>
+    ) : (
+      <ActionForm action={resolveSyncIssueAction.bind(null, i.id)} submitLabel="Marcar como revisada" variant="secondary" size="sm" />
+    );
+  }
+  const revoked = !!i.device.revokedAt;
+  const reject = i.conflict.kind === "price"
+    ? resolvePriceConflictAction.bind(null, i.id, "reject")
+    : rejectSyncConflictAction.bind(null, i.id);
+  const otherWarehouses = i.conflict.kind === "stock" ? warehouses.filter((w) => w.id !== (i.conflict as StockConflictResult).warehouseId) : [];
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      {!revoked && i.conflict.kind === "price" && (
+        <>
+          <ActionForm action={resolvePriceConflictAction.bind(null, i.id, "server")} submitLabel="Usar precios actuales" size="sm" />
+          {canOverride && (
+            <ActionForm action={resolvePriceConflictAction.bind(null, i.id, "client")} submitLabel="Respetar precios del teléfono" variant="secondary" size="sm" />
+          )}
+        </>
+      )}
+      {!revoked && i.type === "sale.convert" && i.conflict.kind === "stock" && otherWarehouses.length > 0 && (
+        <ActionForm action={retrySyncConflictAction.bind(null, i.id)} submitLabel="Convertir desde otro almacén" size="sm" className="grid gap-2">
+          <SelectField label="Almacén" name="warehouseId" options={otherWarehouses.map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }))} />
+        </ActionForm>
+      )}
+      {!revoked && <ActionForm action={retrySyncConflictAction.bind(null, i.id)} submitLabel="Reintentar" variant="secondary" size="sm" />}
+      <ActionForm action={reject} submitLabel="Rechazar" variant="danger" size="sm" confirmText="Confirmo rechazar la operación" />
+    </div>
   );
 }

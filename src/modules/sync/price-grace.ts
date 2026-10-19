@@ -1,11 +1,11 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { AppError } from "@/lib/errors";
 import { catalogPriceMxn } from "@/domain/pricing";
 import { dec, round2, type Dec } from "@/domain/money";
 import type { PriceGrace } from "@/modules/quotes/service";
 import type { PriceConflictResult, SyncQuotePayload } from "./protocol";
 import { syncSettings } from "./settings";
+import { SyncConflictError } from "./conflicts";
 
 /**
  * Ventana de gracia de precios capturados sin conexión (docs/propuesta-offline-sync.md §5.3).
@@ -78,9 +78,9 @@ export function decidePriceGrace(i: GraceInput): GraceDecision {
 }
 
 /** Conflicto de precios: se guarda como CONFLICT con `result` para que gerencia decida. */
-export class PriceConflictError extends AppError {
-  constructor(public readonly result: PriceConflictResult) {
-    super("Los precios cambiaron mientras el teléfono estaba sin conexión. Gerencia debe decidir qué precio aplicar.", "CONFLICT");
+export class PriceConflictError extends SyncConflictError<PriceConflictResult> {
+  constructor(result: PriceConflictResult) {
+    super("Los precios cambiaron mientras el teléfono estaba sin conexión. Gerencia debe decidir qué precio aplicar.", result);
   }
 }
 

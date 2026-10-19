@@ -116,7 +116,9 @@ describe("sync push", () => {
     const [a] = await push(seller, device, [cmd("sale.convert", { quoteId, warehouseId: whId })]);
     const [b] = await push(seller, otherDevice, [cmd("sale.convert", { quoteId, warehouseId: whId })]);
     expect(a.status).toBe("APPLIED");
-    expect(["CONFLICT", "REJECTED"]).toContain(b.status);
+    // Idempotente por quoteId: la segunda devuelve la venta existente.
+    expect(b.status).toBe("APPLIED");
+    expect((b.result as { saleId: string }).saleId).toBe((a.result as { id: string }).id);
     expect(await db.sale.count({ where: { quoteId } })).toBe(1);
     expect(Number(before) - Number(await stock())).toBe(2);
   });

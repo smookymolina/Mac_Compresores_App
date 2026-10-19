@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { uuid } from "@/lib/validation";
-import { resolvePriceConflict, revokeDevice, resolveSyncIssue, setMobileAccess, type PriceResolution } from "./admin";
+import { rejectSyncConflict, resolvePriceConflict, retrySyncConflict, revokeDevice, resolveSyncIssue, setMobileAccess, type PriceResolution } from "./admin";
 
 export async function setMobileAccessAction(id: string, _: ActionResult<unknown> | null, fd: FormData) {
   const enabled = fd.get("mobileAccess") === "on";
@@ -47,5 +47,30 @@ export async function resolvePriceConflictAction(id: string, mode: PriceResoluti
     await resolvePriceConflict(actor, uuid.parse(id), z.enum(["server", "client", "reject"]).parse(mode));
   }, RESOLVED[mode] ?? "Listo.");
   if (res.ok) { revalidatePath("/sincronizacion"); revalidatePath("/cotizaciones"); }
+  return res;
+}
+
+const revalidateResolved = () => {
+  for (const p of ["/sincronizacion", "/ventas", "/inventario", "/clientes", "/cotizaciones"]) revalidatePath(p);
+};
+
+/** «Reintentar» un conflicto; con `warehouseId` en el formulario, «Convertir desde otro almacén». */
+export async function retrySyncConflictAction(id: string, _: ActionResult<unknown> | null, fd: FormData) {
+  const raw = fd.get("warehouseId");
+  const res = await runAction(async () => {
+    const actor = await requirePermission("users.manage");
+    const warehouseId = raw ? uuid.parse(raw) : undefined;
+    await retrySyncConflict(actor, uuid.parse(id), { warehouseId });
+  }, raw ? "Venta aplicada desde el almacén elegido." : "Operación aplicada.");
+  if (res.ok) revalidateResolved();
+  return res;
+}
+
+export async function rejectSyncConflictAction(id: string, _: ActionResult<unknown> | null, _fd: FormData) {
+  const res = await runAction(async () => {
+    const actor = await requirePermission("users.manage");
+    await rejectSyncConflict(actor, uuid.parse(id));
+  }, "Operación rechazada. Se avisó al vendedor.");
+  if (res.ok) revalidatePath("/sincronizacion");
   return res;
 }

@@ -84,14 +84,25 @@ export interface CustomerInput {
   notes?: string;
   ownerId?: string;
   contact?: { name: string; position?: string; email?: string; phone?: string };
-  address?: { street: string; city?: string; state?: string; zip?: string };
+  address?: { label?: string; street: string; city?: string; state?: string; zip?: string };
+}
+
+/** Campos escalares de cliente que la app móvil puede fusionar uno por uno (`changedFields`). */
+export const CUSTOMER_FIELDS = ["legalName", "rfc", "email", "phone", "paymentTermsDays", "creditLimit", "notes", "ownerId"] as const;
+export type CustomerField = (typeof CUSTOMER_FIELDS)[number];
+
+/** Opciones de la app móvil: `changedFields` aplica solo esos campos (última edición gana, §5.2). */
+export interface SaveCustomerOpts extends SyncMeta {
+  createId?: string;
+  changedFields?: CustomerField[];
+  baseUpdatedAt?: Date;
 }
 
 /**
  * Crea (`id` vacío) o actualiza un cliente. La app móvil puede mandar `opts.createId` (UUID del teléfono):
  * si ya existe ese cliente (reintento) se devuelve sin cambios.
  */
-export async function saveCustomer(user: CurrentUser, input: CustomerInput, id?: string, opts: SyncMeta & { createId?: string } = {}) {
+export async function saveCustomer(user: CurrentUser, input: CustomerInput, id?: string, opts: SaveCustomerOpts = {}) {
   const isManager = can(user, "quotes.read_all");
   const data = {
     legalName: input.legalName,
@@ -110,6 +121,16 @@ export async function saveCustomer(user: CurrentUser, input: CustomerInput, id?:
       const prev = await tx.customer.findFirst({ where: { AND: [{ id }, customerScope(user)] } });
       if (!prev) throw new AppError("Cliente no encontrado.", "NOT_FOUND");
       if (!isManager && prev.ownerId && prev.ownerId !== user.id) throw new AppError("Cliente asignado a otro vendedor.", "FORBIDDEN");
+      if (opts.changedFields) {
+        const fields = [...new Set(opts.changedFields)];
+        const merged = Object.fromEntries(fields.map((f) => [f, (data as Record<CustomerField, unknown>)[f]])) as Prisma.CustomerUncheckedUpdateInput;
+        const c = fields.length ? await tx.customer.update({ where: { id }, data: merged }) : prev;
+        await audit({ userId: user.id, action: "customer.merge", entity: "Customer", entityId: id, data: {
+          fields, serverChangedSinceBase: !!opts.baseUpdatedAt && prev.updatedAt > opts.baseUpdatedAt,
+          ...(opts.baseUpdatedAt && { baseUpdatedAt: opts.baseUpdatedAt.toISOString() }), ...deviceData(opts.deviceId, opts.capturedAt),
+        } }, tx);
+        return c;
+      }
       const c = await tx.customer.update({ where: { id }, data });
       await audit({ userId: user.id, action: "customer.update", entity: "Customer", entityId: id,
         data: deviceData(opts.deviceId, opts.capturedAt) }, tx);
@@ -145,30 +166,58 @@ async function writableCustomer(user: CurrentUser, customerId: string) {
   return c;
 }
 
-export async function addContact(user: CurrentUser, customerId: string, contact: NonNullable<CustomerInput["contact"]>) {
+/**
+ * Opciones de la app móvil para contactos y direcciones: `id` del teléfono (agregar el mismo `id` otra vez
+ * devuelve el existente) e `idempotent` (quitar uno que ya no existe no es error).
+ */
+export interface ChildOpts extends SyncMeta { id?: string; idempotent?: boolean }
+
+const sameIdInUse = () => new AppError("El identificador ya está en uso en otro cliente.", "CONFLICT");
+
+export async function addContact(user: CurrentUser, customerId: string, contact: NonNullable<CustomerInput["contact"]>, opts: ChildOpts = {}) {
   await writableCustomer(user, customerId);
-  const ct = await db.customerContact.create({ data: { ...contact, customerId } });
-  await audit({ userId: user.id, action: "customer.contact.add", entity: "Customer", entityId: customerId, data: { contactId: ct.id, name: ct.name } });
+  if (opts.id) {
+    const prev = await db.customerContact.findUnique({ where: { id: opts.id } });
+    if (prev) { if (prev.customerId !== customerId) throw sameIdInUse(); return prev; }
+  }
+  const ct = await db.customerContact.create({ data: { ...contact, id: opts.id, customerId } });
+  await audit({ userId: user.id, action: "customer.contact.add", entity: "Customer", entityId: customerId,
+    data: { contactId: ct.id, name: ct.name, ...deviceData(opts.deviceId, opts.capturedAt) } });
+  return ct;
 }
 
-export async function addAddress(user: CurrentUser, customerId: string, address: NonNullable<CustomerInput["address"]>) {
+export async function addAddress(user: CurrentUser, customerId: string, address: NonNullable<CustomerInput["address"]>, opts: ChildOpts = {}) {
   await writableCustomer(user, customerId);
-  const a = await db.customerAddress.create({ data: { ...address, customerId } });
-  await audit({ userId: user.id, action: "customer.address.add", entity: "Customer", entityId: customerId, data: { addressId: a.id } });
+  if (opts.id) {
+    const prev = await db.customerAddress.findUnique({ where: { id: opts.id } });
+    if (prev) { if (prev.customerId !== customerId) throw sameIdInUse(); return prev; }
+  }
+  const a = await db.customerAddress.create({ data: { ...address, id: opts.id, customerId } });
+  await audit({ userId: user.id, action: "customer.address.add", entity: "Customer", entityId: customerId,
+    data: { addressId: a.id, ...deviceData(opts.deviceId, opts.capturedAt) } });
+  return a;
 }
 
-export async function removeContact(user: CurrentUser, customerId: string, contactId: string) {
+export async function removeContact(user: CurrentUser, customerId: string, contactId: string, opts: ChildOpts = {}) {
   await writableCustomer(user, customerId);
   const res = await db.customerContact.deleteMany({ where: { id: contactId, customerId } });
-  if (res.count === 0) throw new AppError("Contacto no encontrado.", "NOT_FOUND");
-  await audit({ userId: user.id, action: "customer.contact.remove", entity: "Customer", entityId: customerId, data: { contactId } });
+  if (res.count === 0) {
+    if (opts.idempotent) return;
+    throw new AppError("Contacto no encontrado.", "NOT_FOUND");
+  }
+  await audit({ userId: user.id, action: "customer.contact.remove", entity: "Customer", entityId: customerId,
+    data: { contactId, ...deviceData(opts.deviceId, opts.capturedAt) } });
 }
 
-export async function removeAddress(user: CurrentUser, customerId: string, addressId: string) {
+export async function removeAddress(user: CurrentUser, customerId: string, addressId: string, opts: ChildOpts = {}) {
   await writableCustomer(user, customerId);
   const res = await db.customerAddress.deleteMany({ where: { id: addressId, customerId } });
-  if (res.count === 0) throw new AppError("Dirección no encontrada.", "NOT_FOUND");
-  await audit({ userId: user.id, action: "customer.address.remove", entity: "Customer", entityId: customerId, data: { addressId } });
+  if (res.count === 0) {
+    if (opts.idempotent) return;
+    throw new AppError("Dirección no encontrada.", "NOT_FOUND");
+  }
+  await audit({ userId: user.id, action: "customer.address.remove", entity: "Customer", entityId: customerId,
+    data: { addressId, ...deviceData(opts.deviceId, opts.capturedAt) } });
 }
 
 /** Desactiva o reactiva un cliente; uno inactivo conserva su historial pero ya no se ofrece para cotizar. */
