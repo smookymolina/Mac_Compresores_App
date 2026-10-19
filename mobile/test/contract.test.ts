@@ -21,7 +21,7 @@ describe("contrato de comandos móviles", () => {
     await store.setMeta("cursor", "50");
     await store.setMeta("lastSyncAt", "2026-10-18T12:00:00.000Z");
     await store.setMeta("folios", [1001]);
-    await store.setMeta("config", { bankInfo: [], sellerBlockPng: null, maxDiscountPct: "0.15", canOverridePrice: true, priceGraceDays: 3, maxOfflineDays: 7 });
+    await store.setMeta("config", { bankInfo: [], sellerBlockPng: null, discountNeedsApproval: false, canAssignSeller: true, canOverridePrice: true, priceGraceDays: 3, maxOfflineDays: 7 });
     await store.put("Product", [
       { id: P1, sku: "ABC-1", description: "Filtro", line: "REFACCIONES", kind: "PRODUCT", unit: "PZA", currency: "MXN", price: "1200.00", taxRate: "0.16", status: "ACTIVE" },
       { id: P2, sku: "TUB-1", description: "Tubería", line: "TUBERIA", kind: "PRODUCT", unit: "M", currency: "USD", price: "10.00", taxRate: "0.16", status: "ACTIVE" },
@@ -33,13 +33,13 @@ describe("contrato de comandos móviles", () => {
 
     const q = await quotes.createQuote({
       customerId: C1, validUntil: "2026-11-01", currency: "MXN", notes: " Nota ", warrantyMonths: 6,
-      complements: [{ code: "INST", name: "Instalación", activities: ["Montaje"] }],
-      items: [{ productId: P1, quantity: "2", discountPct: "10" }, { productId: P2, quantity: "1.5", discountPct: "12.5", details: "x" }],
+      complements: [{ code: "INST", name: "Instalación", activities: ["Montaje"] }], discountNote: " Cliente frecuente ",
+      items: [{ productId: P1, quantity: "2", discountPct: "10%" }, { productId: P2, quantity: "1.5", discountPct: "12,5", details: "x" }],
     });
     // Simula que el create se aplicó en el servidor para que la edición genere quote.update.
     const applied: LocalQuote = { ...q, updatedAt: "2026-10-19T12:00:01.000Z", _sync: { state: "applied", commandId: null, onServer: true, baseUpdatedAt: "2026-10-19T12:00:01.000Z" } };
     await store.put("Quote", [applied]);
-    await quotes.updateQuote(q.id, { customerId: C1, validUntil: "2026-11-02", items: [{ productId: P1, quantity: "1", discountPct: "15", unitPrice: "999.5" }] });
+    await quotes.updateQuote(q.id, { customerId: C1, validUntil: "2026-11-02", sellerId: uuid(21), discountNote: "Volumen", items: [{ productId: P1, quantity: "1", discountPct: "15", unitPrice: "999.5" }] });
     await quotes.changeStatus(q.id, "SENT");
     await quotes.emailQuote(q.id, { to: [" a@b.mx "], cc: ["c@d.mx"], message: "Hola" });
 

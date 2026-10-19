@@ -71,8 +71,10 @@ export interface SyncConfig {
   bankInfo: string[];
   /** PNG del bloque del asesor en base64 (o null). */
   sellerBlockPng: string | null;
-  /** Fracción, p. ej. "0.15". */
-  maxDiscountPct: string;
+  /** v1.4.1: sin tope de descuento; true → el descuento queda «por autorizar» por un administrador. */
+  discountNeedsApproval: boolean;
+  /** Puede asignar la cotización a otro vendedor (`quotes.assign_seller`). */
+  canAssignSeller: boolean;
   canOverridePrice: boolean;
   priceGraceDays: number;
   maxOfflineDays: number;

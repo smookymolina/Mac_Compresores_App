@@ -48,7 +48,13 @@ export interface QuoteInput {
   warrantyMonths?: number;
   complements?: QuoteComplementInput[];
   items: QuoteItemInput[];
+  /** Motivo del descuento (≤500), para el administrador que lo autoriza. */
+  discountNote?: string;
+  /** Vendedor asignado (solo con `canAssignSeller`). */
+  sellerId?: string;
 }
+
+export type DiscountStatus = "NONE" | "PENDING" | "APPROVED" | "REJECTED";
 
 /** Partida tal como la guarda el servidor (decimales string). `unitCost` no viaja al teléfono de VENTAS. */
 export interface LocalQuoteItem {
@@ -100,6 +106,11 @@ export interface LocalQuote extends EntityRow {
   createdAt: string;
   updatedAt: string;
   origin: "WEB" | "MOBILE";
+  /** Estado de autorización del descuento (el del servidor manda tras el pull). */
+  discountStatus?: DiscountStatus;
+  discountNote?: string | null;
+  discountDecidedAt?: string | null;
+  discountDecidedById?: string | null;
   items: LocalQuoteItem[];
   _sync?: QuoteSync;
   _input?: QuoteInput;
@@ -134,13 +145,28 @@ export class QuoteRuleError extends AppError {
 // ---------- Utilidades puras ----------
 
 const PCT_RE = /^\d+(\.\d{1,2})?$/;
+/** Acepta «10», «10%», «10,5», «10.5» → "10.5" (igual que `pctToFraction` de la web); null si es inválido. */
+export function parsePct(s: string | undefined): string | null {
+  const v = (s ?? "").trim().replace(/\s*%$/, "").replace(",", ".") || "0";
+  return PCT_RE.test(v) && Number(v) <= 100 ? v : null;
+}
 /** "10" → "0.1000" (igual que `pctToFraction` de la web). */
 export function pctToFraction(s: string | undefined, idx = 0): string {
-  const v = (s ?? "").trim() || "0";
-  if (!PCT_RE.test(v) || Number(v) > 100) throw new QuoteRuleError(`Partida ${idx + 1}: porcentaje de descuento inválido.`);
+  const v = parsePct(s);
+  if (v === null) throw new QuoteRuleError(`Partida ${idx + 1}: porcentaje de descuento inválido.`);
   return dec(v).div(100).toFixed(4);
 }
-const normPct = (s: string | undefined) => dec((s ?? "").trim() || "0").toString();
+const normPct = (s: string | undefined) => dec(parsePct(s) ?? "0").toString();
+
+/** Mensajes iguales a `assertDiscountCleared` del servidor. */
+export const DISCOUNT_BLOCK_MSG: Partial<Record<DiscountStatus, string>> = {
+  PENDING: "El descuento espera la autorización de un administrador. Podrás enviarla cuando lo autorice.",
+  REJECTED: "Un administrador rechazó el descuento. Edita la cotización para cambiarlo o quitarlo.",
+};
+export function assertDiscountCleared(q: Pick<LocalQuote, "discountStatus">) {
+  const m = q.discountStatus && DISCOUNT_BLOCK_MSG[q.discountStatus];
+  if (m) throw new QuoteRuleError(m);
+}
 
 export function initials(name: string): string {
   const w = name.normalize("NFD").replace(/\p{M}/gu, "").split(/\s+/).filter(Boolean);
@@ -163,6 +189,7 @@ export function quoteToInput(q: LocalQuote): QuoteInput {
     ...(q.deliveryTime && { deliveryTime: q.deliveryTime }),
     ...(q.warrantyMonths !== null && q.warrantyMonths !== undefined && { warrantyMonths: q.warrantyMonths }),
     complements: Array.isArray(q.complements) ? q.complements : [],
+    ...(q.discountNote && { discountNote: q.discountNote }),
     items: q.items.filter((i) => i.productId).map((i) => {
       const list = i.origUnitPrice !== null ? dec(i.origUnitPrice).mul(i.fxRate).toDecimalPlaces(2) : null;
       return {
@@ -266,6 +293,8 @@ export class QuoteService {
 
   /** Payload común de quote.create / quote.update (porcentajes 0–100, decimales string). */
   private async payload(input: QuoteInput, pv: QuotePreview) {
+    const cfg = await this.config();
+    const note = input.discountNote?.trim().slice(0, 500);
     return {
       customerId: input.customerId,
       validUntil: toIso(input.validUntil),
@@ -273,6 +302,8 @@ export class QuoteService {
       ...(input.notes?.trim() && { notes: input.notes.trim() }),
       ...(input.deliveryTime?.trim() && { deliveryTime: input.deliveryTime.trim() }),
       ...(input.warrantyMonths !== undefined && { warrantyMonths: input.warrantyMonths }),
+      ...(note && { discountNote: note }),
+      ...(cfg?.canAssignSeller && input.sellerId && { sellerId: input.sellerId }),
       complements: (input.complements ?? []).map(({ code, name, activities }) => ({ code, name, activities })),
       items: input.items.map((i, idx) => {
         const list = pv.listPrices[idx];
@@ -290,6 +321,13 @@ export class QuoteService {
 
   private async rowFrom(base: Partial<LocalQuote> & Pick<LocalQuote, "id">, input: QuoteInput, pv: QuotePreview): Promise<LocalQuote> {
     const user = await this.user();
+    const cfg = await this.config();
+    const hasDiscount = pv.items.some((i) => dec(i.discountPct).gt(0));
+    // Una edición con el mismo descuento ya autorizado lo conserva (como la web).
+    const sameDiscount = base.discountStatus === "APPROVED" && base.items?.length === pv.items.length
+      && pv.items.every((i, idx) => base.items![idx]!.productId === i.productId && dec(base.items![idx]!.discountPct).eq(i.discountPct));
+    const discountStatus: DiscountStatus = !hasDiscount ? "NONE"
+      : sameDiscount || !(cfg?.discountNeedsApproval ?? true) ? "APPROVED" : "PENDING";
     const customer = await this.o.store.get("Customer", input.customerId);
     if (!customer) throw new QuoteRuleError("Cliente no encontrado en el teléfono.");
     const nowIso = new Date(this.now()).toISOString();
@@ -311,6 +349,10 @@ export class QuoteService {
       deliveryTime: input.deliveryTime?.trim() || null,
       complements: input.complements?.length ? input.complements : null,
       warrantyMonths: input.warrantyMonths ?? null,
+      ...(cfg?.canAssignSeller && input.sellerId && { sellerId: input.sellerId }),
+      discountStatus,
+      discountNote: input.discountNote?.trim().slice(0, 500) || null,
+      ...(discountStatus !== base.discountStatus && { discountDecidedAt: null, discountDecidedById: null }),
       subtotal: s(pv.totals.subtotal), discountTotal: s(pv.totals.discountTotal), taxTotal: s(pv.totals.taxTotal), total: s(pv.totals.total),
       updatedAt: nowIso,
       items: pv.items.map((i) => ({
@@ -367,7 +409,7 @@ export class QuoteService {
     const q = await this.getQuote(quoteId);
     if (!q) throw new QuoteRuleError("Cotización no encontrada.");
     const user = await this.user();
-    if (q.sellerId !== user.id) throw new QuoteRuleError("Solo puedes modificar tus cotizaciones.");
+    if (q.sellerId !== user.id && !(await this.config())?.canAssignSeller) throw new QuoteRuleError("Solo puedes modificar tus cotizaciones.");
     return q;
   }
 
@@ -414,6 +456,7 @@ export class QuoteService {
     await this.assertCapture();
     const q = await this.own(quoteId);
     if (to === "CONVERTED" || to === "DRAFT" || !canTransition(q.status, to)) throw new QuoteRuleError(`No se puede pasar de ${q.status} a ${to}.`);
+    if (to === "SENT" || to === "ACCEPTED") assertDiscountCleared(q);
     const cmd = await this.enqueue("quote.status", { quoteId: q.id, to });
     const sync = q._sync ?? { state: "applied", commandId: null, onServer: true, baseUpdatedAt: q.updatedAt };
     const row: LocalQuote = { ...q, status: to, _sync: { ...sync, state: "pending", commandId: cmd.id, commandType: "quote.status", error: undefined, conflict: undefined } };
@@ -427,6 +470,7 @@ export class QuoteService {
     await this.assertCapture();
     const q = await this.getQuote(quoteId);
     if (!q) throw new QuoteRuleError("Cotización no encontrada.");
+    assertDiscountCleared(q);
     const clean = (l: string[] = []) => l.map((s) => s.trim()).filter(Boolean);
     const to = clean(mail.to), cc = clean(mail.cc);
     const bad = [...to, ...cc].find((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));

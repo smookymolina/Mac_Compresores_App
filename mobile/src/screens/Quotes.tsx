@@ -3,11 +3,10 @@ import { Capacitor } from "@capacitor/core";
 import { fmtDate } from "@domain/format";
 import { dec, round2 } from "@domain/money";
 import { QUOTE_STATUS_LABEL, QUOTE_TRANSITIONS } from "@domain/quote-status";
-import { MAX_DISCOUNT_WITHOUT_OVERRIDE } from "@domain/rules";
 import { suggestFor, warrantyText, type ComplementOption } from "@domain/complements";
 import type { QuoteStatus } from "@domain/types";
 import {
-  isProvisional, quoteFolioLabel, quoteToInput, useApp,
+  DISCOUNT_BLOCK_MSG, isProvisional, parsePct, quoteFolioLabel, quoteToInput, useApp,
   type EntityRow, type LocalQuote, type PriceConflict, type QuoteComplementInput, type QuoteInput, type SyncConfig,
 } from "../core";
 import { Alert, Badge, Button, Card, Confirm, Empty, Facts, Field, Loading, SearchBox, useAsync, useDebounced } from "../ui/kit";
@@ -168,7 +167,8 @@ export function QuoteDetail({ id, notice, onEdit, onOpenSale }: { id: string; no
   if (!q) return <Empty title="Cotización no encontrada">Puede que se haya eliminado o reasignado.</Empty>;
   const customerEmail = str(r.data?.c?.email) ?? "";
   const own = q.sellerId === app.user?.id;
-  const next = own ? QUOTE_TRANSITIONS[q.status].filter((s) => s !== "CONVERTED" && s !== "DRAFT") : [];
+  const discountBlock = (q.discountStatus && DISCOUNT_BLOCK_MSG[q.discountStatus]) || null;
+  const next = own ? QUOTE_TRANSITIONS[q.status].filter((s) => s !== "CONVERTED" && s !== "DRAFT" && !(discountBlock && (s === "SENT" || s === "ACCEPTED"))) : [];
   const cur = (v: unknown) => amount(v, q.currency, q.exchangeRate);
 
   async function openPdf() {
@@ -209,6 +209,9 @@ export function QuoteDetail({ id, notice, onEdit, onOpenSale }: { id: string; no
         <div className="mt-1 flex flex-wrap gap-2">
           <Badge tone="neutral">{quoteStatus(q.status)}</Badge>
           <SyncBadge q={q} />
+          {q.discountStatus === "PENDING" && <Badge tone="warn">Descuento por autorizar</Badge>}
+          {q.discountStatus === "APPROVED" && <Badge tone="ok">Descuento autorizado</Badge>}
+          {q.discountStatus === "REJECTED" && <Badge tone="danger">Descuento rechazado</Badge>}
         </div>
       </div>
       {notice && <Alert tone="ok">{notice}</Alert>}
@@ -224,6 +227,7 @@ export function QuoteDetail({ id, notice, onEdit, onOpenSale }: { id: string; no
           ["Garantía", q.warrantyMonths !== null ? warrantyText(q.warrantyMonths) : null],
           ["Vendedor", q.sellerName],
           ["Notas", q.notes],
+          ["Motivo del descuento", q.discountNote ?? null],
         ]} />
         <dl className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
           <Row k="Subtotal" v={cur(q.subtotal)} />
@@ -261,7 +265,7 @@ export function QuoteDetail({ id, notice, onEdit, onOpenSale }: { id: string; no
         {pdf.error && <Alert>{pdf.error}</Alert>}
         <Button variant="secondary" className="w-full" busy={pdf.busy} onClick={() => void openPdf()}>Ver PDF / Compartir</Button>
         {isProvisional(q) && <p className="text-xs text-muted">El PDF muestra un folio provisional; el definitivo llega al sincronizar.</p>}
-        <Button variant="secondary" className="w-full" disabled={!app.canCapture} onClick={() => setMailOpen((o) => !o)} aria-expanded={mailOpen}>Enviar por correo</Button>
+        <Button variant="secondary" className="w-full" disabled={!app.canCapture || !!discountBlock} onClick={() => setMailOpen((o) => !o)} aria-expanded={mailOpen}>Enviar por correo</Button>
         {mailOpen && (
           <MailForm
             initialTo={customerEmail}
@@ -274,6 +278,7 @@ export function QuoteDetail({ id, notice, onEdit, onOpenSale }: { id: string; no
 
       {(q.status === "ACCEPTED" || q.status === "CONVERTED") && app.can("sales.create") && <ConvertToSale quoteId={q.id} accepted={q.status === "ACCEPTED"} onOpenSale={onOpenSale} />}
 
+      {own && discountBlock && QUOTE_TRANSITIONS[q.status].some((s) => s === "SENT" || s === "ACCEPTED") && <Alert tone="warn">{discountBlock}</Alert>}
       {next.length > 0 && (
         <Card title="Cambiar estado">
           <div className="space-y-2">
@@ -343,7 +348,6 @@ type Line = { key: string; productId: string; sku: string; description: string; 
 type Cust = { id: string; name: string };
 
 const QTY_RE = /^\d+(\.\d{1,3})?$/;
-const PCT_RE = /^\d+(\.\d{1,2})?$/;
 const PRICE_RE = /^\d+(\.\d{1,2})?$/;
 const today = () => new Date().toISOString().slice(0, 10);
 let seq = 0;
@@ -386,13 +390,14 @@ function EditorForm({ cfg, options, q, input, customer, products, quoteId, onSav
 }) {
   const { quotes, canCapture } = useApp();
   const canOverride = cfg?.canOverridePrice ?? false;
-  const maxPct = canOverride ? 100 : MAX_DISCOUNT_WITHOUT_OVERRIDE * 100;
+  const needsApproval = cfg?.discountNeedsApproval ?? true;
 
   const [cust, setCust] = useState<Cust | null>(customer ? { id: customer.id, name: String(customer.legalName ?? "") } : null);
   const [validUntil, setValidUntil] = useState(input?.validUntil.slice(0, 10) ?? new Date(Date.now() + 15 * 864e5).toISOString().slice(0, 10));
   const [currency, setCurrency] = useState<"MXN" | "USD">(input?.currency ?? "MXN");
   const [deliveryTime, setDelivery] = useState(input?.deliveryTime ?? "");
   const [notes, setNotes] = useState(input?.notes ?? "");
+  const [discountNote, setDiscountNote] = useState(input?.discountNote ?? "");
   const [complements, setComplementsRaw] = useState<QuoteComplementInput[]>(input?.complements ?? []);
   const [warrantyTouched, setWarrantyTouched] = useState(input?.warrantyMonths !== undefined);
   const suggestedWarranty = (cs: QuoteComplementInput[]) => {
@@ -432,14 +437,15 @@ function EditorForm({ cfg, options, q, input, customer, products, quoteId, onSav
   const lineErr = (l: Line) => {
     const e: { qty?: string; pct?: string; price?: string } = {};
     if (!QTY_RE.test(l.quantity.trim()) || dec(l.quantity.trim()).lte(0)) e.qty = "Cantidad mayor a 0, hasta 3 decimales.";
-    const pct = l.discountPct.trim() || "0";
-    if (!PCT_RE.test(pct) || Number(pct) > maxPct) e.pct = `De 0 a ${maxPct}%.`;
+    const pct = parsePct(l.discountPct);
+    if (pct === null || Number(pct) > 99.99) e.pct = "De 0 a 99.99 % (p. ej. 10, 10% o 10,5).";
     if (canOverride && l.unitPrice.trim() && !PRICE_RE.test(l.unitPrice.trim())) e.price = "Precio inválido (2 decimales).";
     return e;
   };
   const errs = lines.map(lineErr);
   const warrantyErr = warranty !== "" && (!/^\d+$/.test(warranty) || Number(warranty) > 60) ? "De 0 a 60 meses." : null;
   const dateErr = !/^\d{4}-\d{2}-\d{2}$/.test(validUntil) ? "Indica la vigencia." : validUntil < today() ? "La vigencia ya pasó." : null;
+  const hasDiscount = lines.some((l) => Number(parsePct(l.discountPct) ?? 0) > 0);
   const formErr = !cust ? "Elige un cliente." : lines.length === 0 ? "Agrega al menos una partida." : null;
   const linesOk = errs.every((e) => !e.qty && !e.pct && !e.price);
   const valid = !formErr && linesOk && !warrantyErr && !dateErr;
@@ -451,6 +457,8 @@ function EditorForm({ cfg, options, q, input, customer, products, quoteId, onSav
     ...(notes.trim() && { notes: notes.trim() }),
     ...(deliveryTime.trim() && { deliveryTime: deliveryTime.trim() }),
     ...(warranty !== "" && !warrantyErr && { warrantyMonths: Number(warranty) }),
+    ...(hasDiscount && discountNote.trim() && { discountNote: discountNote.trim() }),
+    ...(input?.sellerId && { sellerId: input.sellerId }),
     complements,
     items: lines.map((l) => ({
       productId: l.productId,
@@ -557,6 +565,15 @@ function EditorForm({ cfg, options, q, input, customer, products, quoteId, onSav
             );
           })}
           <ProductPicker onPick={addProduct} />
+          {hasDiscount && needsApproval && (
+            <>
+              <Alert tone="warn">El descuento requiere autorización de un administrador</Alert>
+              <label className="block" htmlFor="discountNote">
+                <span className="mb-1 block text-sm font-medium text-ink-soft">Motivo del descuento</span>
+                <textarea id="discountNote" rows={2} maxLength={500} className={`${INPUT} py-2`} value={discountNote} onChange={(ev) => setDiscountNote(ev.target.value)} />
+              </label>
+            </>
+          )}
           {touched && lines.length === 0 && <p className="text-sm text-danger">Agrega al menos una partida.</p>}
         </div>
       </Card>

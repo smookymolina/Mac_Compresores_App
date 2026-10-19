@@ -1,6 +1,6 @@
 {
   "name": "mac-campo",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "type": "module",
   "description": "MAC Campo — app móvil sin conexión (Capacitor) de MAC Compresores",

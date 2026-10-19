@@ -20,7 +20,7 @@ async function setup(opts: { folios?: number[]; lastSyncAt?: string } = {}) {
   await store.setMeta("cursor", "50");
   await store.setMeta("lastSyncAt", opts.lastSyncAt ?? "2026-10-18T12:00:00.000Z");
   await store.setMeta("folios", opts.folios ?? [1001, 1002]);
-  await store.setMeta("config", { bankInfo: ["Banco X"], sellerBlockPng: null, maxDiscountPct: "0.15", canOverridePrice: false, priceGraceDays: 3, maxOfflineDays: 7 });
+  await store.setMeta("config", { bankInfo: ["Banco X"], sellerBlockPng: null, discountNeedsApproval: true, canAssignSeller: false, canOverridePrice: false, priceGraceDays: 3, maxOfflineDays: 7 });
   await store.put("Product", [
     { id: P1, sku: "ABC-1", description: "Filtro", line: "REFACCIONES", kind: "PRODUCT", unit: "PZA", currency: "MXN", price: "1200.00", taxRate: "0.16", status: "ACTIVE" },
     { id: P2, sku: "TUB-1", description: "Tubería", line: "TUBERIA", kind: "PRODUCT", unit: "M", currency: "USD", price: "10.00", taxRate: "0.16", status: "ACTIVE" },
@@ -72,7 +72,9 @@ describe("QuoteService", () => {
     expect(box[0]!.cmd.payload).not.toHaveProperty("folio");
     expect(box[0]!.cmd.payload).toMatchObject({ id: q.id, items: [{ quantity: "1", discountPct: "15" }] });
     expect(u._sync!.commandId).toBe(q._sync!.commandId);
-    await expect(quotes.updateQuote(q.id, { ...input, items: [{ productId: P1, quantity: "1", discountPct: "20" }] })).rejects.toThrow(/descuento máximo/);
+    // v1.4.1: sin tope del 15 %.
+    const big = await quotes.updateQuote(q.id, { ...input, items: [{ productId: P1, quantity: "1", discountPct: "40" }] });
+    expect(big.items[0]!.discountPct).toBe("0.4");
   });
 
   it("canCapture: >7 días sin sincronizar bloquea con CaptureBlockedError", async () => {
@@ -81,9 +83,33 @@ describe("QuoteService", () => {
     expect(await store.pendingCount()).toBe(0);
   });
 
+  it("descuento: formatos flexibles, motivo, estado PENDING/APPROVED/NONE y bloqueo de envío", async () => {
+    const { store, quotes } = await setup();
+    const { parsePct } = await import("../src/core/quotes");
+    expect(["10", "10%", "10,5", "10.5", " 7 % ", ""].map(parsePct)).toEqual(["10", "10", "10.5", "10.5", "7", "0"]);
+    expect(parsePct("abc")).toBeNull();
+    expect(parsePct("100.5")).toBeNull();
+    const q = await quotes.createQuote({ ...input, discountNote: " Cliente frecuente ", sellerId: uuid(21), items: [{ productId: P1, quantity: "1", discountPct: "10,5%" }] });
+    expect(q).toMatchObject({ discountStatus: "PENDING", discountNote: "Cliente frecuente", sellerId: U1 });
+    const [e] = await store.outbox();
+    expect(e!.cmd.payload).toMatchObject({ discountNote: "Cliente frecuente", items: [{ discountPct: "10.5" }] });
+    expect(e!.cmd.payload).not.toHaveProperty("sellerId");
+    await expect(quotes.changeStatus(q.id, "SENT")).rejects.toThrow(/espera la autorización de un administrador/);
+    await expect(quotes.emailQuote(q.id, { to: ["a@b.mx"] })).rejects.toThrow(/espera la autorización/);
+    await store.put("Quote", [{ ...q, discountStatus: "REJECTED" }]);
+    await expect(quotes.changeStatus(q.id, "SENT")).rejects.toThrow(/rechazó el descuento/);
+    await store.put("Quote", [{ ...q, discountStatus: "APPROVED" }]);
+    const same = await quotes.updateQuote(q.id, { ...input, items: [{ productId: P1, quantity: "2", discountPct: "10.5" }] });
+    expect(same.discountStatus).toBe("APPROVED");
+    const none = await quotes.updateQuote(q.id, { ...input, items: [{ productId: P1, quantity: "2", discountPct: "0" }] });
+    expect(none.discountStatus).toBe("NONE");
+    await quotes.changeStatus(q.id, "SENT");
+    expect((await store.outbox()).at(-1)!.cmd.type).toBe("quote.status");
+  });
+
   it("changeStatus valida transiciones; emailQuote encola quote.email", async () => {
     const { store, quotes } = await setup();
-    const q = await quotes.createQuote(input);
+    const q = await quotes.createQuote({ ...input, items: [{ productId: P1, quantity: "2", discountPct: "0" }] });
     await expect(quotes.changeStatus(q.id, "ACCEPTED")).rejects.toThrow(/No se puede/);
     await quotes.changeStatus(q.id, "SENT");
     await quotes.emailQuote(q.id, { to: ["a@b.mx"], cc: [], message: "Hola" });
@@ -128,7 +154,7 @@ describe("SyncEngine push/conflictos/folios", () => {
         expect(u.searchParams.get("ids")).toBe(box[1]);
         return { body: [{ id: box[1], status: "CONFLICT", result: { kind: "price", items: [] }, error: null, resolvedAt: null }] };
       },
-      "/api/sync/config": () => ({ body: { bankInfo: ["Banco Y"], sellerBlockPng: null, maxDiscountPct: "0.15", canOverridePrice: true, priceGraceDays: 3, maxOfflineDays: 7 } }),
+      "/api/sync/config": () => ({ body: { bankInfo: ["Banco Y"], sellerBlockPng: null, discountNeedsApproval: true, canAssignSeller: false, canOverridePrice: true, priceGraceDays: 3, maxOfflineDays: 7 } }),
       "/api/sync/folios": (_u, init) => {
         expect(JSON.parse(String(init.body))).toEqual({ count: 25 });
         return { body: { folios: [1003, 1004, 1005, 1006, 1007, 1008] } };
