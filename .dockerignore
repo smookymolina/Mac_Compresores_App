@@ -10,3 +10,4 @@ playwright-report
 backups
 backup_*.sql
 respaldo_*.sql.gz
+mobile
