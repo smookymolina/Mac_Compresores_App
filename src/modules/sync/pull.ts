@@ -6,6 +6,7 @@ import { can, type CurrentUser } from "@/lib/auth/session";
 import { customerScope } from "@/modules/customers/service";
 import { quoteScope } from "@/modules/quotes/service";
 import { saleScope } from "@/modules/sales/service";
+import { getPrunedSeq, SyncResyncError } from "./prune";
 
 /** Entidades que registra la bitácora `SyncChange` (ver migración offline_sync). */
 export const SYNC_ENTITIES = ["Product", "Customer", "Quote", "Sale", "StockBalance", "Warehouse", "ExchangeRate", "ComplementPackage"] as const;
@@ -128,6 +129,8 @@ export interface PulledChange { entity: SyncEntity; id: string; deleted: boolean
  */
 export async function pull(user: CurrentUser, device: Device, cursor: bigint, limit = 500) {
   const take = Math.min(Math.max(limit, 1), 1000);
+  // Lo anterior al piso ya se depuró: el teléfono debe volver a descargar todo.
+  if (cursor < (await getPrunedSeq())) throw new SyncResyncError();
   const log = await db.syncChange.findMany({ where: { seq: { gt: cursor } }, orderBy: { seq: "asc" }, take });
   const last = new Map<string, { entity: SyncEntity; id: string; seq: bigint }>();
   for (const c of log) {

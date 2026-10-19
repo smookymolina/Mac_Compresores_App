@@ -8,6 +8,7 @@ import { purgeExpired } from "@/lib/rate-limit";
 import { notify, purgeOld, usersWithPermission } from "@/modules/notifications/service";
 import { listReceivables } from "@/modules/payments/service";
 import { calculatePeriod } from "@/modules/commissions/service";
+import { pruneSyncChanges } from "@/modules/sync/prune";
 
 const TZ = "America/Mexico_City";
 const REMIND_DAYS = 3;
@@ -129,6 +130,10 @@ export async function runDailyJob(now = new Date()) {
     purgedRateLimits: await purgeExpired(),
     purgedNotifications: await purgeOld(),
     commissionPeriods: await recalcOpenCommissions(date),
+    prunedSyncChanges: await pruneSyncChanges(now).catch((e) => {
+      console.error("[job] sync:", e instanceof Error ? e.message : e);
+      return 0;
+    }),
   };
   await audit({ userId: null, action: "job.daily", entity: "System", data: result });
   return result;

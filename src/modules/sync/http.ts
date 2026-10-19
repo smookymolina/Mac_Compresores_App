@@ -2,6 +2,7 @@ import "server-only";
 import { ZodError } from "zod";
 import { AppError } from "@/lib/errors";
 import { SYNC_PROTOCOL } from "./device";
+import { SyncResyncError } from "./prune";
 
 const STATUS: Record<AppError["code"], number> = {
   UNAUTHENTICATED: 401, FORBIDDEN: 403, NOT_FOUND: 404, CONFLICT: 409, VALIDATION: 400,
@@ -24,6 +25,7 @@ export function syncHandler(fn: (req: Request) => Promise<unknown>) {
       const out = await fn(req);
       return out instanceof Response ? out : jsonResponse(out ?? { ok: true });
     } catch (e) {
+      if (e instanceof SyncResyncError) return jsonResponse({ error: e.message, code: "RESYNC" }, 410);
       if (e instanceof AppError) {
         const upgrade = e.code === "CONFLICT" && req.headers.get("x-sync-protocol") !== String(SYNC_PROTOCOL);
         return jsonResponse({ error: e.message, code: e.code, ...(upgrade && { upgrade: true }) }, STATUS[e.code] ?? 400);
