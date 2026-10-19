@@ -3,7 +3,7 @@
 Lógica de negocio sin dependencias de servidor, compartible con la futura app móvil
 (Capacitor/React): dinero (`money.ts`), precios (`pricing.ts`), estados de cotización
 (`quote-status.ts`), presentación por moneda (`currency.ts`), complementos (`complements.ts`),
-constantes (`rules.ts`), errores (`errors.ts`) y tipos espejo de los enums de Prisma (`types.ts`).
+errores (`errors.ts`) y tipos espejo de los enums de Prisma (`types.ts`).
 
 Regla de pureza:
 - Prohibido importar `@prisma/client`, `server-only`, `node:*`, `next/*`, `@/lib/db`

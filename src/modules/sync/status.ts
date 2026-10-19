@@ -4,7 +4,6 @@ import type { Device } from "@prisma/client";
 import { db } from "@/lib/db";
 import { can, type CurrentUser } from "@/lib/auth/session";
 import { uuid } from "@/lib/validation";
-import { MAX_DISCOUNT_WITHOUT_OVERRIDE } from "@/domain/rules";
 import { bankInfo } from "@/modules/quotes/pdf";
 import { syncSettings } from "./settings";
 
@@ -18,7 +17,9 @@ export async function deviceConfig(user: CurrentUser) {
   return {
     bankInfo: bank.length ? bank.join("\n") : null,
     sellerBlockPng: u?.quoteBlock ? Buffer.from(u.quoteBlock).toString("base64") : null,
-    maxDiscountPct: String(MAX_DISCOUNT_WITHOUT_OVERRIDE),
+    /** v1.4.1 (= web 1.3.20): sin tope de descuento; si es true, el descuento queda «por autorizar» por un administrador. */
+    discountNeedsApproval: !can(user, "quotes.approve_discount"),
+    canAssignSeller: can(user, "quotes.assign_seller"),
     canOverridePrice: can(user, "quotes.override_price"),
     priceGraceDays: s.priceGraceDays,
     maxOfflineDays: s.maxOfflineDays,

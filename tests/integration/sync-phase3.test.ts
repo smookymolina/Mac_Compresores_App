@@ -177,7 +177,7 @@ describe("quote.email, /config y /commands", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       bankInfo: "Banco X\nCLABE 123", sellerBlockPng: Buffer.from([1, 2, 3]).toString("base64"),
-      maxDiscountPct: "0.15", canOverridePrice: false, priceGraceDays: 3, maxOfflineDays: 10,
+      discountNeedsApproval: true, canAssignSeller: false, canOverridePrice: false, priceGraceDays: 3, maxOfflineDays: 10,
     });
     expect((await configRoute(req("http://localhost/api/sync/config", "bad"))).status).toBe(401);
   });

@@ -30,6 +30,10 @@ export const quoteFieldsSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
   deliveryTime: z.string().trim().max(200).optional(),
   currency: z.enum(["MXN", "USD"]).default("USD"),
+  /** Vendedor asignado; solo con `quotes.assign_seller` puede ser otro (v1.3.19). */
+  sellerId: z.union([z.literal("").transform(() => undefined), uuid]).optional(),
+  /** Motivo del descuento cuando requiere autorización de un administrador (v1.3.19). */
+  discountNote: z.string().trim().max(500).optional(),
   warrantyMonths: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(60)]).optional(),
 });
 

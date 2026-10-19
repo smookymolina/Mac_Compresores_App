@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { ROLE_PERMISSIONS, type RoleCode } from "@/lib/auth/permissions";
 import type { CurrentUser } from "@/lib/auth/session";
-import { changeQuoteStatus, createQuote, getQuote, updateQuote } from "@/modules/quotes/service";
+import { changeQuoteStatus, createQuote, decideDiscount, getQuote, updateQuote } from "@/modules/quotes/service";
 import { convertQuoteToSale, cancelSale, setSaleExpenses } from "@/modules/sales/service";
 import { registerMovement, reverseMovement } from "@/modules/inventory/service";
 import { saveProduct, setExchangeRate } from "@/modules/products/service";
@@ -45,6 +45,7 @@ async function acceptedQuote(qty = "2") {
     customerId: customerA, validUntil: validUntil(),
     items: [{ productId: sepId, quantity: qty, discountPct: "0" }, { productId: srvId, quantity: "1", discountPct: "0.1" }],
   });
+  await decideDiscount(admin, q.id, true); // el descuento de ventas necesita autorización (v1.3.19)
   await changeQuoteStatus(sellerA, q.id, "SENT");
   await changeQuoteStatus(sellerA, q.id, "ACCEPTED");
   return q;

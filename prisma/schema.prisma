@@ -66,6 +66,7 @@ model User {
   commissionEntries CommissionEntry[]
   salesTargets      SalesTarget[]
   partnersCreated   Partner[]           @relation("PartnerCreatedBy")
+  discountsDecided  Quote[]             @relation("QuoteDiscountDecider")
 
   /// Autorizado para usar la app móvil (v1.4.0). Lo marca un administrador.
   mobileAccess Boolean  @default(false)
@@ -308,36 +309,49 @@ enum QuoteStatus {
 }
 
 model Quote {
-  id            String      @id @default(uuid()) @db.Uuid
-  folio         Int         @unique @default(autoincrement())
-  customerId    String      @db.Uuid
-  customer      Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  sellerId      String      @db.Uuid
-  seller        User        @relation("QuoteSeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  status        QuoteStatus @default(DRAFT)
-  validUntil    DateTime
-  currency      String      @default("MXN")
-  exchangeRate  Decimal?    @db.Decimal(10, 4) // TC USD→MXN usado en partidas en USD
-  notes         String?
-  deliveryTime  String? // Tiempo de entrega o de ejecución del servicio
-  complements   Json? // Copia de los paquetes de complementos elegidos: [{code,name,activities[]}]
-  warrantyMonths Int? // Garantía (cláusula D); null = texto genérico de 3 meses
-  subtotal      Decimal     @default(0) @db.Decimal(14, 2)
-  discountTotal Decimal     @default(0) @db.Decimal(14, 2)
-  taxTotal      Decimal     @default(0) @db.Decimal(14, 2)
-  total         Decimal     @default(0) @db.Decimal(14, 2)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  items         QuoteItem[]
-  sale          Sale?
+  id                  String           @id @default(uuid()) @db.Uuid
+  folio               Int              @unique @default(autoincrement())
+  customerId          String           @db.Uuid
+  customer            Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  sellerId            String           @db.Uuid
+  seller              User             @relation("QuoteSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  status              QuoteStatus      @default(DRAFT)
+  validUntil          DateTime
+  currency            String           @default("MXN")
+  exchangeRate        Decimal?         @db.Decimal(10, 4) // TC USD→MXN usado en partidas en USD
+  notes               String?
+  deliveryTime        String? // Tiempo de entrega o de ejecución del servicio
+  complements         Json? // Copia de los paquetes de complementos elegidos: [{code,name,activities[]}]
+  warrantyMonths      Int? // Garantía (cláusula D); null = texto genérico de 3 meses
+  subtotal            Decimal          @default(0) @db.Decimal(14, 2)
+  discountTotal       Decimal          @default(0) @db.Decimal(14, 2)
+  taxTotal            Decimal          @default(0) @db.Decimal(14, 2)
+  total               Decimal          @default(0) @db.Decimal(14, 2)
+  /// Autorización del descuento: quien no es administrador necesita la de uno para enviar la cotización.
+  discountStatus      DiscountApproval @default(NONE)
+  discountNote        String? // motivo que da el vendedor al pedir el descuento
+  discountDecidedById String?          @db.Uuid
+  discountDecidedBy   User?            @relation("QuoteDiscountDecider", fields: [discountDecidedById], references: [id], onDelete: SetNull)
+  discountDecidedAt   DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  items               QuoteItem[]
+  sale                Sale?
   /// Origen de la captura (v1.4.0): web o app móvil sin conexión.
-  origin           QuoteOrigin @default(WEB)
-  deviceId         String?     @db.Uuid
-  offlineCreatedAt DateTime? // hora real de captura en el teléfono
-  catalogSeq       BigInt? // versión (SyncChange.seq) del catálogo que tenía el teléfono
+  origin              QuoteOrigin      @default(WEB)
+  deviceId            String?          @db.Uuid
+  offlineCreatedAt    DateTime? // hora real de captura en el teléfono
+  catalogSeq          BigInt? // versión (SyncChange.seq) del catálogo que tenía el teléfono
 
   @@index([sellerId, status])
   @@index([customerId])
+}
+
+enum DiscountApproval {
+  NONE // sin descuento
+  PENDING // esperando a un administrador
+  APPROVED
+  REJECTED
 }
 
 /// Instantánea: no depende del catálogo después de creada.
@@ -648,42 +662,42 @@ enum PartnerStatus {
 }
 
 model Partner {
-  id             String             @id @default(uuid()) @db.Uuid
-  email          String             @unique
-  name           String
-  company        String
-  passwordHash   String
-  failedLogins   Int                @default(0)
+  id                 String            @id @default(uuid()) @db.Uuid
+  email              String            @unique
+  name               String
+  company            String
+  passwordHash       String
+  failedLogins       Int               @default(0)
   /// AES-256-GCM `iv:tag:ct` en base64; llave PARTNER_TOTP_KEY (.env).
-  totpSecretEnc  String?
-  totpEnabledAt  DateTime?
+  totpSecretEnc      String?
+  totpEnabledAt      DateTime?
   /// Último paso TOTP aceptado (evita reutilizar el mismo código).
-  totpLastStep   Int?
+  totpLastStep       Int?
   /// Códigos de respaldo (hash bcrypt).
-  backupCodes    String[]
+  backupCodes        String[]
   /// SHA-256 del token de invitación/restablecimiento (un solo uso).
-  inviteTokenHash String?           @unique
-  inviteExpiresAt DateTime?
+  inviteTokenHash    String?           @unique
+  inviteExpiresAt    DateTime?
   /// Cuándo el socio fijó su propia contraseña (null = invitación pendiente).
-  passwordSetAt  DateTime?
+  passwordSetAt      DateTime?
   /// Código de acceso enviado por correo (SHA-256), su vencimiento e intentos fallidos.
-  emailCodeHash  String?
+  emailCodeHash      String?
   emailCodeExpiresAt DateTime?
-  emailCodeTries Int                @default(0)
+  emailCodeTries     Int               @default(0)
   /// null = usa el descuento global (Setting partners.discountPct).
-  discountPct    Decimal?           @db.Decimal(5, 2)
+  discountPct        Decimal?          @db.Decimal(5, 2)
   /// null = usa la cuota global (Setting partners.dailyQuota).
-  dailyQuota     Int?
-  status         PartnerStatus      @default(ACTIVE)
-  blockedReason  String?
-  blockedAt      DateTime?
-  lastSeenAt     DateTime?
-  createdById    String?            @db.Uuid
-  createdBy      User?              @relation("PartnerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  sessions       PartnerSession[]
-  activities     PartnerActivity[]
+  dailyQuota         Int?
+  status             PartnerStatus     @default(ACTIVE)
+  blockedReason      String?
+  blockedAt          DateTime?
+  lastSeenAt         DateTime?
+  createdById        String?           @db.Uuid
+  createdBy          User?             @relation("PartnerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  sessions           PartnerSession[]
+  activities         PartnerActivity[]
 }
 
 model PartnerSession {
@@ -757,18 +771,18 @@ enum DevicePlatform {
 
 /// Teléfono registrado. El token solo se guarda como SHA-256; revocable.
 model Device {
-  id          String             @id @default(uuid()) @db.Uuid
-  userId      String             @db.Uuid
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String          @id @default(uuid()) @db.Uuid
+  userId      String          @db.Uuid
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   platform    DevicePlatform
   appVersion  String
-  tokenHash   String             @unique
-  createdAt   DateTime           @default(now())
+  tokenHash   String          @unique
+  createdAt   DateTime        @default(now())
   lastSeenAt  DateTime?
-  lastPullSeq BigInt             @default(0)
+  lastPullSeq BigInt          @default(0)
   revokedAt   DateTime?
-  revokedById String?            @db.Uuid
+  revokedById String?         @db.Uuid
   commands    SyncCommand[]
   folios      ReservedFolio[]
 

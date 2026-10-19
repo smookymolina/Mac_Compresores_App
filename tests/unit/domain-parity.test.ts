@@ -79,7 +79,7 @@ describe("paridad Prisma.Decimal vs decimal.js en buildItemSnapshots", () => {
   const ERRORS: { name: string; req: RequestedItem[]; opts: { canOverridePrice: boolean; fx?: Decimal | null }; msg: RegExp }[] = [
     { name: "override prohibido", req: [{ productId: "p3", quantity: "1", discountPct: "0", unitPrice: "100" }], opts: { canOverridePrice: false }, msg: /no puedes modificar/ },
     { name: "producto inactivo", req: [{ productId: "p4", quantity: "1", discountPct: "0" }], opts: { canOverridePrice: false }, msg: /inactivo/ },
-    { name: "descuento > 15%", req: [{ productId: "p1", quantity: "1", discountPct: "0.1501" }], opts: { canOverridePrice: false }, msg: /15%/ },
+    { name: "descuento de 100%", req: [{ productId: "p1", quantity: "1", discountPct: "1" }], opts: { canOverridePrice: false }, msg: /descuento inválido/ },
     { name: "USD sin TC", req: [{ productId: "p2", quantity: "1", discountPct: "0" }], opts: { canOverridePrice: false }, msg: /tipo de cambio/ },
   ];
   it.each(ERRORS)("error idéntico: $name", ({ req, opts, msg }) => {

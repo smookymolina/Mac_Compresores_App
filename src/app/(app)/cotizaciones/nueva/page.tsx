@@ -2,6 +2,7 @@ import { can, requirePagePermission } from "@/lib/auth/session";
 import { listCustomers } from "@/modules/customers/service";
 import { saveQuoteAction } from "@/modules/quotes/actions";
 import { Card, PageHeader } from "@/components/ui";
+import { sellerOptions } from "@/modules/quotes/service";
 import { QuoteEditor, type EditorItem } from "../quote-editor";
 import { db } from "@/lib/db";
 import { currentExchangeRate } from "@/modules/products/service";
@@ -34,6 +35,9 @@ export default async function NewQuotePage({ searchParams }: { searchParams: Pro
           canOverride={can(user, "quotes.override_price")}
           complementOptions={await packageOptions(user)}
           canCustomize={can(user, "complements.manage")}
+          sellers={can(user, "quotes.assign_seller") ? await sellerOptions() : undefined}
+          defaultSellerId={user.id}
+          canApproveDiscount={can(user, "quotes.approve_discount")}
         />
       </Card>
     </>

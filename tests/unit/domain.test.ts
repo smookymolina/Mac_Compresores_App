@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Prisma } from "@prisma/client";
 import { computeLine, listPrice, sumLines } from "@/lib/money";
+import { pctToFraction as pctParse } from "@/lib/validation";
 import { buildItemSnapshots, type CatalogProduct } from "@/modules/quotes/pricing";
 import { canTransition } from "@/modules/quotes/status";
 import { collectedAt, commissionForSale, metTarget, netProfitByLine, type RateRow } from "@/modules/commissions/calc";
@@ -51,8 +52,9 @@ describe("cotizaciones: precios del servidor", () => {
     const { items } = buildItemSnapshots([{ productId: "p1", quantity: "1", discountPct: "0", unitPrice: "1200" }], catalog, { canOverridePrice: true });
     expect(items[0].unitPrice.toString()).toBe("1200");
   });
-  it("limita descuento sin permiso", () => {
-    expect(() => buildItemSnapshots([{ productId: "p1", quantity: "1", discountPct: "0.2" }], catalog, seller)).toThrow(/descuento máximo/);
+  it("sin tope de descuento por rol (lo autoriza un administrador); 100% o más es inválido", () => {
+    expect(() => buildItemSnapshots([{ productId: "p1", quantity: "1", discountPct: "0.2" }], catalog, seller)).not.toThrow();
+    expect(() => buildItemSnapshots([{ productId: "p1", quantity: "1", discountPct: "1" }], catalog, seller)).toThrow(/descuento inválido/);
   });
   it("rechaza cantidad ≤ 0, inactivos y precio 0", () => {
     expect(() => buildItemSnapshots([{ productId: "p1", quantity: "0", discountPct: "0" }], catalog, seller)).toThrow(/cantidad/);
@@ -148,5 +150,17 @@ describe("validación de entrada", async () => {
     expect(decimalStr().safeParse("1e3").success).toBe(false);
     expect(decimalStr({ min: 0 }).safeParse("-1").success).toBe(false);
     expect(pctToFraction.parse("3.5")).toBe("0.0350");
+  });
+});
+
+describe("porcentaje de descuento", () => {
+  it("acepta 10, 10%, 10,5 y 10.5", () => {
+    expect(pctParse.parse("10")).toBe("0.1000");
+    expect(pctParse.parse("10%")).toBe("0.1000");
+    expect(pctParse.parse(" 10 % ")).toBe("0.1000");
+    expect(pctParse.parse("10,5")).toBe("0.1050");
+    expect(pctParse.parse("")).toBe("0.0000");
+    expect(() => pctParse.parse("101")).toThrow();
+    expect(() => pctParse.parse("abc")).toThrow();
   });
 });
