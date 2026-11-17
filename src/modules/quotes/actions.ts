@@ -13,7 +13,8 @@ import { db } from "@/lib/db";
 import { runAction, type ActionResult } from "@/lib/errors";
 import { decimalStr, pctToFraction, uuid } from "@/lib/validation";
 import { convertQuoteToSale } from "@/modules/sales/service";
-import { changeQuoteStatus, createQuote, decideDiscount, deleteQuote, updateQuote } from "./service";
+import { changeQuoteStatus, confirmQuoteSent, createQuote, decideDiscount, deleteQuote, reviewLostReason, updateQuote } from "./service";
+import { MANUAL_LOST_REASONS } from "./status";
 
 const itemSchema = z.object({
   productId: uuid,
@@ -108,8 +109,35 @@ const statusSchema = z.enum(["SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CANCELL
 export async function changeQuoteStatusAction(id: string, _: ActionResult<unknown> | null, fd: FormData) {
   const res = await runAction(async () => {
     const user = await requirePermission("quotes.write");
-    await changeQuoteStatus(user, id, statusSchema.parse(fd.get("to")));
+    await changeQuoteStatus(user, id, statusSchema.parse(fd.get("to")), lostSchema.parse({
+      reason: fd.get("lostReason") || undefined, note: fd.get("lostNote") || undefined,
+    }));
   }, "Estado actualizado.");
+  if (res.ok) revalidatePath(`/cotizaciones/${id}`);
+  return res;
+}
+
+const lostSchema = z.object({
+  reason: z.enum(MANUAL_LOST_REASONS).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+
+export async function confirmQuoteSentAction(id: string) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("quotes.write");
+    await confirmQuoteSent(user, uuid.parse(id));
+  }, "Cotización marcada como enviada.");
+  if (res.ok) revalidatePath(`/cotizaciones/${id}`);
+  return res;
+}
+
+export async function reviewLostReasonAction(id: string, _: ActionResult<unknown> | null, fd: FormData) {
+  const res = await runAction(async () => {
+    const user = await requirePermission("quotes.review_lost");
+    const lost = lostSchema.extend({ reason: z.enum([...MANUAL_LOST_REASONS, "ABANDONED"]).optional() })
+      .parse({ reason: fd.get("lostReason") || undefined, note: fd.get("lostNote") ?? undefined });
+    await reviewLostReason(user, uuid.parse(id), lost);
+  }, "Motivo de pérdida validado.");
   if (res.ok) revalidatePath(`/cotizaciones/${id}`);
   return res;
 }

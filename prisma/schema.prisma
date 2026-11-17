@@ -67,6 +67,7 @@ model User {
   salesTargets      SalesTarget[]
   partnersCreated   Partner[]           @relation("PartnerCreatedBy")
   discountsDecided  Quote[]             @relation("QuoteDiscountDecider")
+  lostReviewed      Quote[]             @relation("QuoteLostReviewer")
 }
 
 model Session {
@@ -329,6 +330,13 @@ model Quote {
   discountDecidedById String?          @db.Uuid
   discountDecidedBy   User?            @relation("QuoteDiscountDecider", fields: [discountDecidedById], references: [id], onDelete: SetNull)
   discountDecidedAt   DateTime?
+  /// Motivo de pérdida: obligatorio al pasar a REJECTED o CANCELLED (validado en el servicio).
+  lostReason          QuoteLostReason?
+  lostNote            String?
+  /// Un administrador revisa y valida el motivo capturado por el vendedor.
+  lostReviewedById    String?          @db.Uuid
+  lostReviewedBy      User?            @relation("QuoteLostReviewer", fields: [lostReviewedById], references: [id], onDelete: SetNull)
+  lostReviewedAt      DateTime?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
   items               QuoteItem[]
@@ -336,6 +344,18 @@ model Quote {
 
   @@index([sellerId, status])
   @@index([customerId])
+}
+
+enum QuoteLostReason {
+  PRICE // precio
+  COMPETITOR // eligió a la competencia
+  NO_BUDGET // sin presupuesto
+  NO_RESPONSE // el cliente no respondió
+  TIMING // tiempo de entrega / fechas
+  REQUIREMENTS // no cumple especificaciones
+  DUPLICATE // duplicada o capturada por error
+  ABANDONED // cancelación automática de borrador sin movimiento
+  OTHER // otro (requiere nota)
 }
 
 enum DiscountApproval {

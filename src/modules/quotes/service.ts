@@ -1,4 +1,4 @@
-import type { Prisma, QuoteStatus } from "@prisma/client";
+import type { Prisma, QuoteLostReason, QuoteStatus } from "@prisma/client";
 import type { QuoteComplement } from "@/modules/complements/match";
 import { db } from "@/lib/db";
 import { pageArgs, paged } from "@/lib/pagination";
@@ -11,7 +11,7 @@ import { currentExchangeRate } from "@/modules/products/service";
 import type { QuoteCurrency } from "./currency";
 import { notify, notifyWithEmail, usersWithPermission } from "@/modules/notifications/service";
 import { fmtMoney, fmtPct } from "@/lib/money";
-import { QUOTE_STATUS_LABEL, canTransition } from "./status";
+import { LOST_REASON_LABEL, QUOTE_STATUS_LABEL, canTransition, lostReasonError, requiresLostReason } from "./status";
 
 export function quoteScope(user: CurrentUser): Prisma.QuoteWhereInput {
   return can(user, "quotes.read_all") ? {} : { sellerId: user.id };
@@ -49,6 +49,7 @@ export async function getQuote(user: CurrentUser, id: string) {
       customer: { include: { addresses: true, contacts: true } },
       seller: { select: { id: true, name: true, email: true, signatureHtml: true } },
       discountDecidedBy: { select: { name: true } },
+      lostReviewedBy: { select: { name: true } },
       items: { orderBy: { position: "asc" } },
       sale: { select: { id: true, folio: true } },
     },
@@ -261,26 +262,77 @@ export async function decideDiscount(user: CurrentUser, id: string, approve: boo
   });
 }
 
-export async function changeQuoteStatus(user: CurrentUser, id: string, to: QuoteStatus) {
+export type LostInput = { reason?: string | null; note?: string | null };
+
+/** Confirmación tras descargar el PDF: pasa DRAFT a SENT. Si ya está enviada no hace nada. */
+export async function confirmQuoteSent(user: CurrentUser, id: string): Promise<boolean> {
+  const quote = await getQuote(user, id);
+  if (quote.status === "SENT") return false;
+  if (quote.status !== "DRAFT") throw new AppError(`La cotización está en estado ${quote.status}; no puede marcarse como enviada.`, "CONFLICT");
+  await changeQuoteStatus(user, id, "SENT");
+  await audit({ userId: user.id, action: "quote.sent_confirmed", entity: "Quote", entityId: id, data: { via: "pdf" } });
+  return true;
+}
+
+export async function changeQuoteStatus(user: CurrentUser, id: string, to: QuoteStatus, lost?: LostInput) {
   const quote = await getQuote(user, id);
   if (!canTransition(quote.status, to)) {
     throw new AppError(`No se puede pasar de ${quote.status} a ${to}.`, "CONFLICT");
   }
+  // Motivo de pérdida obligatorio en servidor (no solo en la UI).
+  const lostErr = lostReasonError(to, lost);
+  if (lostErr) throw new AppError(lostErr, "VALIDATION");
+  const lostData = requiresLostReason(to)
+    ? { lostReason: lost!.reason as QuoteLostReason, lostNote: lost?.note?.trim() || null, lostReviewedById: null, lostReviewedAt: null }
+    : {};
   if (to !== "CANCELLED") assertDiscountCleared(quote);
   if (to === "ACCEPTED" && quote.validUntil < startOfToday()) {
     throw new AppError("La cotización está vencida; no puede aceptarse.", "CONFLICT");
   }
   await db.$transaction(async (tx) => {
-    const res = await tx.quote.updateMany({ where: { id, status: quote.status }, data: { status: to } });
+    const res = await tx.quote.updateMany({ where: { id, status: quote.status }, data: { status: to, ...lostData } });
     if (res.count === 0) throw new AppError("La cotización cambió de estado. Recarga.", "CONFLICT");
     await audit({ userId: user.id, action: "quote.status", entity: "Quote", entityId: id,
-      data: { from: quote.status, to } }, tx);
+      data: { from: quote.status, to, ...("lostReason" in lostData ? { lostReason: lostData.lostReason, lostNote: lostData.lostNote } : {}) } }, tx);
   });
   // Si otra persona movió la cotización, el vendedor se entera.
   if (quote.seller.id !== user.id) {
     await notify([quote.seller.id], {
       kind: "quote.status", title: `C-${quote.folio}: ${QUOTE_STATUS_LABEL[to]}`,
       body: `${user.name} cambió el estado de la cotización.`, href: `/cotizaciones/${id}`,
+    });
+  }
+}
+
+/**
+ * Un administrador revisa y valida el motivo de pérdida. Puede corregir el motivo o la nota;
+ * queda registrado quién y cuándo, con auditoría del antes y después.
+ */
+export async function reviewLostReason(user: CurrentUser, id: string, input: LostInput) {
+  if (!can(user, "quotes.review_lost")) throw new AppError("Solo un administrador valida el motivo de pérdida.", "FORBIDDEN");
+  const quote = await getQuote(user, id);
+  if (!requiresLostReason(quote.status)) throw new AppError("Solo se valida el motivo de cotizaciones rechazadas o canceladas.", "CONFLICT");
+  // Se conserva ABANDONED (lo pone el sistema) si el administrador no lo cambia.
+  const reason = (input.reason || quote.lostReason) as QuoteLostReason | null;
+  const keepAbandoned = reason === "ABANDONED" && quote.lostReason === "ABANDONED";
+  if (!keepAbandoned) {
+    const err = lostReasonError(quote.status, { reason, note: input.note ?? quote.lostNote });
+    if (err) throw new AppError(err, "VALIDATION");
+  }
+  const note = input.note === undefined ? quote.lostNote : input.note?.trim() || null;
+  await db.$transaction(async (tx) => {
+    const res = await tx.quote.updateMany({
+      where: { id, status: quote.status },
+      data: { lostReason: reason, lostNote: note, lostReviewedById: user.id, lostReviewedAt: new Date() },
+    });
+    if (res.count === 0) throw new AppError("La cotización cambió de estado. Recarga.", "CONFLICT");
+    await audit({ userId: user.id, action: "quote.lost_review", entity: "Quote", entityId: id,
+      data: { before: { reason: quote.lostReason, note: quote.lostNote }, after: { reason, note } } }, tx);
+  });
+  if (quote.seller.id !== user.id) {
+    await notify([quote.seller.id], {
+      kind: "quote.lost_review", title: `C-${quote.folio}: motivo de pérdida validado`,
+      body: `${user.name} validó el motivo: ${reason ? LOST_REASON_LABEL[reason] : "—"}${note ? ` (${note})` : ""}.`, href: `/cotizaciones/${id}`,
     });
   }
 }

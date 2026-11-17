@@ -34,3 +34,4 @@
 4. ~~Cobranza y expiración automática de cotizaciones~~ (v1.1.2). Pendiente de decisión: calcular comisiones sobre lo cobrado (`CommissionBasis.COLLECTED`).
    - [x] Paginación (50 por página, `src/lib/pagination.ts`) en clientes, cotizaciones y ventas; ventas con búsqueda por folio/cliente y filtro de estado (2026-10-08).
 5. Despliegue: Dockerfile de la app, `SESSION` en HTTPS (cookie `secure` ya activa en producción), respaldos de BD, limitador de login compartido (Redis) si hay varias instancias.
+6. v1.3.21 seguimiento comercial: tablero sin borradores en «en curso», avisos de borradores/aceptadas sin venta (2/5 días, umbral $500 mil a admins), cancelación automática de borradores a los 10 días (motivo «Abandonada»), resumen diario por vendedor, confirmación de envío tras el PDF, motivo de pérdida obligatorio con validación de administrador. Comisiones: solo propuesta (`docs/commissions-followup-proposal.md`).

@@ -2,12 +2,15 @@ import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { isMailConfigured, sendMail } from "@/lib/mail";
+import type { Prisma } from "@prisma/client";
 import { dec, fmtMoney } from "@/lib/money";
 import { fmtDate } from "@/lib/utils";
 import { purgeExpired } from "@/lib/rate-limit";
 import { notify, purgeOld, usersWithPermission } from "@/modules/notifications/service";
 import { listReceivables } from "@/modules/payments/service";
 import { calculatePeriod } from "@/modules/commissions/service";
+import { canTransition } from "@/modules/quotes/status";
+import { FOLLOWUP } from "./followup-config";
 
 const TZ = "America/Mexico_City";
 const REMIND_DAYS = 3;
@@ -68,6 +71,130 @@ async function remindExpiring(today: Date) {
   return sent;
 }
 
+const DAY = 864e5;
+/** Días calendario (CDMX) transcurridos desde `since` hasta `today`. */
+const daysSince = (today: Date, since: Date) => Math.round((today.getTime() - todayMx(since).date.getTime()) / DAY);
+const isBig = (total: Prisma.Decimal) => dec(total).gte(dec(FOLLOWUP.adminAmountThreshold));
+type FollowQuote = { id: string; folio: number; total: Prisma.Decimal; updatedAt: Date; customer: { legalName: string }; seller: { id: string; email: string; active: boolean } };
+const followSelect = { id: true, folio: true, total: true, updatedAt: true, customer: { select: { legalName: true } }, seller: { select: { id: true, email: true, active: true } } } as const;
+
+/** Borradores con ≥10 días sin movimiento → «Cancelada» (motivo ABANDONED) y aviso al vendedor. */
+async function cancelAbandonedDrafts(today: Date) {
+  if (!canTransition("DRAFT", "CANCELLED")) return 0;
+  const stale = await db.quote.findMany({ where: { status: "DRAFT", updatedAt: { lt: new Date(today.getTime() - (FOLLOWUP.draftCancelDays - 1) * DAY) } }, select: followSelect });
+  let n = 0;
+  for (const q of stale) {
+    if (daysSince(today, q.updatedAt) < FOLLOWUP.draftCancelDays) continue;
+    const ok = await db.$transaction(async (tx) => {
+      // Guarda: sigue en borrador y sin movimiento desde la lectura.
+      const res = await tx.quote.updateMany({
+        where: { id: q.id, status: "DRAFT", updatedAt: q.updatedAt },
+        data: { status: "CANCELLED", lostReason: "ABANDONED", lostNote: `Cancelada automáticamente: borrador sin movimiento por ${FOLLOWUP.draftCancelDays} días` },
+      });
+      if (res.count === 0) return false;
+      await audit({ userId: null, action: "quote.status", entity: "Quote", entityId: q.id, data: { from: "DRAFT", to: "CANCELLED", auto: true, lostReason: "ABANDONED" } }, tx);
+      return true;
+    });
+    if (!ok) continue;
+    n++;
+    const title = `La cotización C-${q.folio} se canceló por inactividad`;
+    const created = await notify([q.seller.id], { kind: "quote.abandoned", title, body: `${q.customer.legalName} · ${fmtMoney(q.total)} · borrador sin movimiento por ${FOLLOWUP.draftCancelDays} días`, href: `/cotizaciones/${q.id}`, dedupeKey: `quote-abandoned:${q.id}` });
+    if (created > 0 && q.seller.active) await mail(q.seller.email, `${title} · MAC Compresores`, [title + ".", `Cliente: ${q.customer.legalName}. Total: ${fmtMoney(q.total)}.`]);
+  }
+  return n;
+}
+
+/** Avisa al vendedor y (por antigüedad o monto) a administradores; un solo aviso por cotización y etapa. */
+async function followupNotify(q: FollowQuote, key: string, kind: string, title: string, days: number, sellerDays: number, adminDays: number, admins: { id: string; email: string }[]) {
+  let sent = 0;
+  const body = `${q.customer.legalName} · ${fmtMoney(q.total)} · ${days} días`;
+  const lines = [title + ".", `Cliente: ${q.customer.legalName}. Total: ${fmtMoney(q.total)}.`];
+  const href = `/cotizaciones/${q.id}`;
+  if (days >= sellerDays) {
+    const created = await notify([q.seller.id], { kind, title, body, href, dedupeKey: `${key}:seller:${q.id}:${todayMx(q.updatedAt).ymd}` });
+    if (created > 0 && q.seller.active) { sent++; await mail(q.seller.email, `${title} · MAC Compresores`, lines); }
+  }
+  // Umbral: total >= $500 000 MXN escala a administradores desde el primer aviso; las demás a los `adminDays`.
+  if (days >= (isBig(q.total) ? sellerDays : adminDays)) {
+    for (const a of admins) {
+      if (a.id === q.seller.id) continue;
+      const created = await notify([a.id], { kind, title: `${title} (${q.customer.legalName})`, body, href, dedupeKey: `${key}:admin:${q.id}:${todayMx(q.updatedAt).ymd}` });
+      if (created > 0) { sent++; await mail(a.email, `${title} · MAC Compresores`, lines); }
+    }
+  }
+  return sent;
+}
+
+/** Borradores sin movimiento: vendedor a los 2 días, administradores a los 5 (o 2 si el monto supera el umbral). */
+async function remindStaleDrafts(today: Date) {
+  const drafts = await db.quote.findMany({ where: { status: "DRAFT", updatedAt: { lt: new Date(today.getTime() - (FOLLOWUP.draftSellerDays - 1) * DAY) } }, select: followSelect });
+  if (drafts.length === 0) return 0;
+  const admins = await usersWithPermission("quotes.approve_discount");
+  let n = 0;
+  for (const q of drafts) {
+    const days = daysSince(today, q.updatedAt);
+    if (days < FOLLOWUP.draftSellerDays) continue;
+    n += await followupNotify(q, `draft-stale`, "followup.draft", `La cotización C-${q.folio} lleva ${days} días en borrador`, days, FOLLOWUP.draftSellerDays, FOLLOWUP.draftAdminDays, admins);
+  }
+  return n;
+}
+
+/** Aceptadas sin venta (updatedAt = fecha de aceptación): vendedor a los 2 días, administradores a los 5 (o 2 por monto). */
+async function remindAcceptedNoSale(today: Date) {
+  const list = await db.quote.findMany({ where: { status: "ACCEPTED", sale: null, updatedAt: { lt: new Date(today.getTime() - (FOLLOWUP.acceptedSellerDays - 1) * DAY) } }, select: followSelect });
+  if (list.length === 0) return 0;
+  const admins = await usersWithPermission("quotes.approve_discount");
+  let n = 0;
+  for (const q of list) {
+    const days = daysSince(today, q.updatedAt);
+    if (days < FOLLOWUP.acceptedSellerDays) continue;
+    n += await followupNotify(q, `accepted-stale`, "followup.accepted", `La cotización C-${q.folio} lleva ${days} días aceptada sin venta`, days, FOLLOWUP.acceptedSellerDays, FOLLOWUP.acceptedAdminDays, admins);
+  }
+  return n;
+}
+
+/** Resumen diario: un correo y un aviso por vendedor con pendientes; un resumen global para administradores. */
+async function followupSummaries(today: Date, ymd: string) {
+  const until = new Date(today.getTime() + REMIND_DAYS * DAY);
+  const [drafts, sent, accepted] = await Promise.all([
+    db.quote.findMany({ where: { status: "DRAFT" }, select: followSelect }),
+    db.quote.findMany({ where: { status: "SENT", validUntil: { gte: today, lte: until } }, select: { ...followSelect, validUntil: true } }),
+    db.quote.findMany({ where: { status: "ACCEPTED", sale: null }, select: followSelect }),
+  ]);
+  type Line = { sellerId: string; sellerName: string; text: string };
+  const lines: Line[] = [];
+  const names = new Map((await db.user.findMany({ where: { id: { in: [...new Set([...drafts, ...sent, ...accepted].map((q) => q.seller.id))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
+  const put = (q: FollowQuote, label: string) => lines.push({ sellerId: q.seller.id, sellerName: names.get(q.seller.id) ?? "—", text: `C-${q.folio} · ${q.customer.legalName} · ${fmtMoney(q.total)} · ${label}` });
+  for (const q of drafts) put(q, `borrador, ${daysSince(today, q.updatedAt)} días sin movimiento`);
+  for (const q of sent) put(q, `enviada, vence el ${fmtDate(q.validUntil)}`);
+  for (const q of accepted) put(q, `aceptada sin venta, ${daysSince(today, q.updatedAt)} días`);
+  if (lines.length === 0) return 0;
+
+  const admins = await usersWithPermission("quotes.approve_discount");
+  const adminIds = new Set(admins.map((a) => a.id));
+  let n = 0;
+  const deliver = async (u: { id: string; email: string; active?: boolean }, title: string, body: string[], active: boolean) => {
+    const created = await notify([u.id], { kind: "followup.summary", title, body: body[0], href: "/cotizaciones", dedupeKey: `followup-summary:${ymd}:${u.id}` });
+    if (created > 0 && active) { n++; await mail(u.email, `${title} · MAC Compresores`, [title + ":", ...body.slice(0, 60), ...(body.length > 60 ? [`…y ${body.length - 60} más.`] : [])]); }
+  };
+  // Vendedores (no administradores): solo lo suyo.
+  const bySeller = new Map<string, Line[]>();
+  for (const l of lines) bySeller.set(l.sellerId, [...(bySeller.get(l.sellerId) ?? []), l]);
+  const sellers = await db.user.findMany({ where: { id: { in: [...bySeller.keys()] }, active: true }, select: { id: true, email: true } });
+  for (const s of sellers) {
+    if (adminIds.has(s.id)) continue;
+    const mine = bySeller.get(s.id)!;
+    await deliver(s, `Seguimiento: ${mine.length} cotizacion${mine.length === 1 ? "" : "es"} pendiente${mine.length === 1 ? "" : "s"}`, mine.map((l) => l.text), true);
+  }
+  // Administradores: un resumen global agrupado por vendedor (también para quien además es vendedor).
+  if (admins.length > 0) {
+    const body: string[] = [];
+    for (const ls of bySeller.values()) body.push(`${ls[0].sellerName} (${ls.length}):`, ...ls.map((l) => `  ${l.text}`));
+    for (const a of admins) await deliver(a, `Seguimiento: ${lines.length} cotizacion${lines.length === 1 ? "" : "es"} pendiente${lines.length === 1 ? "" : "s"} del equipo`, body, true);
+  }
+  return n;
+}
+
 /** Resumen diario de productos en o bajo su stock mínimo para quien gestiona inventario. */
 async function stockAlerts(ymd: string) {
   const low = await db.$queryRaw<{ sku: string; description: string; warehouse: string; quantity: string; minStock: string }[]>`
@@ -124,6 +251,10 @@ export async function runDailyJob(now = new Date()) {
     day: ymd,
     expiredQuotes: await expireQuotes(date),
     expiringReminders: await remindExpiring(date),
+    abandonedDrafts: await cancelAbandonedDrafts(date),
+    staleDraftReminders: await remindStaleDrafts(date),
+    acceptedReminders: await remindAcceptedNoSale(date),
+    followupSummaries: await followupSummaries(date, ymd),
     lowStock: await stockAlerts(ymd),
     overdueSales: await overdueAlerts(ymd, now),
     purgedRateLimits: await purgeExpired(),

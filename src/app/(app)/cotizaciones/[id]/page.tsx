@@ -5,15 +5,16 @@ import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { uuid } from "@/lib/validation";
 import { getQuote } from "@/modules/quotes/service";
-import { QUOTE_STATUS_LABEL, QUOTE_TRANSITIONS } from "@/modules/quotes/status";
-import { changeQuoteStatusAction, convertToSaleAction, decideDiscountAction, deleteQuoteAction, emailQuoteAction, logQuoteWhatsAppAction, shareQuoteLinkAction } from "@/modules/quotes/actions";
+import { LOST_REASON_LABEL, QUOTE_TRANSITIONS, requiresLostReason } from "@/modules/quotes/status";
+import { LostReasonFields, StatusFields } from "./status-fields";
+import { reviewLostReasonAction, changeQuoteStatusAction,convertToSaleAction, decideDiscountAction, deleteQuoteAction, emailQuoteAction, logQuoteWhatsAppAction, shareQuoteLinkAction } from "@/modules/quotes/actions";
 import { SENDABLE, suggestedPhone, suggestedRecipient } from "@/modules/quotes/email";
 import { companyReplyTo, isMailConfigured } from "@/lib/mail";
 import { shareUnavailableReason } from "@/lib/share";
 import { ActionForm } from "@/components/action-form";
-import { Card, CardHeader, LinkButton, DataTable, PageHeader, SelectField, btnClass } from "@/components/ui";
+import { Card, CardHeader, LinkButton, DataTable, PageHeader, SelectField } from "@/components/ui";
 import { SendDialog, type SendSuggestion } from "@/components/ui/send-dialog";
-import { Download } from "lucide-react";
+import { PdfButton } from "./pdf-button";
 import { fmtMoney, fmtPct } from "@/lib/money";
 import { presentQuote } from "@/modules/quotes/currency";
 import { fmtDate } from "@/lib/utils";
@@ -37,7 +38,8 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const canSend = writable && SENDABLE.has(q.status) && !discountBlocked;
   const showPdf = !discountBlocked || approver;
   const decideDiscount = approver && q.discountStatus === "PENDING" && q.status === "DRAFT";
-  const aside = (writable && transitions.length > 0) || warehouses.length > 0 || decideDiscount;
+  const reviewLost = can(user, "quotes.review_lost") && requiresLostReason(q.status);
+  const aside = (writable && transitions.length > 0) || warehouses.length > 0 || decideDiscount || reviewLost;
   const DISCOUNT_LABEL = { PENDING: "Pendiente de autorización", APPROVED: "Autorizado", REJECTED: "Rechazado" } as const;
   const total = `${fmtMoney(q.total)} ${q.currency}`;
   const suggestions: SendSuggestion[] = [
@@ -59,6 +61,13 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
             <span className={q.discountStatus === "APPROVED" ? "text-ok" : q.discountStatus === "REJECTED" ? "text-danger" : "text-warn"}>
               {DISCOUNT_LABEL[q.discountStatus]}{q.discountDecidedBy && q.discountStatus !== "PENDING" ? ` por ${q.discountDecidedBy.name}` : ""}
             </span>) }] : []),
+          ...(q.lostReason ? [{ label: "Motivo de pérdida", value: (
+            <span>
+              {LOST_REASON_LABEL[q.lostReason]}{q.lostNote ? ` — ${q.lostNote}` : ""}
+              <span className="block text-xs text-ink-soft">
+                {q.lostReviewedBy ? `Validado por ${q.lostReviewedBy.name} el ${fmtDate(q.lostReviewedAt!)}` : "Pendiente de validación"}
+              </span>
+            </span>) }] : []),
           { label: "Vigente hasta", value: fmtDate(q.validUntil) },
           ...(q.deliveryTime ? [{ label: "Tiempo de entrega", value: q.deliveryTime }] : []),
           ...(q.warrantyMonths != null ? [{ label: "Garantía", value: warrantyText(q.warrantyMonths) }] : []),
@@ -66,9 +75,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         actions={
           <>
             {showPdf && (
-              <a className={btnClass("secondary")} href={`/api/cotizaciones/${q.id}/pdf`} target="_blank" rel="noopener" aria-label="Descargar PDF">
-                <Download size={16} strokeWidth={1.75} aria-hidden /> PDF
-              </a>
+              <PdfButton quoteId={q.id} folio={q.folio} askSent={canSend && q.status === "DRAFT"} />
             )}
             {writable && q.status === "DRAFT" && <LinkButton variant="secondary" href={`/cotizaciones/${q.id}/editar`}>Editar</LinkButton>}
             {canSend && (
@@ -199,7 +206,15 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
           {writable && transitions.length > 0 && (
             <Card className="p-4">
               <ActionForm action={changeQuoteStatusAction.bind(null, q.id)} submitLabel="Cambiar estado" variant="secondary">
-                <SelectField label="Nuevo estado" name="to" options={transitions.map((t) => ({ value: t, label: QUOTE_STATUS_LABEL[t] }))} />
+                <StatusFields transitions={transitions} />
+              </ActionForm>
+            </Card>
+          )}
+          {reviewLost && (
+            <Card className="p-4">
+              <h3 className="mb-2 text-sm font-semibold">Validar motivo de pérdida</h3>
+              <ActionForm action={reviewLostReasonAction.bind(null, q.id)} submitLabel={q.lostReviewedAt ? "Volver a validar" : "Validar motivo"} variant="secondary">
+                <LostReasonFields defaultReason={q.lostReason} defaultNote={q.lostNote} />
               </ActionForm>
             </Card>
           )}

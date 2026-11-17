@@ -5,6 +5,7 @@ import { lowStockCount } from "@/modules/inventory/service";
 import { quoteScope } from "@/modules/quotes/service";
 import { saleScope } from "@/modules/sales/service";
 import { listReceivables } from "@/modules/payments/service";
+import { OPEN_QUOTE_STATUSES } from "@/modules/dashboard/metrics";
 
 const TZ = "America/Mexico_City";
 const MONTHS = 12;
@@ -84,9 +85,10 @@ export async function getDashboard(user: CurrentUser) {
   const canSales = can(user, "sales.read_all") || can(user, "sales.read_own");
   const canQuotes = can(user, "quotes.read_all") || can(user, "quotes.read_own");
 
-  const [salesAgg, openQuotes, quotesByStatus, lowStock, recentSales, bySeller] = await Promise.all([
+  const [salesAgg, openQuotes, draftQuotes, quotesByStatus, lowStock, recentSales, bySeller] = await Promise.all([
     canSales ? db.sale.aggregate({ where: salesWhere, _sum: { subtotal: true, discountTotal: true, total: true }, _count: true }) : null,
-    canQuotes ? db.quote.aggregate({ where: { AND: [quoteScope(user), { status: { in: ["DRAFT", "SENT", "ACCEPTED"] } }] }, _sum: { total: true }, _count: true }) : null,
+    canQuotes ? db.quote.aggregate({ where: { AND: [quoteScope(user), { status: { in: [...OPEN_QUOTE_STATUSES] } }] }, _sum: { total: true }, _count: true }) : null,
+    canQuotes ? db.quote.aggregate({ where: { AND: [quoteScope(user), { status: "DRAFT" }] }, _sum: { total: true }, _count: true }) : null,
     canQuotes ? db.quote.groupBy({ by: ["status"], where: quoteScope(user), _count: true }) : [],
     // Existencias bajo mínimo es una métrica de almacén, no del vendedor.
     can(user, "inventory.write") || can(user, "sales.read_all") ? lowStockCount() : null,
@@ -112,6 +114,7 @@ export async function getDashboard(user: CurrentUser) {
   return {
     salesMonth: salesAgg ? { net: net(salesAgg._sum), total: salesAgg._sum.total, count: salesAgg._count } : null,
     openQuotes: openQuotes ? { total: openQuotes._sum.total, count: openQuotes._count } : null,
+    draftQuotes: draftQuotes ? { total: draftQuotes._sum.total, count: draftQuotes._count } : null,
     quotesByStatus: quotesByStatus.map((q) => ({ status: q.status, count: q._count })),
     lowStock,
     recentSales,

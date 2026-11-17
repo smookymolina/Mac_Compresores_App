@@ -61,7 +61,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <StatGroup className="stagger">
         {d.salesMonth && <Stat icon={Banknote} label="Venta neta del mes (sin IVA)" value={fmtMoney(d.salesMonth.net)} hint={`${d.salesMonth.count} ventas confirmadas`} href="/ventas" />}
         {d.salesMonth && <Stat icon={Receipt} label="Ventas del mes (con IVA)" value={fmtMoney(d.salesMonth.total)} />}
-        {d.openQuotes && <Stat icon={FileText} label="Cotizaciones abiertas" value={d.openQuotes.count} hint={`${fmtMoney(d.openQuotes.total)} en proceso`} href="/cotizaciones" />}
+        {d.openQuotes && <Stat icon={FileText} label="Cotizaciones abiertas" value={d.openQuotes.count} hint={`${fmtMoney(d.openQuotes.total)} en proceso${d.draftQuotes?.count ? ` · Borradores: ${d.draftQuotes.count} · ${fmtMoney(d.draftQuotes.total)}` : ""}`} href="/cotizaciones" />}
         {d.receivables && (
           <Stat icon={HandCoins} label="Por cobrar" value={fmtMoney(d.receivables.pending)}
             tone={d.receivables.overdueCount > 0 ? "red" : undefined}
